@@ -1,0 +1,290 @@
+[
+  {
+    "slug": "builders-promoters",
+    "label": "Builders & Promoters",
+    "enabled": true,
+    "priority": 1,
+    "keywords": [
+      "builders",
+      "promoters",
+      "apartments for sale",
+      "flats for sale",
+      "villa projects",
+      "residential projects",
+      "real estate developers",
+      "gated community"
+    ]
+  },
+  {
+    "slug": "plot-promoters",
+    "label": "Plot Promoters & Layouts",
+    "enabled": true,
+    "priority": 2,
+    "keywords": [
+      "dtcp approved plots",
+      "land promoters",
+      "house plots",
+      "residential layout",
+      "plots for sale",
+      "land developers",
+      "rera approved layout",
+      "open plots"
+    ]
+  },
+  {
+    "slug": "interior-design",
+    "label": "Interior Design",
+    "enabled": true,
+    "priority": 3,
+    "keywords": [
+      "interior designer",
+      "interior decorator",
+      "modular kitchen",
+      "false ceiling",
+      "turnkey interiors",
+      "home interiors",
+      "office interiors",
+      "interior contractor"
+    ]
+  },
+  {
+    "slug": "architects",
+    "label": "Architects",
+    "enabled": true,
+    "priority": 4,
+    "keywords": [
+      "architect",
+      "architectural firm",
+      "residential architect",
+      "architecture studio",
+      "building designer",
+      "structural consultant",
+      "landscape architect",
+      "architect office"
+    ]
+  },
+  {
+    "slug": "real-estate-agents",
+    "label": "Real Estate Agents",
+    "enabled": true,
+    "priority": 5,
+    "keywords": [
+      "real estate agent",
+      "property dealer",
+      "property consultant",
+      "real estate broker",
+      "property management",
+      "rental agents",
+      "land broker",
+      "real estate consultant"
+    ]
+  },
+  {
+    "slug": "hospitals",
+    "label": "Hospitals",
+    "enabled": true,
+    "priority": 6,
+    "keywords": [
+      "multispeciality hospital",
+      "eye hospital",
+      "fertility centre",
+      "orthopaedic hospital",
+      "childrens hospital",
+      "cardiac hospital",
+      "nursing home",
+      "super speciality hospital"
+    ]
+  },
+  {
+    "slug": "jewellers",
+    "label": "Jewellers",
+    "enabled": true,
+    "priority": 7,
+    "keywords": [
+      "jewellery showroom",
+      "gold jewellers",
+      "silver jewellery",
+      "diamond jewellery",
+      "bridal jewellery",
+      "antique jewellery",
+      "jewellery manufacturer",
+      "gold buyers"
+    ]
+  },
+  {
+    "slug": "dental",
+    "label": "Dental",
+    "enabled": true,
+    "priority": 8,
+    "keywords": [
+      "dental clinic",
+      "orthodontist",
+      "implant dentist",
+      "dental hospital",
+      "cosmetic dentistry",
+      "root canal specialist",
+      "paediatric dentist",
+      "dental surgeon"
+    ]
+  },
+  {
+    "slug": "schools-colleges",
+    "label": "Schools & Colleges",
+    "enabled": true,
+    "priority": 9,
+    "keywords": [
+      "cbse school",
+      "matriculation school",
+      "engineering college",
+      "arts and science college",
+      "international school",
+      "icse school",
+      "polytechnic college",
+      "play school"
+    ]
+  },
+  {
+    "slug": "wedding-photography",
+    "label": "Wedding Photography",
+    "enabled": true,
+    "priority": 10,
+    "keywords": [
+      "wedding photographer",
+      "candid photography",
+      "wedding videography",
+      "photo studio",
+      "pre wedding shoot",
+      "maternity photography",
+      "drone photography",
+      "wedding album"
+    ]
+  },
+  {
+    "slug": "hotels-resorts",
+    "label": "Hotels & Resorts",
+    "enabled": true,
+    "priority": 11,
+    "keywords": [
+      "hotel",
+      "resort",
+      "service apartment",
+      "budget hotel",
+      "business hotel",
+      "farm stay",
+      "homestay",
+      "banquet hotel"
+    ]
+  },
+  {
+    "slug": "wedding-venues",
+    "label": "Wedding Venues",
+    "enabled": true,
+    "priority": 12,
+    "keywords": [
+      "kalyana mandapam",
+      "banquet hall",
+      "marriage hall",
+      "convention centre",
+      "resort wedding",
+      "party hall",
+      "wedding lawn",
+      "function hall"
+    ]
+  },
+  {
+    "slug": "commercial-leasing",
+    "label": "Commercial Property",
+    "enabled": true,
+    "priority": 13,
+    "keywords": [
+      "office space for rent",
+      "commercial property",
+      "warehouse for rent",
+      "shop for rent",
+      "co working space",
+      "industrial shed",
+      "showroom for rent",
+      "godown for rent"
+    ]
+  },
+  {
+    "slug": "car-dealers",
+    "label": "Car Dealers & Service",
+    "enabled": true,
+    "priority": 14,
+    "keywords": [
+      "car showroom",
+      "authorised service centre",
+      "used car dealer",
+      "car dealership",
+      "multi brand car service",
+      "car accessories",
+      "two wheeler showroom",
+      "car detailing"
+    ]
+  },
+  {
+    "slug": "diagnostics",
+    "label": "Diagnostics & Labs",
+    "enabled": true,
+    "priority": 15,
+    "keywords": [
+      "diagnostic centre",
+      "scan centre",
+      "clinical laboratory",
+      "blood test lab",
+      "mri scan centre",
+      "pathology lab",
+      "x ray centre",
+      "health checkup"
+    ]
+  },
+  {
+    "slug": "salons-spas",
+    "label": "Salons & Spas",
+    "enabled": true,
+    "priority": 16,
+    "keywords": [
+      "unisex salon",
+      "beauty parlour",
+      "premium spa",
+      "bridal makeup",
+      "hair salon",
+      "skin clinic",
+      "massage centre",
+      "nail studio"
+    ]
+  },
+  {
+    "slug": "gyms-fitness",
+    "label": "Gyms & Fitness",
+    "enabled": true,
+    "priority": 17,
+    "keywords": [
+      "gym",
+      "fitness studio",
+      "crossfit",
+      "zumba classes",
+      "yoga centre",
+      "personal trainer",
+      "weight loss centre",
+      "aerobics"
+    ]
+  },
+  {
+    "slug": "textiles-garments",
+    "label": "Textiles & Garments (B2B)",
+    "enabled": true,
+    "priority": 18,
+    "keywords": [
+      "textile manufacturer",
+      "garment exporter",
+      "knitwear manufacturer",
+      "fabric wholesaler",
+      "hosiery manufacturer",
+      "banian manufacturer",
+      "textile mill",
+      "readymade garments"
+    ]
+  }
+]

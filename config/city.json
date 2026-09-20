@@ -1,0 +1,21 @@
+{
+  "city": "Coimbatore",
+  "state": "Tamil Nadu",
+  "country": "IN",
+  "bbox": {
+    "south": 10.89,
+    "west": 76.87,
+    "north": 11.14,
+    "east": 77.11
+  },
+  "grid": {
+    "rows": 5,
+    "cols": 5
+  },
+  "pin_prefixes": [
+    "641",
+    "642"
+  ],
+  "_note": "bbox is a constant. Never geocode it at runtime - W1-discovery.md 2.3",
+  "_grid_note": "5x5=25 tiles. Places caps a text query at 60 results (3 pages x 20), so a coarse grid silently truncates dense belts like Saravanampatti. Finer tiles stop the cap binding. 25 tiles x 8 keywords x 3 pages = 600 requests/vertical worst case."
+}

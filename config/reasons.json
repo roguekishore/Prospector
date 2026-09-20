@@ -1,0 +1,21 @@
+{
+  "viewport": "No viewport meta tag, so the page falls back to a 980px desktop layout and the phone scales the whole thing down.",
+  "overflow": "The page is wider than the screen at 390px, so content runs off the side on every phone.",
+  "tapTargets": "Multiple tap targets are under the 44px minimum, making the navigation hard to use by thumb.",
+  "lcp": "Largest contentful paint is slow enough that most mobile visitors see a blank screen first.",
+  "pageWeight": "The homepage transfers several megabytes, most of it uncompressed imagery.",
+  "heroVideo": "An autoplaying hero video downloads before anything useful appears.",
+  "https": "The HTTPS setup is broken or absent, which browsers surface as a warning to every visitor.",
+  "mixedContent": "Assets load over plain HTTP on an HTTPS page, which downgrades the padlock.",
+  "brokenImages": "Images on the homepage fail to load, which reads as an abandoned site.",
+  "jquery": "jQuery predates version 3, dating the build to roughly 2016 or earlier.",
+  "bootstrap": "Bootstrap 3 or earlier, a framework generation that predates mobile-first defaults.",
+  "slider": "The hero uses a slider library whose era is unmistakable to anyone who looks.",
+  "redesigned": "Archive snapshots show no visual change since the site was first built.",
+  "copyright": "The footer copyright year is several years stale, which visitors read as neglect.",
+  "generator": "The CMS version stopped receiving security patches years ago.",
+  "whatsapp": "No WhatsApp contact, despite it being how local enquiries actually arrive.",
+  "quoteForm": "No working enquiry form, so interested visitors have no low-friction way to make contact.",
+  "blog": "The blog stopped being updated years ago, which dates the whole site.",
+  "domainAge": "The domain is new enough that no budget has ever been spent on this site."
+}
