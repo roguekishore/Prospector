@@ -1,0 +1,14 @@
+.env
+node_modules/
+index.db
+index.db-wal
+index.db-shm
+data/
+fixtures/places/
+*.tmp
+*.log
+
+# phase two, tracked separately
+crm/
+# generated from data/ by scripts/compress-shots.js
+data-webp/

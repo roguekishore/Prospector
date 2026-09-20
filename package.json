@@ -1,0 +1,19 @@
+{
+  "name": "prospector",
+  "version": "1.0.0",
+  "description": "Deterministic lead-generation pipeline for Coimbatore web redesign prospects",
+  "type": "commonjs",
+  "main": "src/cli/index.js",
+  "scripts": {
+    "start": "node src/cli/index.js serve",
+    "fixtures": "node emit-sample.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3",
+    "cheerio": "1.2.0",
+    "fastify": "5.12.5",
+    "playwright": "1.63.0",
+    "sharp": "^0.35.4",
+    "tldts": "7.4.13"
+  }
+}
