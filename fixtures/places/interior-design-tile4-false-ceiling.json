@@ -1,0 +1,28 @@
+[
+  {
+    "provider_id": "ChIJlakshmi-coin-001",
+    "name": "Lakshmi False Ceiling Works",
+    "website_raw": "http://lakshmifalseceiling.co.in/",
+    "rating": 4.1,
+    "review_count": 29,
+    "address": "Kavundampalayam, Coimbatore 641030",
+    "phone": "+91 94445 77777",
+    "lat": 11.0590,
+    "lng": 77.0120,
+    "business_status": "OPERATIONAL",
+    "primary_type": "interior_designer"
+  },
+  {
+    "provider_id": "ChIJthehomestudio-coin-001",
+    "name": "The Home Studio",
+    "website_raw": "https://thehomestudio.co.in/",
+    "rating": 4.2,
+    "review_count": 34,
+    "address": "Saravanampatti, Coimbatore 641035",
+    "phone": "+91 94440 99999",
+    "lat": 11.0750,
+    "lng": 77.0480,
+    "business_status": "OPERATIONAL",
+    "primary_type": "interior_designer"
+  }
+]
