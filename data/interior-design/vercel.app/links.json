@@ -1,0 +1,56 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "vercel.app",
+  "counts": {
+    "total": 5,
+    "internal": 0,
+    "external": 3,
+    "nav": 0,
+    "footer": 0,
+    "dead": 0,
+    "socials": 0
+  },
+  "agency_credit": null,
+  "links": [
+    {
+      "href": "https://spotinteriors-six.vercel.app/",
+      "text": "Spot Interior",
+      "region": "header",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "tel:+917092832022",
+      "text": "Call",
+      "region": "header",
+      "kind": "tel",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://wa.me/917092832022?text=Hi+Spot+Interior%2C+I%27m+interested+in+a+home+interior+consultation+in+Coimbatore.",
+      "text": "WhatsApp",
+      "region": "header",
+      "kind": "external",
+      "rel": "noopener noreferrer",
+      "visible": true
+    },
+    {
+      "href": "https://www.google.com/maps/dir/?api=1&destination=10.965766716650894%2C76.94679446361981",
+      "text": "Get Directions",
+      "region": "main",
+      "kind": "external",
+      "rel": "noopener noreferrer",
+      "visible": true
+    },
+    {
+      "href": "mailto:spotinteriors.cbe@gmail.com",
+      "text": "Emailspotinteriors.cbe@gmail.com",
+      "region": "main",
+      "kind": "mailto",
+      "rel": "",
+      "visible": true
+    }
+  ]
+}

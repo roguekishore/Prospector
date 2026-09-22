@@ -1,0 +1,19 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "blitzglobe.com",
+  "counts": {
+    "total": 64,
+    "internal": 41,
+    "external": 19,
+    "nav": 7,
+    "footer": 28,
+    "dead": 3,
+    "socials": 5
+  },
+  "agency_credit": {
+    "name": "Aabasoft Technologies",
+    "domain": "aabasoft.com",
+    "raw_text": "Designed & Maintained by Aabasoft",
+    "region": "footer"
+  }
+}

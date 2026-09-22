@@ -1,0 +1,27 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "ssinteriordesigners.in",
+  "scorer": "rules@1",
+  "pain": 107.59,
+  "pain_parts": {
+    "staleness": 55,
+    "mobile": 27.72,
+    "trust": 6.8,
+    "perf": 18.07
+  },
+  "pay": 0.81,
+  "reach": 1,
+  "score": 100,
+  "tier": "A",
+  "gate": null,
+  "lcp_bucket": "dire",
+  "flaws": [
+    "viewport",
+    "overflow",
+    "lcp",
+    "redesigned",
+    "jquery",
+    "slider"
+  ],
+  "pitch_angle": "Three of your competitors in Coimbatore run the identical template. Here they are side by side."
+}

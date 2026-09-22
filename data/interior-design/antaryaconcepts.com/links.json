@@ -1,0 +1,200 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "antaryaconcepts.com",
+  "counts": {
+    "total": 23,
+    "internal": 0,
+    "external": 22,
+    "nav": 19,
+    "footer": 3,
+    "dead": 0,
+    "socials": 0
+  },
+  "agency_credit": null,
+  "links": [
+    {
+      "href": "https://www.antaryaconcepts.com/",
+      "text": "",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/about-us",
+      "text": "About",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/projects",
+      "text": "Our Projects",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/projects/mr-adithya-coimbatore",
+      "text": "MR.ADITHYA(COIMBATORE)",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/projects/mr-gowrish-erode",
+      "text": "MR.GOWRISH (ERODE)",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/projects/mr-karthik-coimbatore",
+      "text": "MR.KARTHIK(COIMBATORE)",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/projects/mr-selvakumar-coimbatore",
+      "text": "MR.SELVAKUMAR (COIMBATORE)",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/projects/ms-keerthika-coimbatore",
+      "text": "MS.KEERTHIKA (COIMBATORE)",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/projects/office-interiors-coimbatore",
+      "text": "OFFICE INTERIORS(COIMBATORE)",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/services",
+      "text": "Services",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/foyer-living-room-interiors",
+      "text": "Foyer & Living Room Interiors",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/bedroom-wardrobe-interiors",
+      "text": "Bedroom & Wardrobe Interiors",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/dining-crockery",
+      "text": "⁠Dining & Crockery",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/modular-kitchen-designers-in-coimbatore",
+      "text": "Modular Kitchen Solutions",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/false-ceiling-design-in-coimbatore",
+      "text": "False Ceiling Design",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/wallpaper-solutions",
+      "text": "Wallpaper Solutions",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/blog",
+      "text": "Blog",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.antaryaconcepts.com/contact-us",
+      "text": "Contact Us",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "tel:+918056636687",
+      "text": "(+91) 80566 36687",
+      "region": "nav",
+      "kind": "tel",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.facebook.com/share/16MT7sEc7A/",
+      "text": "",
+      "region": "footer",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.instagram.com/antarya_concepts?igsh=bXk1MjFta2F3NG1z",
+      "text": "",
+      "region": "footer",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://youtube.com/@antaryaconceptsinteriordesign?si=kTPlFco466Q8z8TW",
+      "text": "",
+      "region": "footer",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://api.whatsapp.com/send?phone=918056636687",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    }
+  ]
+}

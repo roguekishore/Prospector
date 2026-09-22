@@ -1,0 +1,13 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "urbannest-interior.com",
+  "address": "Avinashi Road, Coimbatore 641014",
+  "contacts": [
+    {
+      "kind": "phone",
+      "value": "+91 93456 12xxx",
+      "owner": "business"
+    }
+  ],
+  "source": "business own contact page + footer"
+}

@@ -1,0 +1,19 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "ssinteriordesigners.in",
+  "counts": {
+    "total": 49,
+    "internal": 36,
+    "external": 13,
+    "nav": 7,
+    "footer": 18,
+    "dead": 2,
+    "socials": 3
+  },
+  "agency_credit": {
+    "name": "Cbe Web Solutions",
+    "domain": "cbewebsolutions.in",
+    "raw_text": "Designed by CBE Web Solutions",
+    "region": "footer"
+  }
+}

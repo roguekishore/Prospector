@@ -1,0 +1,14 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "urbannest-interior.com",
+  "counts": {
+    "total": 38,
+    "internal": 30,
+    "external": 8,
+    "nav": 5,
+    "footer": 14,
+    "dead": 0,
+    "socials": 3
+  },
+  "agency_credit": null
+}

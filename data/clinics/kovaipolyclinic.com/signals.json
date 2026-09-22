@@ -1,0 +1,57 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "kovaipolyclinic.com",
+  "final_url": "https://kovaipolyclinic.com/",
+  "captured_at": "2026-09-18T09:34:02Z",
+  "measured": {
+    "copyright": "2016",
+    "jquery": "1.11.1",
+    "bootstrap": "3.2.0",
+    "slider": "nivo slider",
+    "wayback": "2014",
+    "redesigned": "never",
+    "viewport": "missing",
+    "overflow": "+240px",
+    "tapTargets": "26 under 44px",
+    "lcp": "8.8s",
+    "pageWeight": "9.1 MB",
+    "heroVideo": "none",
+    "https": "ok",
+    "mixedContent": "5 assets",
+    "brokenImages": "4",
+    "whatsapp": "none",
+    "quoteForm": "appointment form (broken)",
+    "blog": "none",
+    "domainAge": "12 yr",
+    "generator": "WordPress 4.5",
+    "theme": "medicare (ThemeForest)"
+  },
+  "flagged": [
+    "viewport",
+    "overflow",
+    "lcp",
+    "brokenImages",
+    "quoteForm",
+    "redesigned",
+    "jquery"
+  ],
+  "captures": {
+    "mobile": {
+      "file": "mobile.png",
+      "viewport": "390x844",
+      "note": "no meta viewport — 980px legacy layout"
+    },
+    "desktop": {
+      "file": "desktop.png",
+      "viewport": "1440x900"
+    },
+    "full": {
+      "file": "full.png",
+      "viewport": "1440xfull"
+    }
+  },
+  "raw": {
+    "html": "raw/home.html",
+    "headers": "raw/headers.json"
+  }
+}

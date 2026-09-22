@@ -1,0 +1,19 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "thehomestudio.co.in",
+  "counts": {
+    "total": 56,
+    "internal": 41,
+    "external": 15,
+    "nav": 7,
+    "footer": 23,
+    "dead": 1,
+    "socials": 4
+  },
+  "agency_credit": {
+    "name": "Pixel Frame Studio",
+    "domain": "pixelframe.co.in",
+    "raw_text": "Developed by Pixel Frame",
+    "region": "footer"
+  }
+}

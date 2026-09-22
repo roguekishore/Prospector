@@ -1,0 +1,57 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "cabiinetdesigns.com",
+  "final_url": "https://cabiinetdesigns.com/",
+  "captured_at": "2026-09-18T20:53:30.731Z",
+  "measured": {
+    "copyright": "2022",
+    "jquery": "3.6.0",
+    "bootstrap": "none",
+    "slider": "swiper",
+    "wayback": "2022",
+    "redesigned": "never",
+    "generator": "static html",
+    "theme": "none",
+    "domainAge": "4 yr",
+    "viewport": "present",
+    "overflow": "0px",
+    "tapTargets": "35 under 44px",
+    "lcp": "1.2s",
+    "pageWeight": "34.9 MB",
+    "heroVideo": "15.8 MB mp4",
+    "https": "ok",
+    "mixedContent": "2 assets",
+    "brokenImages": "1",
+    "whatsapp": "present",
+    "quoteForm": "contact form",
+    "blog": "none"
+  },
+  "flagged": [
+    "pageWeight",
+    "brokenImages",
+    "tapTargets",
+    "mixedContent",
+    "redesigned",
+    "generator",
+    "heroVideo"
+  ],
+  "captures": {
+    "mobile": {
+      "file": "mobile.png",
+      "viewport": "390x844",
+      "note": "responsive"
+    },
+    "desktop": {
+      "file": "desktop.png",
+      "viewport": "1440x900"
+    },
+    "full": {
+      "file": "full.png",
+      "viewport": "1440xfull"
+    }
+  },
+  "raw": {
+    "html": "raw/home.html",
+    "headers": "raw/headers.json"
+  }
+}

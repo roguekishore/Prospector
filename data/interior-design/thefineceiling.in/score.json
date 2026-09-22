@@ -1,0 +1,26 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "thefineceiling.in",
+  "scorer": "rules@1",
+  "pain": 25.36,
+  "pain_parts": {
+    "staleness": 22,
+    "mobile": 2.8,
+    "trust": 0,
+    "perf": 0.56
+  },
+  "pay": 1,
+  "reach": 0.8,
+  "score": 30,
+  "tier": "C",
+  "gate": null,
+  "lcp_bucket": "fast",
+  "flaws": [
+    "tapTargets",
+    "redesigned",
+    "whatsapp",
+    "quoteForm"
+  ],
+  "pitch_angle": "No WhatsApp button and no enquiry form, so you have no way of knowing how many visitors wanted to talk to you.",
+  "angle_template": "no-lead-capture"
+}

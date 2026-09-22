@@ -1,0 +1,52 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "vercel.app",
+  "final_url": "https://spotinteriors-six.vercel.app/",
+  "captured_at": "2026-09-18T20:53:47.971Z",
+  "measured": {
+    "copyright": "2026",
+    "jquery": "none",
+    "bootstrap": "none",
+    "slider": "none",
+    "wayback": "2024",
+    "redesigned": "2026",
+    "generator": "static html",
+    "theme": "none",
+    "domainAge": "2 yr",
+    "viewport": "present",
+    "overflow": "0px",
+    "tapTargets": "4 under 44px",
+    "lcp": "1.4s",
+    "pageWeight": "2.0 MB",
+    "heroVideo": "none",
+    "https": "ok",
+    "mixedContent": "none",
+    "brokenImages": "0",
+    "whatsapp": "present",
+    "quoteForm": "none",
+    "blog": "none"
+  },
+  "flagged": [
+    "generator",
+    "quoteForm"
+  ],
+  "captures": {
+    "mobile": {
+      "file": "mobile.png",
+      "viewport": "390x844",
+      "note": "responsive"
+    },
+    "desktop": {
+      "file": "desktop.png",
+      "viewport": "1440x900"
+    },
+    "full": {
+      "file": "full.png",
+      "viewport": "1440xfull"
+    }
+  },
+  "raw": {
+    "html": "raw/home.html",
+    "headers": "raw/headers.json"
+  }
+}

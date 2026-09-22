@@ -1,0 +1,52 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "vaasthuinteriors.com",
+  "final_url": "https://vaasthuinteriors.com/",
+  "captured_at": "2026-09-18T09:34:02Z",
+  "measured": {
+    "copyright": "2020",
+    "jquery": "3.5.1",
+    "bootstrap": "4.5.0",
+    "slider": "swiper 6",
+    "wayback": "2018",
+    "redesigned": "2020",
+    "viewport": "present",
+    "overflow": "+8px",
+    "tapTargets": "6 under 44px",
+    "lcp": "4.8s",
+    "pageWeight": "5.2 MB",
+    "heroVideo": "none",
+    "https": "ok",
+    "mixedContent": "none",
+    "brokenImages": "0",
+    "whatsapp": "float button",
+    "quoteForm": "contact form 7",
+    "blog": "last post 2024",
+    "domainAge": "8 yr",
+    "generator": "WordPress 6.2",
+    "theme": "astra"
+  },
+  "flagged": [
+    "lcp",
+    "pageWeight"
+  ],
+  "captures": {
+    "mobile": {
+      "file": "mobile.png",
+      "viewport": "390x844",
+      "note": "responsive"
+    },
+    "desktop": {
+      "file": "desktop.png",
+      "viewport": "1440x900"
+    },
+    "full": {
+      "file": "full.png",
+      "viewport": "1440xfull"
+    }
+  },
+  "raw": {
+    "html": "raw/home.html",
+    "headers": "raw/headers.json"
+  }
+}

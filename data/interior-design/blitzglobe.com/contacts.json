@@ -1,0 +1,23 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "blitzglobe.com",
+  "address": "Sathy Road, Ganapathy, Coimbatore 641006",
+  "contacts": [
+    {
+      "kind": "phone",
+      "value": "+91 91596 95555",
+      "owner": "business"
+    },
+    {
+      "kind": "email",
+      "value": "info@blitzglobe.com",
+      "owner": "business"
+    },
+    {
+      "kind": "instagram",
+      "value": "@blitzglobe",
+      "owner": "business"
+    }
+  ],
+  "source": "business own contact page + footer"
+}

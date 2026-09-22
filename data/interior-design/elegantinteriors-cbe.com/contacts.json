@@ -1,0 +1,13 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "elegantinteriors-cbe.com",
+  "address": "R.S. Puram, Coimbatore 641002",
+  "contacts": [
+    {
+      "kind": "phone",
+      "value": "+91 97878 44xxx",
+      "owner": "business"
+    }
+  ],
+  "source": "business own contact page + footer"
+}

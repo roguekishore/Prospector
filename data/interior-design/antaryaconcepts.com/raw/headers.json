@@ -1,0 +1,659 @@
+{
+  "domain": "antaryaconcepts.com",
+  "final_url": "https://www.antaryaconcepts.com/",
+  "status": 200,
+  "redirect_chain": [
+    "https://www.antaryaconcepts.com/"
+  ],
+  "headers": {
+    "cache-control": "no-cache, private",
+    "content-type": "text/html; charset=UTF-8",
+    "date": "Fri, 18 Sep 2026 20:53:17 GMT",
+    "server": "Apache/2.4.62 (CentOS Stream) OpenSSL/3.2.2",
+    "x-powered-by": "PHP/8.2.28"
+  },
+  "timing": {
+    "lcp_ms": 8876,
+    "cls": 0.008,
+    "transfer_bytes": 5855523,
+    "requests": 85,
+    "image_bytes": 3911535,
+    "video_bytes": 0
+  },
+  "assets": [
+    {
+      "url": "https://www.antaryaconcepts.com/",
+      "type": "document",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/custom.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 12170,
+      "last_modified": "Fri, 19 Jun 2026 11:45:29 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/themify-icons.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 16470,
+      "last_modified": "Tue, 12 Nov 2019 05:15:38 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/flaticon.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 2875,
+      "last_modified": "Tue, 12 Nov 2019 05:15:36 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/bootstrap.min.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 121204,
+      "last_modified": "Tue, 12 Nov 2019 05:15:34 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/animate.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 76783,
+      "last_modified": "Tue, 12 Nov 2019 05:15:34 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/owl.carousel.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 4615,
+      "last_modified": "Tue, 12 Nov 2019 05:15:36 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/owl.theme.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 1055,
+      "last_modified": "Tue, 12 Nov 2019 05:15:36 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/slick.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 1729,
+      "last_modified": "Tue, 12 Nov 2019 05:15:38 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/swiper.min.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 19004,
+      "last_modified": "Tue, 12 Nov 2019 05:15:38 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/odometer-theme-default.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 3652,
+      "last_modified": "Tue, 12 Nov 2019 05:15:36 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/owl.transitions.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 4638,
+      "last_modified": "Tue, 12 Nov 2019 05:15:36 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/jquery.fancybox.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 5057,
+      "last_modified": "Tue, 12 Nov 2019 05:15:36 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/style.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 147007,
+      "last_modified": "Tue, 16 Sep 2025 09:51:41 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/css/slick-theme.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 3162,
+      "last_modified": "Tue, 12 Nov 2019 05:15:38 GMT"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": "Fri, 18 Sep 2026 20:53:17 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/admin/loader/cover-spin.css",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 204,
+      "last_modified": "Mon, 16 Dec 2024 09:53:56 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/logo.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 145195,
+      "last_modified": "Sat, 13 Sep 2025 11:00:08 GMT"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css2?family=Noto+Sans&display=swap",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": "Fri, 18 Sep 2026 20:43:59 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/sofa.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 28551,
+      "last_modified": "Wed, 06 Aug 2025 04:30:20 GMT"
+    },
+    {
+      "url": "https://fonts.googleapis.com/css?family=Poppins:500,600,700|Roboto:400,400i,500,700&amp;display=swap",
+      "type": "stylesheet",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": "Fri, 18 Sep 2026 20:53:18 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/kitchen.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 8730,
+      "last_modified": "Wed, 06 Aug 2025 04:44:15 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/home.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 40202,
+      "last_modified": "Wed, 06 Aug 2025 04:50:52 GMT"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLEj6Z1xlFQ.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 8000,
+      "last_modified": "Mon, 15 Sep 2025 16:33:57 GMT"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLCz7Z1xlFQ.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 7816,
+      "last_modified": "Mon, 15 Sep 2025 16:35:07 GMT"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/roboto/v51/KFOKCnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmOClHrs6ljXfMMLoHQuAj-kw.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 23672,
+      "last_modified": "Wed, 18 Feb 2026 19:52:54 GMT"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFiD-vYSZviVYUb_rj3ij__anPXDTzYgA.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 38404,
+      "last_modified": "Wed, 10 Sep 2025 16:48:54 GMT"
+    },
+    {
+      "url": "https://fonts.gstatic.com/s/roboto/v51/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3yUBA.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 43136,
+      "last_modified": "Wed, 18 Feb 2026 19:51:37 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/js/jquery.min.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 97166,
+      "last_modified": "Tue, 12 Nov 2019 05:15:52 GMT"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=AW-18181615504",
+      "type": "script",
+      "status": 200,
+      "bytes": 163497,
+      "last_modified": null
+    },
+    {
+      "url": "https://cdn.jsdelivr.net/npm/sweetalert2@11",
+      "type": "script",
+      "status": 200,
+      "bytes": 21297,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/js/bootstrap.min.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 37051,
+      "last_modified": "Tue, 12 Nov 2019 05:15:50 GMT"
+    },
+    {
+      "url": "https://ad.doubleclick.net/ccm/s/collect?auid=1732430525.1789764800&gtm=45be69g1v9254953849za200zd9254953849xecxf1&fmt=8",
+      "type": "fetch",
+      "status": 204,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/18181615504/?random=1789764800012&cv=11&fst=1789764800012&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9254953849za200zd9254953849xecxf1&gcd=13l3l3l3l1l1&dma=0&tag_exp=115938466~115938469~117776795~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1440&u_h=900&url=https%3A%2F%2Fwww.antaryaconcepts.com%2F&rcb=17&frm=0&tiba=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1732430525.1789764800&uaa=x86&uab=64&uafvl=Chromium%3B153.0.8010.12%7CNot_A%2520Brand%3B8.0.0.0&uamb=0&uam=&uap=Windows&uapv=10.0&uaw=0&data=event%3Dgtag.config&ept=9&rfmt=3&fmt=4",
+      "type": "script",
+      "status": 200,
+      "bytes": 2687,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?rcb=17&frm=0&apvc=1&auid=1732430525.1789764800&dt=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&tid=AW-18181615504&en=page_view&dl=https%3A%2F%2Fwww.antaryaconcepts.com%2F&scrsrc=www.googletagmanager.com&rnd=68241135.1789764800&navt=n&npa=0&gtm=45be69g1v9254953849za200zd9254953849xecxf1&gcd=13l3l3l3l1l1&dma=0&tag_exp=115938466~115938469~117776795~118897920~118897930~120213116~120385422~120469145~120469153~120847433&tft=1789764800048&tfd=2681&tids=AW-18181615504&fmt=8",
+      "type": "fetch",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.google.com/rmkt/collect/18181615504/?random=1789764800012&cv=11&fst=1789764800012&fmt=8&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9254953849za200zd9254953849xecxf1&gcd=13l3l3l3l1l1&dma=0&tag_exp=115938466~115938469~117776795~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1440&u_h=900&url=https%3A%2F%2Fwww.antaryaconcepts.com%2F&rcb=17&frm=0&tiba=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1732430525.1789764800&uaa=x86&uab=64&uafvl=Chromium%3B153.0.8010.12%7CNot_A%2520Brand%3B8.0.0.0&uamb=0&uam=&uap=Windows&uapv=10.0&uaw=0&data=event%3Dgtag.config&ept=68&gcp=5",
+      "type": "fetch",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.google.com/pagead/1p-user-list/18181615504/?random=1789764800012&cv=11&fst=1789761600000&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9254953849za200zd9254953849xecxf1&gcd=13l3l3l3l1l1&dma=0&tag_exp=115938466~115938469~117776795~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1440&u_h=900&url=https%3A%2F%2Fwww.antaryaconcepts.com%2F&rcb=17&frm=0&tiba=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1732430525.1789764800&uaa=x86&uab=64&uafvl=Chromium%3B153.0.8010.12%7CNot_A%2520Brand%3B8.0.0.0&uamb=0&uam=&uap=Windows&uapv=10.0&uaw=0&data=event%3Dgtag.config&ept=9&rfmt=3&fmt=3&is_vtc=1&cid=CAQS6wEAQM4h3Arzlv8PbreKQIxcwVqQI5WLLTE0NmbF-e8YCyHM0EMw6PSCF_aZwPGO5i1Ta0htlL3L38ckFiXGqIDyiCYS7D-F8NAWLwS-YayUUfo8ApDbUp32qCSFfS04EaVuEeCfSSaRHjnaTd2xIX0yDSXHCqlLyuadS7ZHymNWD9Zjn3qUvyK18Yn2qf05UpZTyAqXlSlqAnLYpWD8_yqzkA2XT90cCRzeEnVjQ2MZT1tqvOsksWBiyv03gWzHX2wj2DbzQQ7z3xF-eLv5KoJFsp55PsdiVnP-_bXUOYor59z_1VEnIafyyJqG&random=395385608&rmt_tld=0&ipr=y",
+      "type": "image",
+      "status": 200,
+      "bytes": 42,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-NPGXXMR2",
+      "type": "script",
+      "status": 200,
+      "bytes": 126359,
+      "last_modified": "Fri, 18 Sep 2026 18:00:00 GMT"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtm.js?id=GTM-549M9394",
+      "type": "script",
+      "status": 200,
+      "bytes": 158018,
+      "last_modified": "Fri, 18 Sep 2026 18:00:00 GMT"
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?rcb=2&frm=0&apvc=0&ae=g&auid=1732430525.1789764800&dt=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&en=page_view&dl=https%3A%2F%2Fwww.antaryaconcepts.com%2F&scrsrc=www.googletagmanager.com&rnd=68241135.1789764800&navt=n&npa=0&ep.ads_data_redaction=0&gtm=45He69g1v9233468181za200zd9233468181xeaxf1&gcd=13l3l3l3l1l1&dma=0&tag_exp=115938466~115938468~117776795~118897920~118897930~120385422~120469145~120469153~120847433&tft=1789764800998&tfd=3632&fmt=8",
+      "type": "fetch",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.clarity.ms/tag/tx7dkh6k2h?ref=gtm",
+      "type": "script",
+      "status": 200,
+      "bytes": 726,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.google.co.in/pagead/1p-user-list/18181615504/?random=1789764800012&cv=11&fst=1789761600000&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9254953849za200zd9254953849xecxf1&gcd=13l3l3l3l1l1&dma=0&tag_exp=115938466~115938469~117776795~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1440&u_h=900&url=https%3A%2F%2Fwww.antaryaconcepts.com%2F&rcb=17&frm=0&tiba=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1732430525.1789764800&uaa=x86&uab=64&uafvl=Chromium%3B153.0.8010.12%7CNot_A%2520Brand%3B8.0.0.0&uamb=0&uam=&uap=Windows&uapv=10.0&uaw=0&data=event%3Dgtag.config&ept=9&rfmt=3&fmt=3&is_vtc=1&cid=CAQS6wEAQM4h3Arzlv8PbreKQIxcwVqQI5WLLTE0NmbF-e8YCyHM0EMw6PSCF_aZwPGO5i1Ta0htlL3L38ckFiXGqIDyiCYS7D-F8NAWLwS-YayUUfo8ApDbUp32qCSFfS04EaVuEeCfSSaRHjnaTd2xIX0yDSXHCqlLyuadS7ZHymNWD9Zjn3qUvyK18Yn2qf05UpZTyAqXlSlqAnLYpWD8_yqzkA2XT90cCRzeEnVjQ2MZT1tqvOsksWBiyv03gWzHX2wj2DbzQQ7z3xF-eLv5KoJFsp55PsdiVnP-_bXUOYor59z_1VEnIafyyJqG&random=395385608&rmt_tld=1&ipr=y",
+      "type": "image",
+      "status": 200,
+      "bytes": 42,
+      "last_modified": null
+    },
+    {
+      "url": "https://scripts.clarity.ms/0.8.70/clarity.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": "Thu, 17 Sep 2026 05:42:28 GMT"
+    },
+    {
+      "url": "https://www.googletagmanager.com/gtag/js?id=G-K8WJQSF6KM&cx=c&gtm=4e69g1",
+      "type": "script",
+      "status": 200,
+      "bytes": 175368,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-K8WJQSF6KM&gtm=45je69g1v9223244388z89223060790za20gzb9223060790zd9223060790xf1&_p=1789764798791&gcd=13l3l3l3l1l1&npa=0&dma=0&cid=1776533886.1789764802&frm=0&ngs=1&pscdl=noapi&rcb=10&sr=1440x900&uaa=x86&uab=64&uafvl=Chromium%3B153.0.8010.12%7CNot_A%2520Brand%3B8.0.0.0&uam=&uamb=0&uap=Windows&uapv=10.0&uaw=0&ul=en-in&_s=1&tag_exp=115938466~115938468~118897920~118897930~119791748~120213116~120385423~120469145~120469153&sid=1789764801&sct=1&seg=0&dl=https%3A%2F%2Fwww.antaryaconcepts.com%2F&dt=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&en=page_view&_fv=1&_nsi=1&_ss=1&tfd=4534",
+      "type": "fetch",
+      "status": 204,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/js/jquery-plugin-collection.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 380252,
+      "last_modified": "Tue, 12 Nov 2019 05:15:52 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/js/script.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 22239,
+      "last_modified": "Wed, 06 Aug 2025 08:49:16 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757589899.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 63217,
+      "last_modified": "Sat, 13 Sep 2025 04:43:25 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757589865.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 50530,
+      "last_modified": "Sat, 13 Sep 2025 04:43:27 GMT"
+    },
+    {
+      "url": "https://y.clarity.ms/collect",
+      "type": "xhr",
+      "status": 204,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757589841.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 60525,
+      "last_modified": "Sat, 13 Sep 2025 04:43:26 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757589809.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 54254,
+      "last_modified": "Sat, 13 Sep 2025 04:43:23 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757589779.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 74855,
+      "last_modified": "Sat, 13 Sep 2025 04:43:26 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757589732.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 91957,
+      "last_modified": "Sat, 13 Sep 2025 04:43:25 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/about1.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 83459,
+      "last_modified": "Sat, 02 Aug 2025 11:53:41 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757676986.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 140069,
+      "last_modified": "Sat, 13 Sep 2025 04:43:26 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757676940.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 139326,
+      "last_modified": "Sat, 13 Sep 2025 04:43:27 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757676899.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 172358,
+      "last_modified": "Sat, 13 Sep 2025 04:43:23 GMT"
+    },
+    {
+      "url": "https://y.clarity.ms/collect",
+      "type": "xhr",
+      "status": 204,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757676872.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 180951,
+      "last_modified": "Sat, 13 Sep 2025 04:43:26 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757671097.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 651800,
+      "last_modified": "Sat, 13 Sep 2025 04:43:25 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Category/1757670986.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 660241,
+      "last_modified": "Sat, 13 Sep 2025 04:43:25 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/living-room.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 473769,
+      "last_modified": "Wed, 06 Aug 2025 06:26:39 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Gallery/1757674695.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 40080,
+      "last_modified": "Sat, 13 Sep 2025 04:43:51 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Gallery/1757674701.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 22953,
+      "last_modified": "Sat, 13 Sep 2025 04:43:51 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Gallery/1757674796.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 16620,
+      "last_modified": "Sat, 13 Sep 2025 04:43:51 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Gallery/1757674802.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 22510,
+      "last_modified": "Sat, 13 Sep 2025 04:43:50 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/storage/Gallery/1757674807.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 27924,
+      "last_modified": "Sat, 13 Sep 2025 04:43:50 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/logo-footer.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 113703,
+      "last_modified": "Tue, 16 Sep 2025 09:52:12 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/whatsapp.png",
+      "type": "image",
+      "status": 200,
+      "bytes": 323003,
+      "last_modified": "Wed, 06 Aug 2025 10:32:50 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/banner/banner4.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 101907,
+      "last_modified": "Sat, 13 Sep 2025 05:31:40 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/why-choose.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 39538,
+      "last_modified": "Wed, 06 Aug 2025 05:50:13 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/testimonial.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 45950,
+      "last_modified": "Wed, 06 Aug 2025 10:00:40 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/images/dots.png",
+      "type": "image",
+      "status": 404,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/fonts/Flaticon.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 17372,
+      "last_modified": "Tue, 12 Nov 2019 05:15:40 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/fonts/themify9f24.woff?-fvbane",
+      "type": "font",
+      "status": 200,
+      "bytes": 56108,
+      "last_modified": "Tue, 12 Nov 2019 05:15:46 GMT"
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/banner/banner3.jpg",
+      "type": "image",
+      "status": 200,
+      "bytes": 37232,
+      "last_modified": "Wed, 30 Jul 2025 10:45:00 GMT"
+    },
+    {
+      "url": "https://y.clarity.ms/collect",
+      "type": "xhr",
+      "status": 204,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.antaryaconcepts.com/website/img/logo.png",
+      "type": "other",
+      "status": 200,
+      "bytes": 145195,
+      "last_modified": "Sat, 13 Sep 2025 11:00:08 GMT"
+    },
+    {
+      "url": "https://c.clarity.ms/c.gif",
+      "type": "image",
+      "status": 302,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://c.bing.com/c.gif?ctsa=mr&CtsSyncId=BE7CC5B37EB743BA971ADDAA8E9A58E0&RedC=c.clarity.ms&MXFR=33F1C58ECDEE60E02768D256C9EE6EC0",
+      "type": "image",
+      "status": 302,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://c.clarity.ms/c.gif?ctsa=mr&CtsSyncId=BE7CC5B37EB743BA971ADDAA8E9A58E0&MUID=28DCB855B12562D406B4AF8DB0F663A3",
+      "type": "image",
+      "status": 200,
+      "bytes": 42,
+      "last_modified": "Wed, 16 Sep 2026 22:28:40 GMT"
+    },
+    {
+      "url": "https://y.clarity.ms/collect",
+      "type": "xhr",
+      "status": 204,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-K8WJQSF6KM&gtm=45je69g1v9223244388za20gzb9223060790zd9223060790xf1&_p=1789764798791&gcd=13l3l3l3l1l1&npa=0&dma=0&_eu=AEAAAAQ&ae=a&cid=1776533886.1789764802&frm=0&ngs=1&pscdl=noapi&rcb=10&sr=1440x900&uaa=x86&uab=64&uafvl=Chromium%3B153.0.8010.12%7CNot_A%2520Brand%3B8.0.0.0&uam=&uamb=0&uap=Windows&uapv=10.0&uaw=0&ul=en-in&_s=2&tag_exp=115938466~115938468~118897920~118897930~119791748~120213116~120385423~120469145~120469153&sid=1789764801&sct=1&seg=0&dl=https%3A%2F%2Fwww.antaryaconcepts.com%2F&dt=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&en=scroll&epn.percent_scrolled=90&_et=5735&tfd=15274",
+      "type": "fetch",
+      "status": 204,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://y.clarity.ms/collect",
+      "type": "xhr",
+      "status": 204,
+      "bytes": 0,
+      "last_modified": null
+    }
+  ],
+  "console_errors": 1,
+  "broken_requests": [
+    {
+      "url": "https://ad.doubleclick.net/ccm/s/collect?auid=1732430525.1789764800&gtm=45be69g1v9254953849za200zd9254953849xecxf1&fmt=8",
+      "status": 0
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?rcb=17&frm=0&apvc=1&auid=1732430525.1789764800&dt=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&tid=AW-18181615504&en=page_view&dl=https%3A%2F%2Fwww.antaryaconcepts.com%2F&scrsrc=www.googletagmanager.com&rnd=68241135.1789764800&navt=n&npa=0&gtm=45be69g1v9254953849za200zd9254953849xecxf1&gcd=13l3l3l3l1l1&dma=0&tag_exp=115938466~115938469~117776795~118897920~118897930~120213116~120385422~120469145~120469153~120847433&tft=1789764800048&tfd=2681&tids=AW-18181615504&fmt=8",
+      "status": 0
+    },
+    {
+      "url": "https://www.google.com/rmkt/collect/18181615504/?random=1789764800012&cv=11&fst=1789764800012&fmt=8&bg=ffffff&guid=ON&async=1&en=gtag.config&gtm=45be69g1v9254953849za200zd9254953849xecxf1&gcd=13l3l3l3l1l1&dma=0&tag_exp=115938466~115938469~117776795~118897920~118897930~120213116~120385422~120469145~120469153~120847433&u_w=1440&u_h=900&url=https%3A%2F%2Fwww.antaryaconcepts.com%2F&rcb=17&frm=0&tiba=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&hn=www.googleadservices.com&npa=0&pscdl=noapi&auid=1732430525.1789764800&uaa=x86&uab=64&uafvl=Chromium%3B153.0.8010.12%7CNot_A%2520Brand%3B8.0.0.0&uamb=0&uam=&uap=Windows&uapv=10.0&uaw=0&data=event%3Dgtag.config&ept=68&gcp=5",
+      "status": 0
+    },
+    {
+      "url": "https://www.google.com/ccm/collect?rcb=2&frm=0&apvc=0&ae=g&auid=1732430525.1789764800&dt=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&en=page_view&dl=https%3A%2F%2Fwww.antaryaconcepts.com%2F&scrsrc=www.googletagmanager.com&rnd=68241135.1789764800&navt=n&npa=0&ep.ads_data_redaction=0&gtm=45He69g1v9233468181za200zd9233468181xeaxf1&gcd=13l3l3l3l1l1&dma=0&tag_exp=115938466~115938468~117776795~118897920~118897930~120385422~120469145~120469153~120847433&tft=1789764800998&tfd=3632&fmt=8",
+      "status": 0
+    },
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-K8WJQSF6KM&gtm=45je69g1v9223244388z89223060790za20gzb9223060790zd9223060790xf1&_p=1789764798791&gcd=13l3l3l3l1l1&npa=0&dma=0&cid=1776533886.1789764802&frm=0&ngs=1&pscdl=noapi&rcb=10&sr=1440x900&uaa=x86&uab=64&uafvl=Chromium%3B153.0.8010.12%7CNot_A%2520Brand%3B8.0.0.0&uam=&uamb=0&uap=Windows&uapv=10.0&uaw=0&ul=en-in&_s=1&tag_exp=115938466~115938468~118897920~118897930~119791748~120213116~120385423~120469145~120469153&sid=1789764801&sct=1&seg=0&dl=https%3A%2F%2Fwww.antaryaconcepts.com%2F&dt=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&en=page_view&_fv=1&_nsi=1&_ss=1&tfd=4534",
+      "status": 0
+    },
+    {
+      "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-K8WJQSF6KM&gtm=45je69g1v9223244388za20gzb9223060790zd9223060790xf1&_p=1789764798791&gcd=13l3l3l3l1l1&npa=0&dma=0&_eu=AEAAAAQ&ae=a&cid=1776533886.1789764802&frm=0&ngs=1&pscdl=noapi&rcb=10&sr=1440x900&uaa=x86&uab=64&uafvl=Chromium%3B153.0.8010.12%7CNot_A%2520Brand%3B8.0.0.0&uam=&uamb=0&uap=Windows&uapv=10.0&uaw=0&ul=en-in&_s=2&tag_exp=115938466~115938468~118897920~118897930~119791748~120213116~120385423~120469145~120469153&sid=1789764801&sct=1&seg=0&dl=https%3A%2F%2Fwww.antaryaconcepts.com%2F&dt=Best%20Interior%20Designers%20in%20Coimbatore%20%7C%20Antarya%20Concepts&en=scroll&epn.percent_scrolled=90&_et=5735&tfd=15274",
+      "status": 0
+    }
+  ],
+  "consent": {
+    "seen": false
+  },
+  "mobile": {
+    "scrollWidth": 390,
+    "clientWidth": 390,
+    "overflowPx": 0,
+    "hasViewportMeta": true,
+    "tapTargetsUnder44": 59,
+    "smallText": 0
+  },
+  "captured_at": "2026-09-18T20:53:35.512Z"
+}

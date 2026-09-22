@@ -1,0 +1,18 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "thehomestudio.co.in",
+  "address": "Kalapatti, Coimbatore 641048",
+  "contacts": [
+    {
+      "kind": "phone",
+      "value": "+91 98945 33xxx",
+      "owner": "business"
+    },
+    {
+      "kind": "email",
+      "value": "hello@thehomestudio.co.in",
+      "owner": "business"
+    }
+  ],
+  "source": "business own contact page + footer"
+}

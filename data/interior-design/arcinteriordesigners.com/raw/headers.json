@@ -1,0 +1,413 @@
+{
+  "domain": "arcinteriordesigners.com",
+  "final_url": "https://arcinteriordesigners.com/",
+  "status": 200,
+  "redirect_chain": [
+    "https://arcinteriordesigners.com/"
+  ],
+  "headers": {
+    "cache-control": "max-age=30",
+    "connection": "keep-alive",
+    "content-encoding": "br",
+    "content-length": "13989",
+    "content-security-policy": "frame-ancestors 'self' godaddy.com *.godaddy.com dev-godaddy.com *.dev-godaddy.com test-godaddy.com *.test-godaddy.com",
+    "content-type": "text/html;charset=utf-8",
+    "date": "Fri, 18 Sep 2026 20:53:48 GMT",
+    "etag": "c458964023597861b2dd1eecdcd14ce9",
+    "keep-alive": "timeout=5",
+    "link": "<//img1.wsimg.com/ceph-p3-01/website-builder-data-prod/static/widgets/UX.7.0.14.js>; rel=preload; as=script; crossorigin,<https://img1.wsimg.com/gfonts/s/playfairdisplay/v40/nuFiD-vYSZviVYUb_rj3ij__anPXDTzYgA.woff2>; rel=preload; as=font; crossorigin,<https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZMkids18Q.woff2>; rel=preload; as=font; crossorigin,<https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xK1dSBYKcSV-LCoeQqfX1RYOo3qPZ7nsDI.woff2>; rel=preload; as=font; crossorigin,<https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZclSds18Q.woff2>; rel=preload; as=font; crossorigin,<https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwlxdu.woff2>; rel=preload; as=font; crossorigin,<https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xK3dSBYKcSV-LCoeQqfX1RYOo3qOK7l.woff2>; rel=preload; as=font; crossorigin,<https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwlxdu.woff2>; rel=preload; as=font; crossorigin,<https://img1.wsimg.com/gfonts/s/montserrat/v31/JTUSjIg1_i6t8kCHKm459Wlhyw.woff2>; rel=preload; as=font; crossorigin,<https://fonts.googleapis.com>; rel=preconnect; crossorigin,<https://fonts.gstatic.com>; rel=preconnect; crossorigin,<https://img1.wsimg.com>; rel=preconnect; crossorigin,<https://isteam.wsimg.com>; rel=preconnect; crossorigin",
+    "server": "DPS/2.0.0+sha-9ac0622",
+    "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+    "vary": "Accept-Encoding",
+    "x-siteid": "ap-south-1",
+    "x-version": "9ac0622"
+  },
+  "timing": {
+    "lcp_ms": 1916,
+    "cls": 0.035,
+    "transfer_bytes": 660820,
+    "requests": 52,
+    "image_bytes": 127426,
+    "video_bytes": 0
+  },
+  "assets": [
+    {
+      "url": "https://arcinteriordesigners.com/",
+      "type": "document",
+      "status": 200,
+      "bytes": 13989,
+      "last_modified": null
+    },
+    {
+      "url": "https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xK3dSBYKcSV-LCoeQqfX1RYOo3qOK7l.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 14868,
+      "last_modified": "Wed, 10 Sep 2025 16:47:45 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwlxdu.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 14792,
+      "last_modified": "Wed, 10 Sep 2025 16:47:45 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/gfonts/s/playfairdisplay/v40/nuFiD-vYSZviVYUb_rj3ij__anPXDTzYgA.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 38404,
+      "last_modified": "Wed, 10 Sep 2025 16:48:54 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xK1dSBYKcSV-LCoeQqfX1RYOo3qPZ7nsDI.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 14180,
+      "last_modified": "Wed, 10 Sep 2025 16:42:49 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwlxdu.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 14724,
+      "last_modified": "Wed, 10 Sep 2025 16:43:54 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZMkids18Q.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 14168,
+      "last_modified": "Wed, 10 Sep 2025 16:48:06 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/gfonts/s/sourcesanspro/v23/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZclSds18Q.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 14192,
+      "last_modified": "Wed, 10 Sep 2025 16:46:30 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/gfonts/s/montserrat/v31/JTUSjIg1_i6t8kCHKm459Wlhyw.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 37956,
+      "last_modified": "Thu, 04 Sep 2025 17:09:22 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/ceph-p3-01/website-builder-data-prod/static/widgets/UX.7.0.14.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 124685,
+      "last_modified": "Tue, 14 Jul 2026 22:36:56 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/signals/js/clients/scc-c2/scc-c2.min.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 21697,
+      "last_modified": "Tue, 25 Aug 2026 19:45:10 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/isteam/getty/2240054679/:/rs=w:1535,m",
+      "type": "image",
+      "status": 200,
+      "bytes": 106842,
+      "last_modified": null
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/a1ffa001-1969-49b3-bd9d-a4b7e05accaa/gpub/604d9f7b424641ee/script.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 6822,
+      "last_modified": "Thu, 16 Jul 2026 12:28:53 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/a1ffa001-1969-49b3-bd9d-a4b7e05accaa/gpub/52a7a8aab04179ba/script.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 16774,
+      "last_modified": "Thu, 16 Jul 2026 12:28:53 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/bs-layout13-Theme-publish-Theme-bc471863.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 2734,
+      "last_modified": "Fri, 12 Dec 2025 18:29:23 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/MESSAGING/bs-Component-5c8ab323.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 4183,
+      "last_modified": "Thu, 18 Jun 2026 18:28:25 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-_rollupPluginBabelHelpers-5804ec33.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 530,
+      "last_modified": "Wed, 31 Jul 2024 15:44:23 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-defaultSocialIconPack-a2c518b6.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 6646,
+      "last_modified": "Thu, 28 Sep 2023 14:18:04 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-imageToHeaderTreatments-cbda470b.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 273,
+      "last_modified": "Thu, 27 Mar 2025 16:12:32 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-index-52fbaa26.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 595,
+      "last_modified": "Thu, 27 Mar 2025 16:12:34 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-index3-cd8de76f.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 89835,
+      "last_modified": "Thu, 09 Jul 2026 18:24:48 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-loaders-fffeeba5.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 745,
+      "last_modified": "Thu, 14 Oct 2021 23:04:41 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/traffic-assets/js/tccl-tti.min.js",
+      "type": "script",
+      "status": 301,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-overlayTypes-6afcb3a5.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 392,
+      "last_modified": "Thu, 27 Mar 2025 16:12:30 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-themeOverrides-8f862543.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 415,
+      "last_modified": "Thu, 14 Oct 2021 23:04:39 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/lib/common/constants/form/formIdentifiers-99523055.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 325,
+      "last_modified": "Wed, 02 Sep 2026 19:49:18 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-dataAids-dc689f22.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 621,
+      "last_modified": "Thu, 05 Dec 2024 21:01:29 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/lib/components/Recaptcha/badge-2500008a.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 337,
+      "last_modified": "Wed, 02 Sep 2026 19:49:24 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-legacyOverrides-42582241.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 259,
+      "last_modified": "Tue, 18 Oct 2022 15:47:52 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/lib/components/ColorSwatch-5ae2d61e.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 638,
+      "last_modified": "Wed, 02 Sep 2026 19:49:21 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/lib/components/DynamicFontScaler-d6821741.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 1602,
+      "last_modified": "Wed, 02 Sep 2026 19:49:22 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-index2-30d4bb8e.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 670,
+      "last_modified": "Fri, 12 Dec 2025 18:29:25 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/lib/components/Carousel-d0652cc9.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 7511,
+      "last_modified": "Mon, 22 Jun 2026 16:54:17 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-searchFormLocations-c86f2a99.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 244,
+      "last_modified": "Thu, 14 Oct 2021 23:04:37 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@widget/LAYOUT/c/bs-navigationDrawer-27f5f1f5.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 191,
+      "last_modified": "Thu, 28 Jul 2022 17:59:29 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/c/_commonjsHelpers-67085353.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 512,
+      "last_modified": "Wed, 02 Sep 2026 19:49:16 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/c/_react_commonjs-external-a1351e34.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 210,
+      "last_modified": "Wed, 02 Sep 2026 19:49:16 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/c/_rollupPluginBabelHelpers-c06d2bc9.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 529,
+      "last_modified": "Wed, 02 Sep 2026 19:49:17 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/c/toPropertyKey-9bd6a336.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 534,
+      "last_modified": "Wed, 02 Sep 2026 19:49:18 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/c/dynamicFontScaler-31729aff.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 564,
+      "last_modified": "Wed, 02 Sep 2026 19:49:17 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/static/radpack/@wsb/guac-widget-shared/lib/common/constants/traffic2-8b152a1a.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 450,
+      "last_modified": "Wed, 02 Sep 2026 19:49:19 GMT"
+    },
+    {
+      "url": "https://img1.wsimg.com/signals/js/clients/tti/tti.min.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 7570,
+      "last_modified": "Thu, 19 Feb 2026 18:11:29 GMT"
+    },
+    {
+      "url": "https://cdn.reamaze.com/assets/reamaze-godaddy-loader.js",
+      "type": "script",
+      "status": 200,
+      "bytes": 339,
+      "last_modified": "Wed, 16 Sep 2026 18:59:43 GMT"
+    },
+    {
+      "url": "https://csp.secureserver.net/eventbus/web?clientid=b18ef4f046435b64a469b32c3c1c20a3",
+      "type": "fetch",
+      "status": 202,
+      "bytes": 2,
+      "last_modified": null
+    },
+    {
+      "url": "https://csp.secureserver.net/eventbus/web?clientid=8da2217409854bee82e12dc4ca0b39fb",
+      "type": "fetch",
+      "status": 202,
+      "bytes": 2,
+      "last_modified": null
+    },
+    {
+      "url": "https://arcinteriordesigners.com/markup/ad",
+      "type": "fetch",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": null
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/ux/fonts/sherpa/1.1/gdsherpa-regular.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 28612,
+      "last_modified": "Wed, 17 Mar 2021 19:21:31 GMT"
+    },
+    {
+      "url": "https://csp.secureserver.net/eventbus/web?clientid=b18ef4f046435b64a469b32c3c1c20a3",
+      "type": "fetch",
+      "status": 202,
+      "bytes": 2,
+      "last_modified": null
+    },
+    {
+      "url": "https://s.zkcdn.net/Advertisers/a85cbbf7d83b4f62af76af6625e13e90.svg",
+      "type": "image",
+      "status": 200,
+      "bytes": 0,
+      "last_modified": "Mon, 24 Mar 2025 16:34:07 GMT"
+    },
+    {
+      "url": "https://ms.godaddy.com/i.gif?e=eyJ2IjoiMS4xNCIsImF2Ijo1ODgwNjU5LCJhdCI6MjQ0NywiYnQiOjAsImNtIjo1OTQyMTc1MjAsImNoIjo1NDQ0NSwiY2siOnt9LCJjciI6ODk2OTgwMTgxLCJkaSI6IjY2YTY2NDFhOTE5MTQwZTU5MDY2YTg3ZGNlZTA0YzI5IiwiZGoiOjAsImlpIjoiNmIwZjQwM2M4Y2Y4NGNjYTg5ZmZiY2E3Y2MxNmYxM2QiLCJsZSI6WzJdLCJkbSI6MywiZmMiOjEwNzI3MzY5MzMsImZsIjo4NjI1NDA2MjQsImlwIjoiMTAwLjIyLjQ5LjAiLCJudyI6MTA2NjMsInBjIjoyLCJvcCI6MiwibXAiOjIsImRwIjoxLjAxLCJkbiI6MS4wMSwiZGciOjEuMDEsImVjIjoyLCJnbSI6MCwiZXAiOm51bGwsInByIjoyNTA4MDQsInJ0IjoyLCJycyI6NTAwLCJzYSI6Ijg2Iiwic2IiOiJpLTAwMDUzNDc2ZGUxZGE0MDgxIiwic3AiOjI5NDIwLCJzdCI6MTI3NjI2NCwidWsiOiJ1ZTEtNzMxMmFlMzdjY2MwNDMxMjgyZTcyZDdhMWI0ZjE0NmQiLCJ6biI6MzA3NDk1LCJ6bSI6WzMwNzQ5NV0sInRzIjoxNzg5NzY0ODMxMjQ0LCJwbiI6ImdkLXdhbS1wb3MxIiwiZ2MiOnRydWUsImdDIjp0cnVlLCJncyI6Im5vbmUiLCJkYyI6MSwidHoiOiJBbWVyaWNhL1Rvcm9udG8iLCJiYSI6MjAsImZxIjowfQ&s=EMo1OLMOxMDJIIU8k24UtyGDdr8&omsId=baseline&psName=WAM_BANNER_V1&uawVersion=2.2.1&property:publisher_website_key=wam.md5.ac10f7c3bd369d04d7409d30a2a5e61c",
+      "type": "fetch",
+      "status": 200,
+      "bytes": 43,
+      "last_modified": null
+    },
+    {
+      "url": "https://img1.wsimg.com/isteam/getty/2240054679/:/rs=w:450,m",
+      "type": "image",
+      "status": 200,
+      "bytes": 20584,
+      "last_modified": null
+    },
+    {
+      "url": "https://img1.wsimg.com/blobby/go/ux/fonts/sherpa/1.1/gdsherpa-bold.woff2",
+      "type": "font",
+      "status": 200,
+      "bytes": 28028,
+      "last_modified": "Wed, 17 Mar 2021 19:22:05 GMT"
+    }
+  ],
+  "console_errors": 0,
+  "broken_requests": [],
+  "consent": {
+    "seen": false
+  },
+  "mobile": {
+    "scrollWidth": 390,
+    "clientWidth": 390,
+    "overflowPx": 0,
+    "hasViewportMeta": true,
+    "tapTargetsUnder44": 2,
+    "smallText": 0
+  },
+  "captured_at": "2026-09-18T20:53:57.903Z"
+}

@@ -1,0 +1,29 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "cabiinetdesigns.com",
+  "scorer": "rules@1",
+  "pain": 45.8,
+  "pain_parts": {
+    "staleness": 26,
+    "mobile": 7,
+    "trust": 2.8,
+    "perf": 10
+  },
+  "pay": 0.93,
+  "reach": 1,
+  "score": 64,
+  "tier": "A",
+  "gate": null,
+  "lcp_bucket": "fast",
+  "flaws": [
+    "pageWeight",
+    "brokenImages",
+    "tapTargets",
+    "mixedContent",
+    "redesigned",
+    "generator",
+    "heroVideo"
+  ],
+  "pitch_angle": "Your site runs a CMS version that stopped receiving security patches years ago.",
+  "angle_template": "unpatched-cms"
+}

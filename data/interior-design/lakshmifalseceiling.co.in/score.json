@@ -1,0 +1,29 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "lakshmifalseceiling.co.in",
+  "scorer": "rules@1",
+  "pain": 149.8,
+  "pain_parts": {
+    "staleness": 67,
+    "mobile": 33,
+    "trust": 30.8,
+    "perf": 19
+  },
+  "pay": 0.47,
+  "reach": 0.8,
+  "score": 43,
+  "tier": "C",
+  "gate": "maximum pain, minimum budget — fixed-price only",
+  "lcp_bucket": "dire",
+  "flaws": [
+    "https",
+    "viewport",
+    "overflow",
+    "lcp",
+    "brokenImages",
+    "jquery",
+    "whatsapp",
+    "quoteForm"
+  ],
+  "pitch_angle": "Pain is total, budget is not. Fixed-price single-pager only."
+}

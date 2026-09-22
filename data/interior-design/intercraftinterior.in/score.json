@@ -1,0 +1,28 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "intercraftinterior.in",
+  "scorer": "rules@1",
+  "pain": 31.38,
+  "pain_parts": {
+    "staleness": 9,
+    "mobile": 7.04,
+    "trust": 0,
+    "perf": 15.34
+  },
+  "pay": 0.57,
+  "reach": 1,
+  "score": 27,
+  "tier": "C",
+  "gate": null,
+  "lcp_bucket": "dire",
+  "flaws": [
+    "overflow",
+    "lcp",
+    "pageWeight",
+    "tapTargets",
+    "slider",
+    "generator"
+  ],
+  "pitch_angle": "Your site runs off the side of the screen on a phone, which is where most of your enquiries start.",
+  "angle_template": "mobile-overflow"
+}

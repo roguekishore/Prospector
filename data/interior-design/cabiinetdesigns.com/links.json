@@ -1,0 +1,197 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "cabiinetdesigns.com",
+  "counts": {
+    "total": 22,
+    "internal": 0,
+    "external": 15,
+    "nav": 0,
+    "footer": 0,
+    "dead": 0,
+    "socials": 0
+  },
+  "agency_credit": {
+    "name": "Sai Techno Solutions",
+    "domain": "saitechnosolutions.co.in.co.in",
+    "raw_text": "Developed by Sai Techno Solutions.",
+    "region": "footer"
+  },
+  "links": [
+    {
+      "href": "https://api.whatsapp.com/send?phone=8667478015",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.facebook.com/Cabiinet.Designs",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.instagram.com/Cabiinet.Designs",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "tel: +91-8667478015",
+      "text": "+91-8667478015",
+      "region": "main",
+      "kind": "tel",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "mailto:info@cabinetdesigns.com",
+      "text": "info@cabiinetdesigns.com",
+      "region": "main",
+      "kind": "mailto",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "http://cabiinetdesigns.com/",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/about-us",
+      "text": "about us",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/services",
+      "text": "What we do",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/residential-interior-services",
+      "text": "Residential",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/commercial-interior-designing-services",
+      "text": "Commercial",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/turnkeyproject",
+      "text": "Turnkey Projects",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/portfolio",
+      "text": "Portfolio",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/contact-us",
+      "text": "Contact Us",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/modular-kitchen",
+      "text": "Modular Kitchen\n                                Custom-built exquisitely designed modular kitchen for home that reflects",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/interior",
+      "text": "Interior Designs\n                                Personalized classy designs that elevate the aesthetic appeal of your h",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://cabiinetdesigns.com/index.php",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "tel:+918667478015",
+      "text": "+91-8667478015",
+      "region": "main",
+      "kind": "tel",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "tel:+917904674496",
+      "text": "+91-7904674496",
+      "region": "main",
+      "kind": "tel",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "mailto:info@cabiinetdesigns.com",
+      "text": "info@cabiinetdesigns.com",
+      "region": "main",
+      "kind": "mailto",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "mailto:admin@cabiinetdesigns.com",
+      "text": "admin@cabiinetdesigns.com",
+      "region": "main",
+      "kind": "mailto",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "mailto:support@cabiinetdesigns.com",
+      "text": "support@cabiinetdesigns.com",
+      "region": "main",
+      "kind": "mailto",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://saitechnosolutions.co.in/",
+      "text": "Sai Techno Solutions.",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    }
+  ]
+}

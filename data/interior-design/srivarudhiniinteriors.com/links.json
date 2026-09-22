@@ -1,0 +1,19 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "srivarudhiniinteriors.com",
+  "counts": {
+    "total": 47,
+    "internal": 33,
+    "external": 14,
+    "nav": 6,
+    "footer": 19,
+    "dead": 7,
+    "socials": 3
+  },
+  "agency_credit": {
+    "name": "Cbe Web Solutions",
+    "domain": "cbewebsolutions.in",
+    "raw_text": "Site by CBE Web Solutions",
+    "region": "footer"
+  }
+}

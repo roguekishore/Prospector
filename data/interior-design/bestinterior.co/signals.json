@@ -1,0 +1,55 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "bestinterior.co",
+  "final_url": "https://bestinterior.co/",
+  "captured_at": "2026-09-18T09:34:02Z",
+  "measured": {
+    "copyright": "none",
+    "jquery": "none",
+    "bootstrap": "none",
+    "slider": "none",
+    "wayback": "2025",
+    "redesigned": "n/a",
+    "viewport": "present",
+    "overflow": "0px",
+    "tapTargets": "2 under 44px",
+    "lcp": "2.1s",
+    "pageWeight": "1.3 MB",
+    "heroVideo": "none",
+    "https": "ok",
+    "mixedContent": "none",
+    "brokenImages": "0",
+    "whatsapp": "none",
+    "quoteForm": "none",
+    "blog": "none",
+    "domainAge": "4 mo",
+    "generator": "AI site builder",
+    "theme": "builder default"
+  },
+  "flagged": [
+    "whatsapp",
+    "quoteForm",
+    "domainAge",
+    "reviews",
+    "generator"
+  ],
+  "captures": {
+    "mobile": {
+      "file": "mobile.png",
+      "viewport": "390x844",
+      "note": "responsive"
+    },
+    "desktop": {
+      "file": "desktop.png",
+      "viewport": "1440x900"
+    },
+    "full": {
+      "file": "full.png",
+      "viewport": "1440xfull"
+    }
+  },
+  "raw": {
+    "html": "raw/home.html",
+    "headers": "raw/headers.json"
+  }
+}

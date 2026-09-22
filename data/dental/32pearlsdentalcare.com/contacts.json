@@ -1,0 +1,18 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "32pearlsdentalcare.com",
+  "address": "Saravanampatti, Coimbatore 641035",
+  "contacts": [
+    {
+      "kind": "phone",
+      "value": "+91 95665 12xxx",
+      "owner": "business"
+    },
+    {
+      "kind": "email",
+      "value": "hello@32pearls.com",
+      "owner": "business"
+    }
+  ],
+  "source": "business own contact page + footer"
+}

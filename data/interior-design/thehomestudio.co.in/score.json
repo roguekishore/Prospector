@@ -1,0 +1,26 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "thehomestudio.co.in",
+  "scorer": "rules@1",
+  "pain": 59.75,
+  "pain_parts": {
+    "staleness": 33,
+    "mobile": 6.12,
+    "trust": 1.4,
+    "perf": 19.23
+  },
+  "pay": 0.76,
+  "reach": 1,
+  "score": 68,
+  "tier": "A",
+  "gate": null,
+  "lcp_bucket": "dire",
+  "flaws": [
+    "lcp",
+    "overflow",
+    "pageWeight",
+    "heroVideo",
+    "blog"
+  ],
+  "pitch_angle": "Your hero video costs mobile visitors 2 MB before they see a single kitchen."
+}

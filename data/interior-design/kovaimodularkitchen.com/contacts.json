@@ -1,0 +1,18 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "kovaimodularkitchen.com",
+  "address": "Gandhipuram, Coimbatore 641012",
+  "contacts": [
+    {
+      "kind": "phone",
+      "value": "+91 94430 22xxx",
+      "owner": "business"
+    },
+    {
+      "kind": "email",
+      "value": "sales@kovaimodular.com",
+      "owner": "business"
+    }
+  ],
+  "source": "business own contact page + footer"
+}

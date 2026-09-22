@@ -1,0 +1,24 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "32pearlsdentalcare.com",
+  "scorer": "rules@1",
+  "pain": 46.33,
+  "pain_parts": {
+    "staleness": 24,
+    "mobile": 6.15,
+    "trust": 0,
+    "perf": 16.18
+  },
+  "pay": 0.91,
+  "reach": 1,
+  "score": 63,
+  "tier": "A",
+  "gate": null,
+  "lcp_bucket": "dire",
+  "flaws": [
+    "lcp",
+    "pageWeight",
+    "tapTargets"
+  ],
+  "pitch_angle": "Differentiation pitch, not repair."
+}

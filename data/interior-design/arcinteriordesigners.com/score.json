@@ -1,0 +1,24 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "arcinteriordesigners.com",
+  "scorer": "rules@1",
+  "pain": 1.12,
+  "pain_parts": {
+    "staleness": 0,
+    "mobile": 0.7,
+    "trust": 0,
+    "perf": 0.42
+  },
+  "pay": 0.3,
+  "reach": 0.4,
+  "score": 0,
+  "tier": "X",
+  "gate": "no measurable pain — nothing to sell",
+  "lcp_bucket": "fast",
+  "flaws": [
+    "whatsapp",
+    "quoteForm"
+  ],
+  "pitch_angle": "No measurable pain. Skip.",
+  "angle_template": "gate"
+}

@@ -1,0 +1,58 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "blitzglobe.com",
+  "final_url": "https://blitzglobe.com/",
+  "captured_at": "2026-09-18T09:34:02Z",
+  "measured": {
+    "copyright": "2019",
+    "jquery": "1.12.4",
+    "bootstrap": "3.3.7",
+    "slider": "revslider 5.2",
+    "wayback": "2015",
+    "redesigned": "never",
+    "viewport": "missing",
+    "overflow": "+142px",
+    "tapTargets": "19 under 44px",
+    "lcp": "8.4s",
+    "pageWeight": "11.2 MB",
+    "heroVideo": "6.1 MB mp4, autoplay",
+    "https": "ok",
+    "mixedContent": "3 assets",
+    "brokenImages": "2",
+    "whatsapp": "present",
+    "quoteForm": "mailto: only",
+    "blog": "last post 2021",
+    "domainAge": "11 yr",
+    "generator": "WordPress 4.9.8",
+    "theme": "interico (ThemeForest)"
+  },
+  "flagged": [
+    "viewport",
+    "overflow",
+    "lcp",
+    "slider",
+    "redesigned",
+    "mixedContent",
+    "jquery",
+    "heroVideo"
+  ],
+  "captures": {
+    "mobile": {
+      "file": "mobile.png",
+      "viewport": "390x844",
+      "note": "no meta viewport — 980px legacy layout"
+    },
+    "desktop": {
+      "file": "desktop.png",
+      "viewport": "1440x900"
+    },
+    "full": {
+      "file": "full.png",
+      "viewport": "1440xfull"
+    }
+  },
+  "raw": {
+    "html": "raw/home.html",
+    "headers": "raw/headers.json"
+  }
+}

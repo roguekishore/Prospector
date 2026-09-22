@@ -1,0 +1,56 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "happyhomesinteriors.com",
+  "final_url": "https://happyhomesinteriors.com/",
+  "captured_at": "2026-09-18T09:34:02Z",
+  "measured": {
+    "copyright": "2021",
+    "jquery": "2.2.4",
+    "bootstrap": "4.0.0",
+    "slider": "owl carousel 2",
+    "wayback": "2018",
+    "redesigned": "2021",
+    "viewport": "present",
+    "overflow": "+38px",
+    "tapTargets": "11 under 44px",
+    "lcp": "6.2s",
+    "pageWeight": "8.4 MB",
+    "heroVideo": "none",
+    "https": "ok",
+    "mixedContent": "none",
+    "brokenImages": "0",
+    "whatsapp": "float button",
+    "quoteForm": "GET A QUOTE → form",
+    "blog": "none",
+    "domainAge": "8 yr",
+    "generator": "WordPress 5.8",
+    "theme": "custom child theme"
+  },
+  "flagged": [
+    "overflow",
+    "lcp",
+    "jquery",
+    "slider",
+    "tapTargets",
+    "pageWeight"
+  ],
+  "captures": {
+    "mobile": {
+      "file": "mobile.png",
+      "viewport": "390x844",
+      "note": "responsive"
+    },
+    "desktop": {
+      "file": "desktop.png",
+      "viewport": "1440x900"
+    },
+    "full": {
+      "file": "full.png",
+      "viewport": "1440xfull"
+    }
+  },
+  "raw": {
+    "html": "raw/home.html",
+    "headers": "raw/headers.json"
+  }
+}

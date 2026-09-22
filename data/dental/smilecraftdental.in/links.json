@@ -1,0 +1,19 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "smilecraftdental.in",
+  "counts": {
+    "total": 68,
+    "internal": 49,
+    "external": 19,
+    "nav": 8,
+    "footer": 26,
+    "dead": 2,
+    "socials": 5
+  },
+  "agency_credit": {
+    "name": "Aabasoft Technologies",
+    "domain": "aabasoft.com",
+    "raw_text": "Designed & Maintained by Aabasoft",
+    "region": "footer"
+  }
+}

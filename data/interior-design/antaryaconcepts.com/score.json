@@ -1,0 +1,28 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "antaryaconcepts.com",
+  "scorer": "rules@1",
+  "pain": 30.92,
+  "pain_parts": {
+    "staleness": 9,
+    "mobile": 7,
+    "trust": 0,
+    "perf": 14.92
+  },
+  "pay": 0.58,
+  "reach": 1,
+  "score": 27,
+  "tier": "C",
+  "gate": null,
+  "lcp_bucket": "dire",
+  "flaws": [
+    "lcp",
+    "pageWeight",
+    "tapTargets",
+    "slider",
+    "generator",
+    "quoteForm"
+  ],
+  "pitch_angle": "Your photography is the best thing you have and it takes six seconds to appear. Compress and restructure and you keep the visitors you already pay to attract.",
+  "angle_template": "slow-photography"
+}

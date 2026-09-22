@@ -1,0 +1,645 @@
+{
+  "run": "run-2026-09-18T20-54-21Z",
+  "generated_at": "2026-09-18T20:54:31.944Z",
+  "synthetic": false,
+  "city": "Coimbatore",
+  "verticals": [
+    {
+      "slug": "interior-design",
+      "label": "Interior Design",
+      "city": "Coimbatore",
+      "keywords": [
+        "interior designer",
+        "interior decorator",
+        "modular kitchen",
+        "false ceiling",
+        "turnkey interiors"
+      ],
+      "discovered": 610,
+      "withDomain": 9,
+      "audited": 7
+    },
+    {
+      "slug": "clinics",
+      "label": "Clinics & Polyclinics",
+      "city": "Coimbatore",
+      "keywords": [
+        "multispeciality clinic",
+        "polyclinic",
+        "family physician"
+      ],
+      "discovered": 0,
+      "withDomain": 0,
+      "audited": 0
+    },
+    {
+      "slug": "dental",
+      "label": "Dental",
+      "city": "Coimbatore",
+      "keywords": [
+        "dental clinic",
+        "orthodontist",
+        "implant dentist"
+      ],
+      "discovered": 0,
+      "withDomain": 0,
+      "audited": 0
+    }
+  ],
+  "leads": [
+    {
+      "vertical": "interior-design",
+      "domain": "cabiinetdesigns.com",
+      "name": "Cabiinet Designs",
+      "rating": 4.9,
+      "reviews": 98,
+      "address": "3/565-22, Site No : 79, GVL Nagar, Perur, Chettipalayam, Coimbatore - 641010",
+      "score": 64,
+      "tier": "A",
+      "gate": null,
+      "signals": {
+        "copyright": "2022",
+        "jquery": "3.6.0",
+        "bootstrap": "none",
+        "slider": "swiper",
+        "wayback": "2022",
+        "redesigned": "never",
+        "generator": "static html",
+        "theme": "none",
+        "domainAge": "4 yr",
+        "viewport": "present",
+        "overflow": "0px",
+        "tapTargets": "35 under 44px",
+        "lcp": "1.2s",
+        "pageWeight": "34.9 MB",
+        "heroVideo": "15.8 MB mp4",
+        "https": "ok",
+        "mixedContent": "2 assets",
+        "brokenImages": "1",
+        "whatsapp": "present",
+        "quoteForm": "contact form",
+        "blog": "none"
+      },
+      "flaws": [
+        "pageWeight",
+        "brokenImages",
+        "tapTargets",
+        "mixedContent",
+        "redesigned",
+        "generator",
+        "heroVideo"
+      ],
+      "reasons": [
+        "The homepage transfers several megabytes, most of it uncompressed imagery.",
+        "Images on the homepage fail to load, which reads as an abandoned site.",
+        "Multiple tap targets are under the 44px minimum, making the navigation hard to use by thumb.",
+        "Assets load over plain HTTP on an HTTPS page, which downgrades the padlock.",
+        "Archive snapshots show no visual change since the site was first built."
+      ],
+      "angle": "Your site runs a CMS version that stopped receiving security patches years ago.",
+      "contacts": [
+        {
+          "kind": "phone",
+          "value": "+91 86674 78015",
+          "owner": "business"
+        },
+        {
+          "kind": "phone",
+          "value": "+91 79046 74496",
+          "owner": "business"
+        },
+        {
+          "kind": "email",
+          "value": "info@cabinetdesigns.com",
+          "owner": "business"
+        },
+        {
+          "kind": "email",
+          "value": "info@cabiinetdesigns.com",
+          "owner": "business"
+        },
+        {
+          "kind": "email",
+          "value": "admin@cabiinetdesigns.com",
+          "owner": "business"
+        },
+        {
+          "kind": "email",
+          "value": "support@cabiinetdesigns.com",
+          "owner": "business"
+        },
+        {
+          "kind": "instagram",
+          "value": "@Cabiinet.Designs",
+          "owner": "business"
+        },
+        {
+          "kind": "facebook",
+          "value": "facebook.com/Cabiinet.Designs",
+          "owner": "business"
+        }
+      ],
+      "agency": {
+        "name": "Sai Techno Solutions",
+        "domain": "saitechnosolutions.co.in.co.in",
+        "credit": "Developed by Sai Techno Solutions."
+      },
+      "links": {
+        "total": 22,
+        "internal": 0,
+        "external": 15,
+        "nav": 0,
+        "footer": 0,
+        "dead": 0,
+        "socials": 0
+      },
+      "shots": {
+        "mobile": "data/interior-design/cabiinetdesigns.com/mobile.png",
+        "desktop": "data/interior-design/cabiinetdesigns.com/desktop.png",
+        "full": "data/interior-design/cabiinetdesigns.com/full.png"
+      }
+    },
+    {
+      "vertical": "interior-design",
+      "domain": "thefineceiling.in",
+      "name": "The Fine False Ceiling",
+      "rating": 4.9,
+      "reviews": 141,
+      "address": "9/731, Central Excise Colony, Jothi Nagar, Awin Nagar 1st, Pachapalayam, Perur Chettipalayam, Tamil Nadu 641010, India",
+      "score": 30,
+      "tier": "C",
+      "gate": null,
+      "signals": {
+        "copyright": "none",
+        "jquery": "none",
+        "bootstrap": "none",
+        "slider": "none",
+        "wayback": "2022",
+        "redesigned": "never",
+        "generator": "Starfield Technologies; Go Daddy Website Builder 8.0.0000",
+        "theme": "none",
+        "domainAge": "4 yr",
+        "viewport": "present",
+        "overflow": "0px",
+        "tapTargets": "8 under 44px",
+        "lcp": "1.8s",
+        "pageWeight": "0.8 MB",
+        "heroVideo": "none",
+        "https": "ok",
+        "mixedContent": "none",
+        "brokenImages": "0",
+        "whatsapp": "none",
+        "quoteForm": "none",
+        "blog": "none"
+      },
+      "flaws": [
+        "tapTargets",
+        "redesigned",
+        "whatsapp",
+        "quoteForm"
+      ],
+      "reasons": [
+        "Multiple tap targets are under the 44px minimum, making the navigation hard to use by thumb.",
+        "Archive snapshots show no visual change since the site was first built.",
+        "No WhatsApp contact, despite it being how local enquiries actually arrive.",
+        "No working enquiry form, so interested visitors have no low-friction way to make contact."
+      ],
+      "angle": "No WhatsApp button and no enquiry form, so you have no way of knowing how many visitors wanted to talk to you.",
+      "contacts": [
+        {
+          "kind": "phone",
+          "value": "+91 80787 97333",
+          "owner": "business"
+        }
+      ],
+      "agency": null,
+      "links": {
+        "total": 5,
+        "internal": 0,
+        "external": 4,
+        "nav": 4,
+        "footer": 0,
+        "dead": 0,
+        "socials": 0
+      },
+      "shots": {
+        "mobile": "data/interior-design/thefineceiling.in/mobile.png",
+        "desktop": "data/interior-design/thefineceiling.in/desktop.png",
+        "full": "data/interior-design/thefineceiling.in/full.png"
+      }
+    },
+    {
+      "vertical": "interior-design",
+      "domain": "antaryaconcepts.com",
+      "name": "ANTARYA CONCEPTS PVT. LTD.",
+      "rating": 5,
+      "reviews": 34,
+      "address": "T-87,Bus terminus, T-Block,Kovaipudur, Coimbatore, 641042",
+      "score": 27,
+      "tier": "C",
+      "gate": null,
+      "signals": {
+        "copyright": "none",
+        "jquery": "present",
+        "bootstrap": "none",
+        "slider": "owl carousel",
+        "wayback": "none",
+        "redesigned": "n/a",
+        "generator": "static html",
+        "theme": "none",
+        "domainAge": "none",
+        "viewport": "present",
+        "overflow": "0px",
+        "tapTargets": "59 under 44px",
+        "lcp": "8.9s",
+        "pageWeight": "5.6 MB",
+        "heroVideo": "none",
+        "https": "ok",
+        "mixedContent": "none",
+        "brokenImages": "0",
+        "whatsapp": "present",
+        "quoteForm": "none",
+        "blog": "present"
+      },
+      "flaws": [
+        "lcp",
+        "pageWeight",
+        "tapTargets",
+        "slider",
+        "generator",
+        "quoteForm"
+      ],
+      "reasons": [
+        "Largest contentful paint is slow enough that most mobile visitors see a blank screen first.",
+        "The homepage transfers several megabytes, most of it uncompressed imagery.",
+        "Multiple tap targets are under the 44px minimum, making the navigation hard to use by thumb.",
+        "The hero uses a slider library whose era is unmistakable to anyone who looks.",
+        "The CMS version stopped receiving security patches years ago."
+      ],
+      "angle": "Your photography is the best thing you have and it takes six seconds to appear. Compress and restructure and you keep the visitors you already pay to attract.",
+      "contacts": [
+        {
+          "kind": "phone",
+          "value": "+91 80566 36687",
+          "owner": "business"
+        },
+        {
+          "kind": "email",
+          "value": "contactus@antaryaconcepts.net",
+          "owner": "business"
+        },
+        {
+          "kind": "instagram",
+          "value": "@antarya_concepts",
+          "owner": "business"
+        }
+      ],
+      "agency": null,
+      "links": {
+        "total": 23,
+        "internal": 0,
+        "external": 22,
+        "nav": 19,
+        "footer": 3,
+        "dead": 0,
+        "socials": 0
+      },
+      "shots": {
+        "mobile": "data/interior-design/antaryaconcepts.com/mobile.png",
+        "desktop": "data/interior-design/antaryaconcepts.com/desktop.png",
+        "full": "data/interior-design/antaryaconcepts.com/full.png"
+      }
+    },
+    {
+      "vertical": "interior-design",
+      "domain": "intercraftinterior.in",
+      "name": "INTERCRAFT interior studio",
+      "rating": 4.9,
+      "reviews": 33,
+      "address": "#16/1, KK Nagar, Sundakkamuthur Road, (Near Bharath Petrol Bunk), Kovaipudur, Coimbatore - 641010",
+      "score": 27,
+      "tier": "C",
+      "gate": null,
+      "signals": {
+        "copyright": "none",
+        "jquery": "present",
+        "bootstrap": "none",
+        "slider": "owl carousel",
+        "wayback": "none",
+        "redesigned": "n/a",
+        "generator": "static html",
+        "theme": "none",
+        "domainAge": "none",
+        "viewport": "present",
+        "overflow": "+1px",
+        "tapTargets": "27 under 44px",
+        "lcp": "7.0s",
+        "pageWeight": "6.2 MB",
+        "heroVideo": "none",
+        "https": "ok",
+        "mixedContent": "none",
+        "brokenImages": "0",
+        "whatsapp": "present",
+        "quoteForm": "contact form",
+        "blog": "none"
+      },
+      "flaws": [
+        "overflow",
+        "lcp",
+        "pageWeight",
+        "tapTargets",
+        "slider",
+        "generator"
+      ],
+      "reasons": [
+        "The page is wider than the screen at 390px, so content runs off the side on every phone.",
+        "Largest contentful paint is slow enough that most mobile visitors see a blank screen first.",
+        "The homepage transfers several megabytes, most of it uncompressed imagery.",
+        "Multiple tap targets are under the 44px minimum, making the navigation hard to use by thumb.",
+        "The hero uses a slider library whose era is unmistakable to anyone who looks."
+      ],
+      "angle": "Your site runs off the side of the screen on a phone, which is where most of your enquiries start.",
+      "contacts": [
+        {
+          "kind": "phone",
+          "value": "+91 99442 63155",
+          "owner": "business"
+        },
+        {
+          "kind": "phone",
+          "value": "+91 99443 33560",
+          "owner": "business"
+        },
+        {
+          "kind": "email",
+          "value": "intercraftinteriorstudio@gmail.com",
+          "owner": "business"
+        }
+      ],
+      "agency": null,
+      "links": {
+        "total": 32,
+        "internal": 0,
+        "external": 28,
+        "nav": 4,
+        "footer": 1,
+        "dead": 0,
+        "socials": 0
+      },
+      "shots": {
+        "mobile": "data/interior-design/intercraftinterior.in/mobile.png",
+        "desktop": "data/interior-design/intercraftinterior.in/desktop.png",
+        "full": "data/interior-design/intercraftinterior.in/full.png"
+      }
+    },
+    {
+      "vertical": "interior-design",
+      "domain": "vishwakarmadesignstudio.in",
+      "name": "Vishwakarma Design Studio & Turya Designs",
+      "rating": 4.6,
+      "reviews": 51,
+      "address": "2/141A, Theethipalayam Rd, Jothi Nagar, Kalampalayam, Theethi Palayam, Tamil Nadu 641010, India",
+      "score": 24,
+      "tier": "C",
+      "gate": null,
+      "signals": {
+        "copyright": "none",
+        "jquery": "none",
+        "bootstrap": "none",
+        "slider": "none",
+        "wayback": "none",
+        "redesigned": "n/a",
+        "generator": "static html",
+        "theme": "none",
+        "domainAge": "none",
+        "viewport": "present",
+        "overflow": "0px",
+        "tapTargets": "7 under 44px",
+        "lcp": "2.1s",
+        "pageWeight": "7.2 MB",
+        "heroVideo": "none",
+        "https": "none — http only",
+        "mixedContent": "1 assets",
+        "brokenImages": "0",
+        "whatsapp": "none",
+        "quoteForm": "none",
+        "blog": "none"
+      },
+      "flaws": [
+        "https",
+        "pageWeight",
+        "tapTargets",
+        "mixedContent",
+        "generator",
+        "whatsapp",
+        "quoteForm"
+      ],
+      "reasons": [
+        "The HTTPS setup is broken or absent, which browsers surface as a warning to every visitor.",
+        "The homepage transfers several megabytes, most of it uncompressed imagery.",
+        "Multiple tap targets are under the 44px minimum, making the navigation hard to use by thumb.",
+        "Assets load over plain HTTP on an HTTPS page, which downgrades the padlock.",
+        "The CMS version stopped receiving security patches years ago."
+      ],
+      "angle": "Your site still loads over plain HTTP, so every browser marks it Not Secure before a visitor reads a word.",
+      "contacts": [
+        {
+          "kind": "email",
+          "value": "info@vkdesigns.in",
+          "owner": "business"
+        },
+        {
+          "kind": "instagram",
+          "value": "@vishwakarmadesignstudio",
+          "owner": "business"
+        },
+        {
+          "kind": "facebook",
+          "value": "facebook.com/p",
+          "owner": "business"
+        }
+      ],
+      "agency": null,
+      "links": {
+        "total": 18,
+        "internal": 0,
+        "external": 17,
+        "nav": 8,
+        "footer": 0,
+        "dead": 0,
+        "socials": 0
+      },
+      "shots": {
+        "mobile": "data/interior-design/vishwakarmadesignstudio.in/mobile.png",
+        "desktop": "data/interior-design/vishwakarmadesignstudio.in/desktop.png",
+        "full": "data/interior-design/vishwakarmadesignstudio.in/full.png"
+      }
+    },
+    {
+      "vertical": "interior-design",
+      "domain": "vercel.app",
+      "name": "Spot Interior",
+      "rating": 5,
+      "reviews": 7,
+      "address": "RS Puram, Coimbatore, Tamil Nadu, 641002",
+      "score": 3,
+      "tier": "X",
+      "gate": "no measurable pain — nothing to sell",
+      "signals": {
+        "copyright": "2026",
+        "jquery": "none",
+        "bootstrap": "none",
+        "slider": "none",
+        "wayback": "2024",
+        "redesigned": "2026",
+        "generator": "static html",
+        "theme": "none",
+        "domainAge": "2 yr",
+        "viewport": "present",
+        "overflow": "0px",
+        "tapTargets": "4 under 44px",
+        "lcp": "1.4s",
+        "pageWeight": "2.0 MB",
+        "heroVideo": "none",
+        "https": "ok",
+        "mixedContent": "none",
+        "brokenImages": "0",
+        "whatsapp": "present",
+        "quoteForm": "none",
+        "blog": "none"
+      },
+      "flaws": [
+        "generator",
+        "quoteForm"
+      ],
+      "reasons": [
+        "The CMS version stopped receiving security patches years ago.",
+        "No working enquiry form, so interested visitors have no low-friction way to make contact."
+      ],
+      "angle": "No measurable pain. Skip.",
+      "contacts": [
+        {
+          "kind": "email",
+          "value": "spotinteriors.cbe@gmail.com",
+          "owner": "business"
+        },
+        {
+          "kind": "email",
+          "value": "instantlyemailspotinteriors.cbe@gmail.comfree",
+          "owner": "business"
+        },
+        {
+          "kind": "email",
+          "value": "32022spotinteriors.cbe@gmail.comvasantham",
+          "owner": "business"
+        }
+      ],
+      "agency": null,
+      "links": {
+        "total": 5,
+        "internal": 0,
+        "external": 3,
+        "nav": 0,
+        "footer": 0,
+        "dead": 0,
+        "socials": 0
+      },
+      "shots": {
+        "mobile": "data/interior-design/vercel.app/mobile.png",
+        "desktop": "data/interior-design/vercel.app/desktop.png",
+        "full": "data/interior-design/vercel.app/full.png"
+      }
+    },
+    {
+      "vertical": "interior-design",
+      "domain": "arcinteriordesigners.com",
+      "name": "ARC INTERIORS",
+      "rating": 5,
+      "reviews": 2,
+      "address": "SF NO: 196/7, GKS GARDENS, Kovaipudur Main Rd, opposite to ICICI BANK, Gokulam Colony, KK Nagar, Sundakkamuthur, Coimbatore, Tamil Nadu 641042, India",
+      "score": 0,
+      "tier": "X",
+      "gate": "no measurable pain — nothing to sell",
+      "signals": {
+        "copyright": "2026",
+        "jquery": "none",
+        "bootstrap": "none",
+        "slider": "none",
+        "wayback": "none",
+        "redesigned": "n/a",
+        "generator": "Starfield Technologies; Go Daddy Website Builder 8.0.0000",
+        "theme": "none",
+        "domainAge": "none",
+        "viewport": "present",
+        "overflow": "0px",
+        "tapTargets": "2 under 44px",
+        "lcp": "1.9s",
+        "pageWeight": "0.6 MB",
+        "heroVideo": "none",
+        "https": "ok",
+        "mixedContent": "none",
+        "brokenImages": "0",
+        "whatsapp": "none",
+        "quoteForm": "none",
+        "blog": "none"
+      },
+      "flaws": [
+        "whatsapp",
+        "quoteForm"
+      ],
+      "reasons": [
+        "No WhatsApp contact, despite it being how local enquiries actually arrive.",
+        "No working enquiry form, so interested visitors have no low-friction way to make contact."
+      ],
+      "angle": "No measurable pain. Skip.",
+      "contacts": [],
+      "agency": {
+        "name": "",
+        "domain": "godaddy.com.com",
+        "credit": "Powered by"
+      },
+      "links": {
+        "total": 3,
+        "internal": 0,
+        "external": 3,
+        "nav": 1,
+        "footer": 0,
+        "dead": 0,
+        "socials": 0
+      },
+      "shots": {
+        "mobile": "data/interior-design/arcinteriordesigners.com/mobile.png",
+        "desktop": "data/interior-design/arcinteriordesigners.com/desktop.png",
+        "full": "data/interior-design/arcinteriordesigners.com/full.png"
+      }
+    }
+  ],
+  "agencies": [
+    {
+      "name": "",
+      "domain": "godaddy.com.com",
+      "builtInRun": 1,
+      "portfolioClients": 0,
+      "pricing": [
+        {
+          "tier": "Not published",
+          "price": "—"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "name": "Sai Techno Solutions",
+      "domain": "saitechnosolutions.co.in.co.in",
+      "builtInRun": 1,
+      "portfolioClients": 0,
+      "pricing": [
+        {
+          "tier": "Not published",
+          "price": "—"
+        }
+      ],
+      "note": ""
+    }
+  ]
+}

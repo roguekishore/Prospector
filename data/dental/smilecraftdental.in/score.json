@@ -1,0 +1,28 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "smilecraftdental.in",
+  "scorer": "rules@1",
+  "pain": 112.96,
+  "pain_parts": {
+    "staleness": 59,
+    "mobile": 28.6,
+    "trust": 4.8,
+    "perf": 20.56
+  },
+  "pay": 1,
+  "reach": 1,
+  "score": 100,
+  "tier": "A",
+  "gate": null,
+  "lcp_bucket": "dire",
+  "flaws": [
+    "viewport",
+    "overflow",
+    "lcp",
+    "redesigned",
+    "jquery",
+    "slider",
+    "heroVideo"
+  ],
+  "pitch_angle": "You are the highest-rated dentist in Coimbatore and your before/after gallery does not fit on a phone screen."
+}

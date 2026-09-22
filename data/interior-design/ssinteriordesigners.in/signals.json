@@ -1,0 +1,56 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "ssinteriordesigners.in",
+  "final_url": "https://ssinteriordesigners.in/",
+  "captured_at": "2026-09-18T09:34:02Z",
+  "measured": {
+    "copyright": "2018",
+    "jquery": "1.12.4",
+    "bootstrap": "3.3.7",
+    "slider": "revslider 5.0",
+    "wayback": "2016",
+    "redesigned": "never",
+    "viewport": "missing",
+    "overflow": "+168px",
+    "tapTargets": "20 under 44px",
+    "lcp": "7.2s",
+    "pageWeight": "10.1 MB",
+    "heroVideo": "none",
+    "https": "ok",
+    "mixedContent": "4 assets",
+    "brokenImages": "2",
+    "whatsapp": "float button",
+    "quoteForm": "wpforms",
+    "blog": "none",
+    "domainAge": "10 yr",
+    "generator": "WordPress 5.4",
+    "theme": "interio (ThemeForest)"
+  },
+  "flagged": [
+    "viewport",
+    "overflow",
+    "lcp",
+    "redesigned",
+    "jquery",
+    "slider"
+  ],
+  "captures": {
+    "mobile": {
+      "file": "mobile.png",
+      "viewport": "390x844",
+      "note": "no meta viewport — 980px legacy layout"
+    },
+    "desktop": {
+      "file": "desktop.png",
+      "viewport": "1440x900"
+    },
+    "full": {
+      "file": "full.png",
+      "viewport": "1440xfull"
+    }
+  },
+  "raw": {
+    "html": "raw/home.html",
+    "headers": "raw/headers.json"
+  }
+}

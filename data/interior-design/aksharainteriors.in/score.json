@@ -1,0 +1,25 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "aksharainteriors.in",
+  "scorer": "rules@1",
+  "pain": 49.49,
+  "pain_parts": {
+    "staleness": 33,
+    "mobile": 4.03,
+    "trust": 0,
+    "perf": 12.46
+  },
+  "pay": 0.98,
+  "reach": 1,
+  "score": 73,
+  "tier": "A",
+  "gate": null,
+  "lcp_bucket": "slow",
+  "flaws": [
+    "lcp",
+    "pageWeight",
+    "jquery",
+    "tapTargets"
+  ],
+  "pitch_angle": "You are the highest-rated interior firm in Coimbatore and your site looks like everyone else's. That gap is the pitch."
+}

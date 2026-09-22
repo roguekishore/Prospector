@@ -1,0 +1,45 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "arcinteriordesigners.com",
+  "counts": {
+    "total": 3,
+    "internal": 0,
+    "external": 3,
+    "nav": 1,
+    "footer": 0,
+    "dead": 0,
+    "socials": 0
+  },
+  "agency_credit": {
+    "name": "",
+    "domain": "godaddy.com.com",
+    "raw_text": "Powered by",
+    "region": "footer"
+  },
+  "links": [
+    {
+      "href": "https://ms.godaddy.com/r?e=eyJ2IjoiMS4xNCIsImF2Ijo1ODgwNjU5LCJhdCI6MjQ0NywiYnQiOjAsImNtIjo1OTQyMTc1MjAsImNoIjo1NDQ0NSwiY2siOnt9LCJjciI6ODk2OTgwMTgxLCJkaSI6IjY2YTY2NDFhOTE5MTQwZTU5MDY2YTg3ZGNlZTA0YzI5IiwiZGoiOjAsImlpIjoiNmIwZjQwM2M4Y2Y4NGNjYTg5ZmZiY2E3Y2MxNmYxM2QiLCJsZSI6WzJdLCJkbSI6MywiZmMiOjEwNzI3MzY5MzMsImZsIjo4NjI1NDA2MjQsImlwIjoiMTAwLjIyLjQ5LjAiLCJudyI6MTA2NjMsInBjIjoyLCJvcCI6MiwibXAiOjIsImRwIjoxLjAxLCJkbiI6MS4wMSwiZGciOjEuMDEsImVjIjoyLCJnbSI6MCwiZXAiOm51bGwsInByIjoyNTA4MDQsInJ0IjoyLCJycyI6NTAwLCJzYSI6Ijg2Iiwic2IiOiJpLTAwMDUzNDc2ZGUxZGE0MDgxIiwic3AiOjI5NDIwLCJzdCI6MTI3NjI2NCwidWsiOiJ1ZTEtNzMxMmFlMzdjY2MwNDMxMjgyZTcyZDdhMWI0ZjE0NmQiLCJ6biI6MzA3NDk1LCJ6bSI6WzMwNzQ5NV0sInRzIjoxNzg5NzY0ODMxMjQ0LCJwbiI6ImdkLXdhbS1wb3MxIiwiZ2MiOnRydWUsImdDIjp0cnVlLCJncyI6Im5vbmUiLCJkYyI6MSwidHoiOiJBbWVyaWNhL1Rvcm9udG8iLCJ1ciI6Imh0dHBzOi8vd3d3LmdvZGFkZHkuY29tL2Fpcm8vYWktYnVpbGRlciJ9&s=6TPpD-FkY-QTwJN46e9lekJVrkE&omsId=baseline&psName=WAM_BANNER_V1&uawVersion=2.2.1&property%3Apublisher_website_key=wam.md5.ac10f7c3bd369d04d7409d30a2a5e61c&impressionId=6b0f403c8cf84cca89ffbca7cc16f13d",
+      "text": "Go from idea to live site in minutes. Get 50 free creditsTry Airo AI Builder | Start for freeStart for free",
+      "region": "main",
+      "kind": "external",
+      "rel": "noreferrer nofollow",
+      "visible": true
+    },
+    {
+      "href": "https://arcinteriordesigners.com/",
+      "text": "ARC Interior DesignersARC Interior DesignersARC Interior DesignersARC Interior Designers",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.godaddy.com/websites/website-builder?isc=pwugc",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "nofollow noopener",
+      "visible": true
+    }
+  ]
+}

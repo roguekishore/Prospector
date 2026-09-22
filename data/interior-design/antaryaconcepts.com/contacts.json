@@ -1,0 +1,23 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "antaryaconcepts.com",
+  "address": "T-87,Bus terminus, T-Block,Kovaipudur, Coimbatore, 641042",
+  "contacts": [
+    {
+      "kind": "phone",
+      "value": "+91 80566 36687",
+      "owner": "business"
+    },
+    {
+      "kind": "email",
+      "value": "contactus@antaryaconcepts.net",
+      "owner": "business"
+    },
+    {
+      "kind": "instagram",
+      "value": "@antarya_concepts",
+      "owner": "business"
+    }
+  ],
+  "source": "business own contact page + footer"
+}

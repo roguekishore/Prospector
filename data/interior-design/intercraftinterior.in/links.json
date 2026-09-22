@@ -1,0 +1,272 @@
+{
+  "run": "run-2026-09-18T20-54-20Z",
+  "domain": "intercraftinterior.in",
+  "counts": {
+    "total": 32,
+    "internal": 0,
+    "external": 28,
+    "nav": 4,
+    "footer": 1,
+    "dead": 0,
+    "socials": 0
+  },
+  "agency_credit": null,
+  "links": [
+    {
+      "href": "tel:+919944263155",
+      "text": "",
+      "region": "main",
+      "kind": "tel",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://api.whatsapp.com/send/?phone=919944263155&text=&app_absent=0",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "mailto:intercraftinteriorstudio@gmail.com",
+      "text": "intercraftinteriorstudio@gmail.com",
+      "region": "main",
+      "kind": "mailto",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/index.php",
+      "text": "",
+      "region": "header",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/about.html",
+      "text": "About Us",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/services.html",
+      "text": "Services",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/gallery.html",
+      "text": "Gallery",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/contact.php",
+      "text": "Contact Us",
+      "region": "nav",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/modular-kitchen.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/wardrobe.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/dressing-table.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/wood-interior.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/pvc-doors.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/upvc.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/fiber-doors.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/glass-doors.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/mosquito-netlon.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/curtains.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/false-ceiling.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/aluminium-fabrication.html",
+      "text": "Read More",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/img/services/modular-kitchen/3.jpg",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/img/services/modular-kitchen/4.jpg",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/img/services/wardrobe/7.jpg",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/img/services/wardrobe/11.jpg",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/img/services/wood/10.jpg",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/img/services/wood/11.jpg",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/img/services/wardrobe/13.jpg",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://www.intercraftinterior.in/img/services/wardrobe/9.jpg",
+      "text": "",
+      "region": "main",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "tel:++919944263155",
+      "text": "+91 99442 63155",
+      "region": "main",
+      "kind": "tel",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "tel:+919944333560",
+      "text": "+91 99443 33560",
+      "region": "main",
+      "kind": "tel",
+      "rel": "",
+      "visible": true
+    },
+    {
+      "href": "https://apextec.in/",
+      "text": "Apextec",
+      "region": "footer",
+      "kind": "external",
+      "rel": "",
+      "visible": true
+    }
+  ]
+}

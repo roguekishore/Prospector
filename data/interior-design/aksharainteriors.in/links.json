@@ -1,0 +1,19 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "aksharainteriors.in",
+  "counts": {
+    "total": 73,
+    "internal": 54,
+    "external": 19,
+    "nav": 8,
+    "footer": 29,
+    "dead": 0,
+    "socials": 5
+  },
+  "agency_credit": {
+    "name": "Webcastle Media",
+    "domain": "webcastle.in",
+    "raw_text": "Crafted by Webcastle",
+    "region": "footer"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "run": "run-2026-09-18T09-20-11Z",
+  "domain": "srivarudhiniinteriors.com",
+  "scorer": "rules@1",
+  "pain": 147.2,
+  "pain_parts": {
+    "staleness": 59,
+    "mobile": 33,
+    "trust": 36.2,
+    "perf": 19
+  },
+  "pay": 0.83,
+  "reach": 1,
+  "score": 100,
+  "tier": "A",
+  "gate": null,
+  "lcp_bucket": "dire",
+  "flaws": [
+    "https",
+    "viewport",
+    "overflow",
+    "lcp",
+    "brokenImages",
+    "mixedContent",
+    "redesigned",
+    "jquery"
+  ],
+  "pitch_angle": "Your site currently shows a security warning before anyone reaches it. That is costing you every mobile enquiry today."
+}
