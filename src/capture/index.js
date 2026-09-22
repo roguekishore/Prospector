@@ -151,7 +151,7 @@ async function run(argv, ctx) {
                     ? (result.timing.lcp_ms / 1000).toFixed(1) + 's'
                     : '?s';
         const con = result.consentSeen ? 'consent:yes' : 'consent:no';
-        log.info(`[${_pad(pos, total)}]  A  ${domain}  3 shots  ${mb}  lcp ${lcp}  ${con}  ${elapsed}s`);
+        log.info(`[${_pad(pos, total)}]  A  ${domain}  2 shots  ${mb}  lcp ${lcp}  ${con}  ${elapsed}s`);
       } else {
         log.info(`[${_pad(pos, total)}]  ×  ${domain}  ${result.kind}: ${result.message || ''}`);
       }
@@ -244,7 +244,7 @@ function _writeError(outDir, domain, kind, message, attempts) {
 // .png. Diagnostic only: this lands in error.json as `partial`.
 function _safeReadPartial(outDir) {
   const found = [];
-  for (const shot of ['mobile', 'desktop', 'full']) {
+  for (const shot of ['mobile', 'desktop']) {
     for (const ext of ['.png', '.webp']) {
       try {
         if (fs.statSync(path.join(outDir, shot + ext)).isFile()) { found.push(shot + ext); break; }

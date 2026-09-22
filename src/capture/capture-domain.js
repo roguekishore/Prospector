@@ -7,6 +7,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 const { isAllowed } = require('./robots');
 
 // ---------------------------------------------------------------------------
@@ -56,7 +57,7 @@ async function captureDomain(opts) {
   return result;
 }
 
-const SHOTS = ['mobile', 'desktop', 'full'];
+const SHOTS = ['mobile', 'desktop'];
 const SHOT_EXTS = ['.png', '.webp'];
 
 /** Path of the shot on disk, whichever extension it was written with. */
@@ -242,24 +243,10 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout, log }) {
   // ── Performance metrics (§7.3) ───────────────────────────────────────────
   const timing = await _collectTiming(page);
 
-  // ── Capture desktop.png ──────────────────────────────────────────────────
+  // ── Capture desktop.webp ─────────────────────────────────────────────────
   await page.setViewportSize({ width: 1440, height: 900 });
-  const desktopPath = path.join(outDir, 'desktop.png');
+  const desktopPath = path.join(outDir, 'desktop.webp');
   await _atomicScreenshot(page, desktopPath, { fullPage: false });
-
-  // ── Capture full.png ─────────────────────────────────────────────────────
-  const fullPath = path.join(outDir, 'full.png');
-  const scrollH  = await page.evaluate(() => document.body.scrollHeight).catch(() => 0);
-  let fullClipped = false;
-  if (scrollH > 20000) {
-    fullClipped = true;
-    // Clip by setting viewport height temporarily
-    await page.setViewportSize({ width: 1440, height: 20000 });
-    await _atomicScreenshot(page, fullPath, { fullPage: false });
-    await page.setViewportSize({ width: 1440, height: 900 });
-  } else {
-    await _atomicScreenshot(page, fullPath, { fullPage: true });
-  }
 
   // ── Mobile viewport (§6.3) ───────────────────────────────────────────────
   await page.setViewportSize({ width: 390, height: 844 });
@@ -291,7 +278,7 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout, log }) {
   }).catch(() => ({ scrollWidth: 0, clientWidth: 0, overflowPx: 0,
                     hasViewportMeta: false, tapTargetsUnder44: 0, smallText: 0 }));
 
-  const mobilePath = path.join(outDir, 'mobile.png');
+  const mobilePath = path.join(outDir, 'mobile.webp');
   await _atomicScreenshot(page, mobilePath, { fullPage: false });
 
   // ── Rendered HTML ─────────────────────────────────────────────────────────
@@ -329,7 +316,6 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout, log }) {
     broken_requests: brokenRequests,
     consent:         consentResult,
     mobile:          mobileMetrics,
-    full_clipped:    fullClipped || undefined,
     headful:         undefined, // set by caller if headful was used
     captured_at:     new Date().toISOString(),
   };
@@ -514,10 +500,14 @@ function _atomicWriteBuffer(filePath, buf) {
 async function _atomicScreenshot(page, filePath, opts) {
   const tmp = filePath + '.tmp';
   try {
-    await page.screenshot({ path: tmp, type: 'png', ...opts });
+    const buf = await page.screenshot({ type: 'png', ...opts });
+    const webp = await sharp(buf)
+      .resize({ width: 720, withoutEnlargement: true, fit: 'inside' })
+      .webp({ quality: 50, effort: 4 })
+      .toBuffer();
+    fs.writeFileSync(tmp, webp);
     fs.renameSync(tmp, filePath);
   } catch (err) {
-    // Clean up tmp on failure; do not throw — partial result is better than none.
     try { fs.unlinkSync(tmp); } catch {}
     throw err;
   }
