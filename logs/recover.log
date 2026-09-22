@@ -1,0 +1,101 @@
+=== recovery start 2026-09-19T04:44:36+00:00  45 domains
+[info] [1/1]  A  aadhihonda.com  3 shots  3.8MB  lcp 1.5s  consent:no  11.6s
+[info] [1/1]  A  aadhimaruti.com  3 shots  1.8MB  lcp 4.3s  consent:no  11.5s
+[info] [1/1]  A  amautodesigners.in  3 shots  0.8MB  lcp 0.5s  consent:no  11.6s
+[info] [1/1]  A  autoroof.co.in  3 shots  0.8MB  lcp 0.2s  consent:no  11.4s
+[info] [1/1]  A  b16clinic.org  3 shots  2.5MB  lcp 0.8s  consent:no  11.2s
+[info] [1/1]  A  baluengg.com  3 shots  0.8MB  lcp 0.2s  consent:no  11.6s
+[info] [1/1]  A  daledental.in  3 shots  3.0MB  lcp 0.3s  consent:no  9.8s
+[info] [1/1]  A  dentalcheckcbe.com  3 shots  3.0MB  lcp 0.3s  consent:no  10.3s
+[info] [1/1]  A  dermlines.in  3 shots  3.2MB  lcp 0.3s  consent:no  10.7s
+[info] [1/1]  A  dreaminteriorsindia.in  3 shots  3.7MB  lcp 0.5s  consent:no  11.0s
+[info] [1/1]  A  elitecarspaequipments.in  3 shots  5.3MB  lcp 1.2s  consent:no  12.4s
+[info] [1/1]  A  fortunehomess.com  3 shots  0.9MB  lcp 0.4s  consent:no  11.8s
+[info] [1/1]  ×  g.co  robots: robots.txt disallows /
+[info] [1/1]  ×  g.page  robots: robots.txt disallows /
+[info] [1/1]  A  globalcaretech.com  3 shots  3.5MB  lcp 0.8s  consent:no  10.6s
+[info] [1/1]  A  google.com  3 shots  20.6MB  lcp 1.8s  consent:no  10.7s
+[info] [1/1]  A  handcraftevent.com  3 shots  6.1MB  lcp 1.5s  consent:no  12.7s
+[info] [1/1]  A  harinishravanhospital.com  3 shots  2.6MB  lcp 1.3s  consent:no  12.5s
+[info] [1/1]  A  ideamaxcoimbatore.com  3 shots  5.2MB  lcp 3.8s  consent:no  13.1s
+[info] [1/1]  A  infinitydentalandrootcanalcentre.com  3 shots  3.4MB  lcp 0.3s  consent:no  10.9s
+[info] [1/1]  A  krishnadecor.org  3 shots  3.7MB  lcp 0.6s  consent:no  11.2s
+[info] [1/1]  A  kumaranchainshop.com  3 shots  1.1MB  lcp 0.3s  consent:no  12.0s
+[info] [1/1]  A  lluvia.in  3 shots  6.5MB  lcp 2.0s  consent:yes  14.5s
+[info] [1/1]  A  marriagehallponnaiah.in  3 shots  6.9MB  lcp 0.7s  consent:no  10.0s
+[info] [1/1]  A  metisstructures.in  3 shots  5.5MB  lcp 1.2s  consent:no  11.5s
+[info] [1/1]  A  motowingperformance.com  3 shots  3.7MB  lcp 0.5s  consent:no  10.8s
+[info] [1/1]  A  nesamenthospital.com  3 shots  1.8MB  lcp 0.8s  consent:no  12.2s
+[info] [1/1]  A  noahpeb.com  3 shots  3.2MB  lcp 0.4s  consent:no  10.7s
+[info] [1/1]  A  oswal.shop  3 shots  6.0MB  lcp 0.4s  consent:no  9.5s
+[info] [1/1]  A  parkwestclinic.com  3 shots  6.5MB  lcp 0.2s  consent:no  10.3s
+[info] [1/1]  A  pearldentistry.co.in  3 shots  2.8MB  lcp 1.2s  consent:no  10.2s
+[info] [1/1]  A  ppwovensackbags.org  3 shots  2.9MB  lcp 0.5s  consent:no  10.8s
+[info] [1/1]  A  rrrcardecors.com  3 shots  3.4MB  lcp 0.2s  consent:no  10.4s
+[info] [1/1]  A  saaraldeaddiction.com  3 shots  4.7MB  lcp 0.9s  consent:no  10.3s
+[info] [1/1]  A  sanapethospital.com  3 shots  3.4MB  lcp 0.3s  consent:no  10.3s
+[info] [1/1]  A  shifterzautomotives.net  3 shots  2.0MB  lcp 0.3s  consent:no  11.5s
+[info] [1/1]  A  spinny.com  3 shots  5.4MB  lcp 0.3s  consent:no  15.5s
+[info] [1/1]  A  srisaisolarsolutions.com  3 shots  3.4MB  lcp 0.5s  consent:no  11.3s
+[info] [1/1]  A  srivinayagabuildingdemolisher.in  3 shots  2.2MB  lcp 0.6s  consent:no  11.5s
+[info] [1/1]  A  sunenterprises.in  3 shots  5.8MB  lcp 2.0s  consent:no  12.1s
+[info] [1/1]  A  supercoolroof.in  3 shots  2.7MB  lcp 1.2s  consent:no  13.8s
+[info] [1/1]  A  theaddress-architecture.in  3 shots  5.4MB  lcp 3.6s  consent:no  9.2s
+[info] [1/1]  A  vibgiyorwoodcreations.com  3 shots  2.4MB  lcp 0.8s  consent:no  12.3s
+[info] [1/1]  A  worldofdentistry.in  3 shots  3.4MB  lcp 0.3s  consent:no  10.2s
+[info] [1/1]  A  zionandco.in  3 shots  7.6MB  lcp 2.1s  consent:no  12.4s
+=== recapture done, re-running extract/score/report 2026-09-19T04:53:31+00:00
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T05:00:03.708Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T05:06:56.396Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T05:13:43.978Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T05:20:36.244Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T05:27:29.321Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T05:34:20.796Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T05:41:45.373Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T05:49:27.088Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T05:57:20.874Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T06:05:02.404Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T06:11:51.793Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T06:18:44.344Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[error] extract error [avpackaging.in]: No HTML found in raw/ for avpackaging.in
+[info] extract: 4263 ok  52 errors  0 skipped  (2026-09-19T06:25:42.939Z)
+[error] score error [sustainatex.com]: sustainatex.com: review_count is undefined in _qualified.json. Silently missing ability-to-pay axis would produce meaningless tiers.
+[info] score: 3948 ok  367 errors  0 skipped
+[info] report: 3948 leads, 497 agencies → index.json (2026-09-19T06:27:21.752Z)
+=== recovery complete 2026-09-19T06:27:21+00:00

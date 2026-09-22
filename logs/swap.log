@@ -1,0 +1,42 @@
+12794 image(s) under data
+-> 720px wide, webp q50 effort4, 7 worker(s) -> data-webp
+
+VERTICAL                IMGS     BEFORE     AFTER   RATIO      SAVED
+architects               948  1116.4 MB   39.3 MB   28.4×  1077.1 MB
+builders-promoters       939  1159.3 MB   40.8 MB   28.4×  1118.5 MB
+car-dealers              810   731.2 MB   31.0 MB   23.6×   700.2 MB
+commercial-leasing       901  1002.4 MB   38.9 MB   25.8×   963.5 MB
+dental                   438   452.6 MB   18.8 MB   24.1×   433.8 MB
+diagnostics              465   425.8 MB   18.5 MB   23.0×   407.2 MB
+gyms-fitness             498   558.5 MB   22.0 MB   25.4×   536.5 MB
+hospitals                784   741.0 MB   31.9 MB   23.3×   709.2 MB
+hotels-resorts           669   751.1 MB   26.0 MB   28.9×   725.2 MB
+interior-design          858   995.9 MB   36.0 MB   27.7×   959.9 MB
+jewellers                468   678.9 MB   23.1 MB   29.4×   655.8 MB
+plot-promoters           684   893.5 MB   30.8 MB   29.0×   862.7 MB
+real-estate-agents       877   971.8 MB   38.1 MB   25.5×   933.7 MB
+salons-spas              574   618.1 MB   23.0 MB   26.9×   595.1 MB
+schools-colleges        1161  1482.3 MB   57.5 MB   25.8×  1424.9 MB
+textiles-garments        939   956.6 MB   35.5 MB   27.0×   921.1 MB
+wedding-photography      426   556.0 MB   18.4 MB   30.3×   537.6 MB
+wedding-venues           354   441.8 MB   14.7 MB   30.0×   427.1 MB
+--------------------------------------------------------------------
+TOTAL                  12793 14533.3 MB  544.1 MB   26.7× 13989.2 MB
+
+per shot type
+  desktop       4268    674.7 KB  ->    17.5 KB   38.6×  avg
+  full          4262   2637.6 KB  ->    94.5 KB   27.9×  avg
+  mobile        4263    178.5 KB  ->    18.7 KB    9.5×  avg
+note: 12793 output(s) already present, left alone (--skip-existing)
+
+1 file(s) failed:
+  data/schools-colleges/angappaacademy.com/full.png — Input image exceeds pixel limit
+
+12793 file(s) in 1.4s (8915.0/s)
+
+verifying outputs (full decode)...
+all 12793 output(s) decode cleanly
+
+--allow-failed: keeping 1 unconverted original(s), swapping the rest
+
+swapped in place: 12793 webp moved, 12793 original(s) deleted, 14533.3 MB freed
