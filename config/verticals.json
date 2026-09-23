@@ -286,5 +286,12 @@
       "textile mill",
       "readymade garments"
     ]
+  },
+  {
+    "slug": "interior-design-smoke",
+    "label": "Interior Design (smoke test)",
+    "enabled": false,
+    "priority": 99,
+    "keywords": []
   }
 ]

@@ -6,7 +6,9 @@
   "main": "src/cli/index.js",
   "scripts": {
     "start": "node src/cli/index.js serve",
-    "fixtures": "node emit-sample.js"
+    "fixtures": "node emit-sample.js",
+    "test:run": "node scripts/smoke.js",
+    "test:clean": "node scripts/smoke-clean.js"
   },
   "dependencies": {
     "better-sqlite3": "13.0.3",

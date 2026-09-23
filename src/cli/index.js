@@ -152,7 +152,7 @@ Stage-specific:
   const STAGES = ['discover','qualify','audit','extract','score','report','serve'];
 
   if (stageArg === 'all') {
-    for (const stage of ['discover','qualify','audit','extract','score','report']) {
+    for (const stage of ['discover','qualify','audit','extract','report']) {
       const mod    = loadStage(stage);
       const result = await mod.run(argv, ctx);
       if (result && result.ok === 0 && result.err === 0) {
