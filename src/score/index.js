@@ -137,7 +137,6 @@ function run(argv, ctx) {
     try {
       const result = scoreDomain(vertical, domain, runId, refYear, config);
       ok++;
-      if (fs.existsSync(errPath)) fs.unlinkSync(errPath);
       if (verbose) log.info(`  score ok: ${domain} → ${result.tier} ${result.score}`);
     } catch (e) {
       err++;

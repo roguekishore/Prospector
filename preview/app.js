@@ -139,7 +139,7 @@ function fireReviewApi(domain){
 /* ---------------- selectors ---------------- */
 
 function leadsIn(slug){
-  return LEADS.filter(l => l.vertical === slug).sort((a,b) => b.score - a.score);
+  return LEADS.filter(l => l.vertical === slug).sort((a,b) => (b.review_count||0) - (a.review_count||0));
 }
 
 function filtered(slug, filter){

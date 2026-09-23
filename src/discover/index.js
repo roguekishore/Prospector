@@ -25,6 +25,7 @@ const REJECT_DOMAINS = new Set([
   'linktr.ee', 'bit.ly', 'goo.gl', 'maps.app.goo.gl', 'sites.google.com',
   'business.site', 'wixsite.com', 'weebly.com', 'blogspot.com',
   'wordpress.com', 'jimdosite.com',
+  'vercel.app', 'ueniweb.com', 'bolt.host', 'mypixieset.com', 'sleek.fitness',
 ]);
 
 // ---------------------------------------------------------------------------

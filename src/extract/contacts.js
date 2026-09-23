@@ -27,7 +27,7 @@ function extractContacts($rendered, qualified, domain) {
   const phoneRe1 = /(?:\+?91[\s\-]?)?(?:0)?([6-9]\d{9})\b/g;
   const phoneRe2 = /(?:\+?91[\s\-]?)?(?:0?422)[\s\-]?(\d{6,7})\b/g;
 
-  const badPhoneRe = /(?:19|20)\d{2}|\d{4}\-\d{4}|^\d{6}$|[A-Z]{5}\d{4}[A-Z]/;
+  const badPhoneRe = /^\d{6}$/;
 
   function addPhone(raw) {
     const normalised = normalisePhone(raw);

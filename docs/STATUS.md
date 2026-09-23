@@ -11,11 +11,9 @@ Update this file in the same commit as the fix.
 
 Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`).
 
-- [ ] **Phone regex drops 11.5% of valid Indian mobiles.** The year clause is
-      unanchored and runs against the normalised digit string, so any number
-      containing `19xx`/`20xx` is discarded (`9820123456` → dropped). Two other
-      clauses are dead — `normalisePhone` strips non-digits before the test.
-      Keep `^\d{6}$`, delete the rest. — `src/extract/contacts.js:30`
+- [x] **Phone regex drops 11.5% of valid Indian mobiles.** Reduced `badPhoneRe`
+      to `^\d{6}$` only; removed the unanchored year clause and two dead clauses.
+      — `src/extract/contacts.js:30`
 - [ ] **953 leads display no phone though Places supplied one.** Address already
       falls back to the Places entry, phone does not; the same `qualified` object
       is already in scope. A Places phone is the business's own, so it must be
@@ -30,11 +28,9 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
       parse as company names (`"Vivdleo.com , All rights reserved"`) and one
       domain emitted a doubled TLD (`krishnadentalclinic.com.com`).
       — `src/report/agency.js`
-- [ ] **Hosting platforms reach scoring as businesses.** `vercel.app`,
-      `ueniweb.com`, `bolt.host`, `mypixieset.com`, `sleek.fitness` are absent
-      from both `REJECT_DOMAINS` and `GREENFIELD_DOMAINS`; many businesses
-      collapse onto one registrable domain and then fail at score time with
-      `review_count is undefined`. — `src/discover/index.js:21`
+- [x] **Hosting platforms reach scoring as businesses.** Added `vercel.app`,
+      `ueniweb.com`, `bolt.host`, `mypixieset.com`, `sleek.fitness` to
+      `REJECT_DOMAINS`. — `src/discover/index.js:21`
 
 ## Open — needs a re-crawl
 
@@ -47,11 +43,8 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
 
 ## Open — review deck (`preview/`)
 
-- [ ] **Sort by review count, keep tier as a glyph.** Sorting is by `score`,
-      whose `pain` half is miscalibrated; review count comes from Google and is
-      the one input that is not our inference. Nothing is excluded by tier — all
-      3,906 leads are in `index.json` (A:140 B:387 C:1126 X:2253), so the
-      operator's own picks were ranked low, not dropped. — `preview/app.js:142`
+- [x] **Sort by review count, keep tier as a glyph.** `leadsIn()` now sorts by
+      `review_count` descending. — `preview/app.js:142`
 - [ ] **Expose flags as filters.** Filters are `all`/`unreviewed`/`pitch`/tier
       only. Invisible in a screenshot and unreachable by eye: 920 sites on plain
       HTTP, 826 with broken images, 32 with expired certificates — the last is
@@ -75,10 +68,9 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
       whatever shots landed. Seen once in a tail sample; true frequency
       unmeasured — count outliers in `logs/night.log` first.
       — `src/capture/capture-domain.js`
-- [ ] **Stop the score stage destroying `error.json`.** It unlinks the file on
-      success, which erased the original robots errors and made the first
-      recovery attempt find zero affected domains. Make it append-only or
-      namespace it per stage. — `src/score/index.js:140`
+- [x] **Stop the score stage destroying `error.json`.** Removed the
+      `unlinkSync` on success (`src/score/index.js:140`). Prior-stage errors
+      now survive a successful score run.
 
 ## Deferred on purpose
 
