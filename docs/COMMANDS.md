@@ -4,12 +4,12 @@
 
 | Command | What it does |
 |---|---|
-| `npm run discover -- <vertical>` | Search Google Maps for businesses in a vertical, write `_discovered.json` |
-| `npm run qualify` | Probe each discovered domain — HTTP check, cert, viewport, Wayback — write `_qualified.json` |
+| `npm run discover -- <vertical>` | Search Google Maps for businesses in a vertical, write `discovered.json` |
+| `npm run qualify` | Probe each discovered domain — HTTP check, cert, viewport, Wayback — write `qualified.json` |
 | `npm run audit -- [vertical]` | Open each qualified domain in a real browser, capture screenshots and performance data |
 | `npm run extract` | Parse raw HTML and headers into `signals.json`, `links.json`, `contacts.json` |
 | `npm run score` | Run the weighted scoring formula, write `score.json` per domain *(opt-in, skipped by `pipeline`)* |
-| `npm run report` | Build `data/index.json`, `_leads.csv`, `_pitch.csv`; optionally scrape agency pricing |
+| `npm run report` | Build `data/index.json`, `leads.csv`, `pitch.csv`; optionally scrape agency pricing |
 | `npm run pipeline` | Run discover → qualify → audit → extract → report in order |
 
 ## Dev & utilities
@@ -36,7 +36,7 @@ Args are passed after `--`: `npm run audit -- interior-design-smoke --resume`
 ### qualify
 | Arg | Default | Description |
 |---|---|---|
-| `--resume` | off | Skip domains already in `_qualified.json` |
+| `--resume` | off | Skip domains already in `qualified.json` |
 | `--concurrency N` | 4 | Parallel probe workers |
 | `--only <domain>` | — | Process one domain only |
 | `--dry-run` | off | Print what would happen, touch nothing |
@@ -90,3 +90,16 @@ Args are passed after `--`: `npm run audit -- interior-design-smoke --resume`
 | `--src <dir>` | `data` | Source directory containing PNGs |
 | `--out <dir>` | `data-webp` | Output directory for WebP files |
 | `--swap` | off | Replace originals with compressed versions |
+
+---
+
+## Notes
+
+`compress` is only useful on older capture trees. Since `e0c4afd` the audit stage
+writes `desktop.webp` / `mobile.webp` directly, so a fresh run has no PNGs to
+convert.
+
+`audit --timeout` bounds **navigation only** — not the settle sequence or image
+decode. There is no whole-capture deadline yet (`docs/STATUS.md`).
+
+`pipeline` deliberately excludes `score`; run it as its own step.
