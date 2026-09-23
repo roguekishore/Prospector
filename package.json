@@ -6,7 +6,15 @@
   "main": "src/cli/index.js",
   "scripts": {
     "start": "node src/cli/index.js serve",
-    "fixtures": "node emit-sample.js",
+    "discover": "node src/cli/index.js discover",
+    "qualify": "node src/cli/index.js qualify",
+    "audit": "node src/cli/index.js audit",
+    "extract": "node src/cli/index.js extract",
+    "score": "node src/cli/index.js score",
+    "report": "node src/cli/index.js report",
+    "pipeline": "node src/cli/index.js all",
+    "compress": "node scripts/compress-shots.js",
+    "fixtures": "node scripts/gen-fixtures.js",
     "test:run": "node scripts/smoke.js",
     "test:clean": "node scripts/smoke-clean.js"
   },
