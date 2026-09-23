@@ -17,7 +17,7 @@ Read this document first. Then read only your own workstream spec:
 
 **All four can start immediately.** The contracts below are already instantiated
 as real files on disk under `data/` — 18 lead folders written by
-`emit-sample.js`. Those files are the normative examples. No workstream waits for
+`scripts/emit-sample.js`. Those files are the normative examples. No workstream waits for
 another to exist.
 
 ---
@@ -133,7 +133,7 @@ preserve it. A stage that needs the network to re-derive a value has a bug.
 PROSPECTOR/
   spec/                 this document + four workstream specs
   lib-scoring.js        the scorer. Reference implementation, already written.
-  emit-sample.js        regenerates data/ from preview/data.js + lib-scoring.js
+  scripts/emit-sample.js  regenerates data/ from preview/data.js + lib-scoring.js
   src/
     discover/           W1
     capture/            W2

@@ -4,7 +4,7 @@
  * Acceptance test runner for W1 (discover + qualify).
  *
  * Tests AC1–AC10 from W1-discovery.md §7.
- * Run: node test-w1.js
+ * Run: npm run test:w1
  *
  * No external test framework — plain assertions logged to stdout.
  * Exit code 0 = all pass, 1 = at least one failure.
@@ -13,7 +13,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..');
 
 let passed = 0;
 let failed = 0;
@@ -35,7 +35,7 @@ function assert(name, cond, detail = '') {
 // ---------------------------------------------------------------------------
 async function testRegistrable() {
   console.log('\n--- AC3: registrable domain splitting ---');
-  const { registrable } = require('./src/discover/provider');
+  const { registrable } = require('../src/discover/provider');
 
   assert('co.in: lakshmifalseceiling.co.in → registrable domain (not co.in)',
     registrable('http://lakshmifalseceiling.co.in/') === 'lakshmifalseceiling.co.in');
@@ -70,7 +70,7 @@ async function testDiscover() {
   const outFile = path.join(ROOT, 'data', 'interior-design', 'discovered.json');
   if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
 
-  const discover = require('./src/discover/index');
+  const discover = require('../src/discover/index');
   const log = (msg) => {}; // suppress output in tests
 
   await discover.run(
@@ -184,7 +184,7 @@ async function testQualify() {
   const outFile = path.join(ROOT, 'data', 'interior-design', 'qualified.json');
   if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
 
-  const qualify = require('./src/qualify/index');
+  const qualify = require('../src/qualify/index');
   const log     = (msg) => console.log('  [log]', msg);
 
   let qualifyError = null;
@@ -264,7 +264,7 @@ async function testResume() {
     return;
   }
 
-  const qualify = require('./src/qualify/index');
+  const qualify = require('../src/qualify/index');
   const log = (_msg) => {};  // suppress
 
   const t0 = Date.now();

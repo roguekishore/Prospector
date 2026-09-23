@@ -1,14 +1,14 @@
 /* Emit the on-disk artifacts phase one writes, from the sample dataset.
-   Run: node emit-sample.js
+   Run: npm run sample
    Produces data/<vertical>/<domain>/{signals,links,contacts,verdict}.json
    plus leads.csv and agencies.csv at the data root. */
 
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { score } = require('./lib-scoring.js');
+const { score } = require('../lib-scoring.js');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..');
 const DATA = path.join(ROOT, 'data');
 
 // Load data.js, which has no module system. `const` declarations stay in the
