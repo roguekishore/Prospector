@@ -127,7 +127,7 @@ Stages:
   score                   Weighted formula → tier, score, angle
   report                  Rebuild index.json + CSV exports
   serve                   Static frontend + review API
-  all                     Run all six stages in order
+  all                     discover → qualify → audit → extract → report (not score)
 
 Common options:
   --resume                Skip domains whose output already exists
