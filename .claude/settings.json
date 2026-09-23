@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git ls-files:*)",
+      "Bash(npm run test:run)",
+      "Bash(npm run test:clean)",
+      "Bash(npm run test:w1)",
+      "Bash(npm run fixtures)",
+      "Bash(npm run sample)",
+      "Bash(node src/cli extract:*)",
+      "Bash(node src/cli score:*)",
+      "Bash(node src/cli report:*)",
+      "Bash(node scripts/smoke.js:*)",
+      "Bash(node --check:*)",
+      "Bash(node -e:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": [
+      "Read(./.env)"
+    ]
+  }
+}
