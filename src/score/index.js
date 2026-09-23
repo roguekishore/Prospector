@@ -1,6 +1,6 @@
 /* src/score/index.js
    Stage: score
-   Reads signals.json + links.json + contacts.json + _qualified.json
+   Reads signals.json + links.json + contacts.json + qualified.json
    Writes score.json per domain.
    Wires lib-scoring.js — never reimplements it. W3 §2. */
 'use strict';
@@ -37,21 +37,21 @@ function scoreDomain(vertical, domain, runId, refYear, config) {
   if (!linksJson)    throw new Error(`links.json missing for ${domain}`);
   if (!contactsJson) throw new Error(`contacts.json missing for ${domain}`);
 
-  // Load business data from _qualified.json (provides rating + review_count)
-  const qualifiedPath = path.join(DATA, vertical, '_qualified.json');
+  // Load business data from qualified.json (provides rating + review_count)
+  const qualifiedPath = path.join(DATA, vertical, 'qualified.json');
   const qualified     = loadJson(qualifiedPath) || {};
   const biz = (qualified.businesses || []).find(b => b.domain === domain);
 
   // Guard: missing review_count is a loud fail (MASTER.md §2, W3 §2)
   if (!biz) {
     throw new Error(
-      `${domain} not found in _qualified.json — rating/review_count unavailable. ` +
+      `${domain} not found in qualified.json — rating/review_count unavailable. ` +
       `Cannot score without ability-to-pay axis.`
     );
   }
   if (biz.review_count === undefined || biz.review_count === null) {
     throw new Error(
-      `${domain}: review_count is undefined in _qualified.json. ` +
+      `${domain}: review_count is undefined in qualified.json. ` +
       `Silently missing ability-to-pay axis would produce meaningless tiers.`
     );
   }
@@ -158,7 +158,7 @@ function run(argv, ctx) {
 }
 
 function appendRunLog(entry) {
-  const p = path.join(DATA, '_run.json');
+  const p = path.join(DATA, 'run.json');
   let log = [];
   try {
     const raw = JSON.parse(fs.readFileSync(p, 'utf8'));

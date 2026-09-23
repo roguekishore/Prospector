@@ -1,6 +1,6 @@
 /* scripts/gen-fixtures.js
    Generates synthetic raw/ directories for all 18 fixture leads and
-   _qualified.json for each vertical.  Run once before testing:
+   qualified.json for each vertical.  Run once before testing:
      node scripts/gen-fixtures.js
    The HTML is structured so src/extract reads it back to the same
    measured values that preview/data.js declares. */
@@ -300,7 +300,7 @@ ${sliderScript}
 </html>`;
 }
 
-/* ---------- build _qualified.json per vertical ---------- */
+/* ---------- build qualified.json per vertical ---------- */
 function buildQualified(vertical, leads) {
   const businesses = leads.map(l => ({
     places_id: `ChIJ${l.domain.replace(/[^a-zA-Z]/g, '').slice(0,8).toUpperCase()}`,
@@ -360,12 +360,12 @@ for (const l of LEADS) {
   rawCount++;
 }
 
-// Write _qualified.json per vertical
+// Write qualified.json per vertical
 for (const v of VERTICALS) {
   const leads = byVertical[v.slug] || [];
   if (!leads.length) continue;
-  const qpath = path.join(DATA, v.slug, '_qualified.json');
+  const qpath = path.join(DATA, v.slug, 'qualified.json');
   wj(qpath, buildQualified(v, leads));
 }
 
-console.log(`Wrote raw/ for ${rawCount} leads + _qualified.json per vertical`);
+console.log(`Wrote raw/ for ${rawCount} leads + qualified.json per vertical`);

@@ -6,6 +6,7 @@
   "main": "src/cli/index.js",
   "scripts": {
     "start": "node src/cli/index.js serve",
+    "serve": "node src/cli/index.js serve",
     "discover": "node src/cli/index.js discover",
     "qualify": "node src/cli/index.js qualify",
     "audit": "node src/cli/index.js audit",

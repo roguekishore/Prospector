@@ -32,9 +32,9 @@ log.error = (...a) => console.error('[error]', ...a);
 
 async function main() {
   // 1. Seed
-  log('seeding data/interior-design-smoke/_qualified.json');
+  log('seeding data/interior-design-smoke/qualified.json');
   fs.mkdirSync(DATADIR, { recursive: true });
-  fs.copyFileSync(SEED, path.join(DATADIR, '_qualified.json'));
+  fs.copyFileSync(SEED, path.join(DATADIR, 'qualified.json'));
 
   const seed = JSON.parse(fs.readFileSync(SEED, 'utf8'));
   log(`domains: ${seed.businesses.map(b => b.domain).join(', ')}`);
@@ -56,7 +56,12 @@ async function main() {
   const extract = require('../src/extract/index.js');
   await extract.run(['--no-probe'], ctx);
 
-  // 4. Report
+  // 4. Score
+  log('--- score ---');
+  const score = require('../src/score/index.js');
+  await score.run([], ctx);
+
+  // 5. Report
   log('--- report ---');
   const report = require('../src/report/index.js');
   await report.run(['--no-agency-fetch'], ctx);

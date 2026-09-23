@@ -60,14 +60,14 @@ async function testRegistrable() {
 }
 
 // ---------------------------------------------------------------------------
-// AC1 — discover --source fixture produces valid _discovered.json
+// AC1 — discover --source fixture produces valid discovered.json
 // AC2 — two results sharing a domain collapse to one, keeping higher review_count
 // ---------------------------------------------------------------------------
 async function testDiscover() {
   console.log('\n--- AC1+AC2: discover --source fixture ---');
 
   // Clean up any previous output
-  const outFile = path.join(ROOT, 'data', 'interior-design', '_discovered.json');
+  const outFile = path.join(ROOT, 'data', 'interior-design', 'discovered.json');
   if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
 
   const discover = require('./src/discover/index');
@@ -78,7 +78,7 @@ async function testDiscover() {
     { root: ROOT, config: {}, log }
   );
 
-  assert('AC1: _discovered.json was written', fs.existsSync(outFile));
+  assert('AC1: discovered.json was written', fs.existsSync(outFile));
 
   const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
 
@@ -140,14 +140,14 @@ function testKeyNotLeaked() {
   const oldKey  = process.env.GOOGLE_PLACES_KEY;
   process.env.GOOGLE_PLACES_KEY = fakeKey;
 
-  // Check _discovered.json does not contain the key
-  const outFile = path.join(ROOT, 'data', 'interior-design', '_discovered.json');
+  // Check discovered.json does not contain the key
+  const outFile = path.join(ROOT, 'data', 'interior-design', 'discovered.json');
   if (fs.existsSync(outFile)) {
     const content = fs.readFileSync(outFile, 'utf8');
-    assert('AC10: _discovered.json does not contain a Places key',
+    assert('AC10: discovered.json does not contain a Places key',
       !content.includes(fakeKey));
   } else {
-    assert('AC10: _discovered.json not found — skip key check', true);
+    assert('AC10: discovered.json not found — skip key check', true);
   }
 
   // Restore
@@ -159,10 +159,10 @@ function testKeyNotLeaked() {
 // AC3 (domain) — co.in handled correctly in discover output
 // ---------------------------------------------------------------------------
 function testCoinInDiscover() {
-  console.log('\n--- AC3 (discover output): co.in domain in _discovered.json ---');
-  const outFile = path.join(ROOT, 'data', 'interior-design', '_discovered.json');
+  console.log('\n--- AC3 (discover output): co.in domain in discovered.json ---');
+  const outFile = path.join(ROOT, 'data', 'interior-design', 'discovered.json');
   if (!fs.existsSync(outFile)) {
-    assert('AC3: _discovered.json exists for co.in check', false, 'run discover first');
+    assert('AC3: discovered.json exists for co.in check', false, 'run discover first');
     return;
   }
   const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
@@ -174,14 +174,14 @@ function testCoinInDiscover() {
 // ---------------------------------------------------------------------------
 // AC4, AC5, AC6, AC7, AC8, AC9 — qualify stage
 // These require real network access. We run qualify over the fixture-produced
-// _discovered.json and verify the output shape.
+// discovered.json and verify the output shape.
 // AC5, AC6, AC7, AC9 require specific domain behaviors that may not be
 // reproducible in a unit test — each is noted if it cannot be verified.
 // ---------------------------------------------------------------------------
 async function testQualify() {
   console.log('\n--- qualify stage (AC4, AC7, AC8) ---');
 
-  const outFile = path.join(ROOT, 'data', 'interior-design', '_qualified.json');
+  const outFile = path.join(ROOT, 'data', 'interior-design', 'qualified.json');
   if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
 
   const qualify = require('./src/qualify/index');
@@ -203,7 +203,7 @@ async function testQualify() {
   }
 
   assert('qualify.run() completed without error', true);
-  assert('AC4: _qualified.json was written', fs.existsSync(outFile));
+  assert('AC4: qualified.json was written', fs.existsSync(outFile));
 
   if (!fs.existsSync(outFile)) return;
 
@@ -221,8 +221,8 @@ async function testQualify() {
       if (b.review_count === undefined) reviewOk = false;
     }
   }
-  assert('AC4: rating survives into _qualified.json', ratingOk);
-  assert('AC4: review_count survives into _qualified.json', reviewOk);
+  assert('AC4: rating survives into qualified.json', ratingOk);
+  assert('AC4: review_count survives into qualified.json', reviewOk);
 
   // Every entry has a qualify block or a skip_reason
   let allHaveQualify = true;
@@ -257,9 +257,9 @@ async function testQualify() {
 async function testResume() {
   console.log('\n--- AC8: qualify --resume under 2s ---');
 
-  const outFile = path.join(ROOT, 'data', 'interior-design', '_qualified.json');
+  const outFile = path.join(ROOT, 'data', 'interior-design', 'qualified.json');
   if (!fs.existsSync(outFile)) {
-    assert('AC8: _qualified.json must exist from previous run', false,
+    assert('AC8: qualified.json must exist from previous run', false,
       'run qualify first');
     return;
   }
@@ -278,17 +278,17 @@ async function testResume() {
 }
 
 function testKeyNotInQualified() {
-  console.log('\n--- AC10: key not in _qualified.json ---');
-  const outFile = path.join(ROOT, 'data', 'interior-design', '_qualified.json');
+  console.log('\n--- AC10: key not in qualified.json ---');
+  const outFile = path.join(ROOT, 'data', 'interior-design', 'qualified.json');
   if (!fs.existsSync(outFile)) {
-    assert('AC10: _qualified.json not found — skip', true);
+    assert('AC10: qualified.json not found — skip', true);
     return;
   }
   const content = fs.readFileSync(outFile, 'utf8');
   // Look for anything that looks like a 39-char API key pattern
   const key = process.env.GOOGLE_PLACES_KEY || '';
   if (key) {
-    assert('AC10: _qualified.json does not contain GOOGLE_PLACES_KEY', !content.includes(key));
+    assert('AC10: qualified.json does not contain GOOGLE_PLACES_KEY', !content.includes(key));
   } else {
     assert('AC10: No key in env to check; file passes trivially', true);
   }
@@ -306,7 +306,7 @@ async function testQualifyLogic() {
   // AC5: isRejectedDomain — facebook redirect detection
   // We test the REJECT_DOMAINS set logic by checking the domain set in qualify/index
   // Since it's not exported, we verify via a discovered entry with skip_reason
-  const discoveredFile = path.join(ROOT, 'data', 'interior-design', '_discovered.json');
+  const discoveredFile = path.join(ROOT, 'data', 'interior-design', 'discovered.json');
   if (fs.existsSync(discoveredFile)) {
     const disc = JSON.parse(fs.readFileSync(discoveredFile, 'utf8'));
     const fbEntry = disc.businesses.find(b =>
@@ -315,13 +315,13 @@ async function testQualifyLogic() {
       fbEntry && fbEntry.skip_reason === 'aggregator-or-social-only');
   }
 
-  // For live-qualify AC5 check: if _qualified.json exists, check facebook entry is still skipped
-  const qualifiedFile = path.join(ROOT, 'data', 'interior-design', '_qualified.json');
+  // For live-qualify AC5 check: if qualified.json exists, check facebook entry is still skipped
+  const qualifiedFile = path.join(ROOT, 'data', 'interior-design', 'qualified.json');
   if (fs.existsSync(qualifiedFile)) {
     const qual = JSON.parse(fs.readFileSync(qualifiedFile, 'utf8'));
     const fbEntry = qual.businesses.find(b =>
       b.website_raw && b.website_raw.includes('facebook.com'));
-    assert('AC5: facebook entry in _qualified.json has skip_reason',
+    assert('AC5: facebook entry in qualified.json has skip_reason',
       fbEntry && (fbEntry.skip_reason === 'aggregator-or-social-only' || fbEntry.qualify?.reason?.includes('facebook')));
 
     // AC6: expired cert → verdict "audit" (not skip)

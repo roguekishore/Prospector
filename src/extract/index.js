@@ -182,7 +182,7 @@ async function run(argv, ctx) {
     const vertDir = path.join(DATA, v.slug);
     if (!fs.existsSync(vertDir)) continue;
 
-    const qualifiedPath = path.join(vertDir, '_qualified.json');
+    const qualifiedPath = path.join(vertDir, 'qualified.json');
     const qualified     = loadJson(qualifiedPath) || {};
     const businesses    = qualified.businesses || [];
     const bizMap        = Object.fromEntries(businesses.map(b => [b.domain, b]));
@@ -241,14 +241,14 @@ async function run(argv, ctx) {
   const finished_at = new Date().toISOString();
   log.info(`extract: ${ok} ok  ${err} errors  ${skipped} skipped  (${finished_at})`);
 
-  // Append to _run.json
+  // Append to run.json
   appendRunLog({ stage:'extract', started_at, finished_at, ok, err, skipped, runId, config });
 
   return { ok, err, skipped };
 }
 
 function appendRunLog(entry) {
-  const p = path.join(DATA, '_run.json');
+  const p = path.join(DATA, 'run.json');
   let log = [];
   try { log = JSON.parse(fs.readFileSync(p, 'utf8')); }
   catch { log = []; }

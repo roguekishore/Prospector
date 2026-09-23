@@ -1,7 +1,7 @@
 /* Emit the on-disk artifacts phase one writes, from the sample dataset.
    Run: node emit-sample.js
    Produces data/<vertical>/<domain>/{signals,links,contacts,verdict}.json
-   plus _leads.csv and _agencies.csv at the data root. */
+   plus leads.csv and agencies.csv at the data root. */
 
 const fs = require('fs');
 const path = require('path');
@@ -96,7 +96,7 @@ const leadRows = LEADS
             l.agency ? l.agency.name : '', l.angle].map(q).join(',');
   });
 
-fs.writeFileSync(path.join(DATA, '_leads.csv'),
+fs.writeFileSync(path.join(DATA, 'leads.csv'),
   '﻿' + [['tier','score','vertical','domain','business','address','phone','email',
                'rating','reviews','built_by','pitch_angle'].map(q).join(','),
               ...leadRows].join('\r\n') + '\r\n', 'utf8');
@@ -106,11 +106,11 @@ const agRows = AGENCIES.map(a => [
   a.pricing.map(p => p.tier + ' ' + p.price).join(' | '), a.note,
 ].map(q).join(','));
 
-fs.writeFileSync(path.join(DATA, '_agencies.csv'),
+fs.writeFileSync(path.join(DATA, 'agencies.csv'),
   '﻿' + [['agency','domain','built_in_run','portfolio_clients','published_pricing','note']
                .map(q).join(','), ...agRows].join('\r\n') + '\r\n', 'utf8');
 
-w(path.join(DATA, '_run.json'), {
+w(path.join(DATA, 'run.json'), {
   ...RUN,
   verticals: VERTICALS.map(v => ({
     slug: v.slug, discovered: v.discovered, with_domain: v.withDomain, audited: v.audited,

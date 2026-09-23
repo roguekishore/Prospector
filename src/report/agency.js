@@ -194,7 +194,7 @@ async function buildAgencyTable(leads, opts = {}) {
 
     // Write expansion list
     if (portfolioDomains.length) {
-      const expPath = path.join(DATA, '_expansion.json');
+      const expPath = path.join(DATA, 'expansion.json');
       let exp = [];
       try { exp = JSON.parse(fs.readFileSync(expPath, 'utf8')); } catch {}
       for (const pd of portfolioDomains) {

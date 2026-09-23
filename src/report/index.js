@@ -3,7 +3,7 @@
    Three jobs that cannot be done per-domain:
    1. Finalise contact ownership (cross-site frequency rule)
    2. Build agency table (with optional pricing/portfolio fetch)
-   3. Emit index.json + _leads.csv + _pitch.csv + _agencies.csv
+   3. Emit index.json + leads.csv + pitch.csv + agencies.csv
    W3 §3–§8, MASTER.md §4.7 */
 'use strict';
 
@@ -109,7 +109,7 @@ function loadAllLeads() {
     const vertDir = path.join(DATA, v.slug);
     if (!fs.existsSync(vertDir)) continue;
 
-    const qualifiedPath = path.join(vertDir, '_qualified.json');
+    const qualifiedPath = path.join(vertDir, 'qualified.json');
     const qualified     = loadJson(qualifiedPath) || {};
     const bizMap        = Object.fromEntries(
       (qualified.businesses || []).map(b => [b.domain, b]));
@@ -238,7 +238,7 @@ function buildIndexJson(leads, agencies, runId, synthetic = false) {
   const vertStats = {};
   for (const v of configVerticals) {
     const vertDir = path.join(DATA, v.slug);
-    const qualified = loadJson(path.join(vertDir, '_qualified.json')) || {};
+    const qualified = loadJson(path.join(vertDir, 'qualified.json')) || {};
     const biz = qualified.businesses || [];
     vertStats[v.slug] = {
       discovered:  qualified.raw_results || biz.length,
@@ -320,7 +320,7 @@ function upsertToDb(leads, agencies, runId) {
     const vsRun = db.transaction(() => {
       for (const v of configVerticals) {
         const vertDir   = path.join(DATA, v.slug);
-        const qualified = loadJson(path.join(vertDir, '_qualified.json')) || {};
+        const qualified = loadJson(path.join(vertDir, 'qualified.json')) || {};
         const biz       = qualified.businesses || [];
         vsInsert.run(
           v.slug, v.label, 'Coimbatore', JSON.stringify(v.keywords || []),
@@ -461,7 +461,7 @@ async function run(argv, ctx) {
   }
 
   // 4. Build index.json
-  // Load reviews from DB for _pitch.csv
+  // Load reviews from DB for pitch.csv
   let reviews = {};
   try {
     const db = openDb();
@@ -475,9 +475,9 @@ async function run(argv, ctx) {
 
   // 5. Write outputs
   atomicWriteJson(path.join(DATA, 'index.json'), indexJson);
-  atomicWrite(path.join(DATA, '_leads.csv'),   buildLeadsCsv(allLeads));
-  atomicWrite(path.join(DATA, '_pitch.csv'),   buildPitchCsv(reviews, allLeads));
-  atomicWrite(path.join(DATA, '_agencies.csv'),buildAgenciesCsv(agencies));
+  atomicWrite(path.join(DATA, 'leads.csv'),   buildLeadsCsv(allLeads));
+  atomicWrite(path.join(DATA, 'pitch.csv'),   buildPitchCsv(reviews, allLeads));
+  atomicWrite(path.join(DATA, 'agencies.csv'),buildAgenciesCsv(agencies));
 
   // 6. Upsert to SQLite
   upsertToDb(allLeads, agencies, runId);
@@ -485,7 +485,7 @@ async function run(argv, ctx) {
   const finished_at = new Date().toISOString();
   log.info(`report: ${allLeads.length} leads, ${agencies.length} agencies → index.json (${finished_at})`);
 
-  // Append to _run.json
+  // Append to run.json
   appendRunLog({ stage:'report', started_at, finished_at,
     leads: allLeads.length, agencies: agencies.length, runId });
 
@@ -493,7 +493,7 @@ async function run(argv, ctx) {
 }
 
 function appendRunLog(entry) {
-  const p = path.join(DATA, '_run.json');
+  const p = path.join(DATA, 'run.json');
   let log = [];
   try {
     const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -515,7 +515,7 @@ function regeneratePitchCsv() {
     }
   } catch {}
   const csv = buildPitchCsv(reviews, allLeads);
-  const p   = path.join(DATA, '_pitch.csv');
+  const p   = path.join(DATA, 'pitch.csv');
   atomicWrite(p, csv);
   return { path: p, rows: allLeads.filter(l => reviews[l.domain]?.pitch).length };
 }

@@ -787,7 +787,7 @@ function renderDisagree(){
 
 /* ---------------- csv / pitch export ---------------- */
 
-/* Try POST /api/export/pitch first (server writes _pitch.csv and returns the path).
+/* Try POST /api/export/pitch first (server writes pitch.csv and returns the path).
    If the server is not running or the request fails, build the CSV client-side
    with a BOM and trigger a download so the operator never loses the export. */
 async function exportCsv(){
@@ -803,7 +803,7 @@ async function exportCsv(){
     });
     if(r.ok){
       const body = await r.json().catch(() => ({}));
-      toast('exported to ' + (body.path || '_pitch.csv'));
+      toast('exported to ' + (body.path || 'pitch.csv'));
       return;
     }
   } catch(e){}

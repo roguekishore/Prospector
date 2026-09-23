@@ -5,7 +5,7 @@
  *
  * Grid-tiles the city bounding box, runs every keyword against every tile
  * via the selected provider, deduplicates by registrable domain, rejects
- * aggregators/socials, and writes data/<vertical>/_discovered.json.
+ * aggregators/socials, and writes data/<vertical>/discovered.json.
  *
  * CLI contract: module.exports = { run: async (argv, ctx) => {} }
  * where ctx = { root, config, log }
@@ -341,7 +341,7 @@ async function run(argv, ctx) {
   };
 
   const outDir = path.join(root, 'data', verticalSlug);
-  const outFile = path.join(outDir, '_discovered.json');
+  const outFile = path.join(outDir, 'discovered.json');
   writeAtomic(outFile, output);
   log(`[discover] wrote ${outFile}`);
 }

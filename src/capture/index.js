@@ -48,7 +48,7 @@ async function run(argv, ctx) {
   const navTimeout  = Number(args.timeout) || 30_000;
   const vertical    = args._[0] || null;   // optional filter
 
-  // ── Find _qualified.json files ────────────────────────────────────────────
+  // ── Find qualified.json files ────────────────────────────────────────────
   const dataDir  = path.join(root, 'data');
   const vertDirs = _verticalDirs(dataDir, vertical);
 
@@ -60,9 +60,9 @@ async function run(argv, ctx) {
   // Build the work queue: one entry per business with verdict === "audit"
   const queue = [];
   for (const { vertSlug, vertDir } of vertDirs) {
-    const qualPath = path.join(vertDir, '_qualified.json');
+    const qualPath = path.join(vertDir, 'qualified.json');
     if (!fs.existsSync(qualPath)) {
-      log.warn(`No _qualified.json in ${vertDir} — skipping`);
+      log.warn(`No qualified.json in ${vertDir} — skipping`);
       continue;
     }
     const qualified = JSON.parse(fs.readFileSync(qualPath, 'utf8'));

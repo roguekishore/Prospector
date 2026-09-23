@@ -4,7 +4,7 @@
  * qualify/index.js — Stage 2
  *
  * Runs cheap probes (HEAD, TLS, parked-page, Wayback CDX) over every domain
- * in _discovered.json, producing _qualified.json. No browser.
+ * in discovered.json, producing qualified.json. No browser.
  *
  * CLI contract: module.exports = { run: async (argv, ctx) => {} }
  * where ctx = { root, config, log }
@@ -489,7 +489,7 @@ async function run(argv, ctx) {
 }
 
 async function qualifyVertical(verticalSlug, root, { resume, concurrency, log }) {
-  const discoveredPath = path.join(root, 'data', verticalSlug, '_discovered.json');
+  const discoveredPath = path.join(root, 'data', verticalSlug, 'discovered.json');
   if (!fs.existsSync(discoveredPath)) {
     log(`[qualify] ERROR: ${discoveredPath} not found. Run discover first.`);
     return;
@@ -498,7 +498,7 @@ async function qualifyVertical(verticalSlug, root, { resume, concurrency, log })
   const discovered = JSON.parse(fs.readFileSync(discoveredPath, 'utf8'));
   const runId      = discovered.run;
 
-  const outPath = path.join(root, 'data', verticalSlug, '_qualified.json');
+  const outPath = path.join(root, 'data', verticalSlug, 'qualified.json');
 
   // --resume: load existing qualified output so we can skip already-done domains
   let existingByDomain = {};
