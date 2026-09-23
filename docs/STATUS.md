@@ -14,15 +14,11 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
 - [x] **Phone regex drops 11.5% of valid Indian mobiles.** Reduced `badPhoneRe`
       to `^\d{6}$` only; removed the unanchored year clause and two dead clauses.
       — `src/extract/contacts.js:30`
-- [ ] **953 leads display no phone though Places supplied one.** Address already
-      falls back to the Places entry, phone does not; the same `qualified` object
-      is already in scope. A Places phone is the business's own, so it must be
-      exempt from the cross-site frequency rule that reassigns contacts to
-      agencies. — `src/extract/contacts.js:162`
-- [ ] **No WhatsApp extraction exists at all.** The signal detector finds
-      WhatsApp on 77 of 139 dental pages; `contacts.js` has no `wa.me` handling,
-      so 0 leads carry it. It is how Indian local businesses actually get
-      contacted. — `src/extract/contacts.js`
+- [x] **953 leads display no phone though Places supplied one.** Added
+      Places phone fallback after body-text scan; marked `owner:'places'` to
+      exempt it from the cross-site frequency rule. — `src/extract/contacts.js`
+- [x] **No WhatsApp extraction exists at all.** Added `wa.me` href handling;
+      emits `kind:'whatsapp'` contacts. — `src/extract/contacts.js`
 - [ ] **Agency attribution never compounds.** Every agency name appears exactly
       once, so cross-site frequency inversion cannot work. Copyright fragments
       parse as company names (`"Vivdleo.com , All rights reserved"`) and one

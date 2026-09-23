@@ -63,6 +63,15 @@ function extractContacts($rendered, qualified, domain) {
   phoneRe2.lastIndex = 0;
   while ((m = phoneRe2.exec(bodyText))) addPhone(m[0]);
 
+  // Fallback: if no phone found on the page, use the Places-supplied number.
+  // Marked owner:'places' so the cross-site frequency rule never reassigns it.
+  if (!contacts.some(c => c.kind === 'phone') && qualified?.phone) {
+    const normalised = normalisePhone(qualified.phone);
+    if (normalised.length >= 7 && !badPhoneRe.test(normalised)) {
+      contacts.push({ kind:'phone', value:qualified.phone, owner:'places' });
+    }
+  }
+
   // ---- emails ----
   const emailRe = /[\w.+\-]+@[\w\-]+\.[\w.]{2,}/g;
 
@@ -91,6 +100,18 @@ function extractContacts($rendered, qualified, domain) {
   const cleanText = bodyNoScript.text();
   emailRe.lastIndex = 0;
   while ((m = emailRe.exec(cleanText))) addEmail(m[0]);
+
+  // ---- whatsapp ----
+  $rendered('a[href*="wa.me/"]').each((_, el) => {
+    const href = $rendered(el).attr('href') || '';
+    const raw  = href.replace(/.*wa\.me\//,'').split(/[/?#]/)[0];
+    if (!raw) return;
+    const normalised = normalisePhone(raw);
+    if (normalised.length < 7) return;
+    if (seen.has('wa:' + normalised)) return;
+    seen.set('wa:' + normalised, true);
+    contacts.push({ kind:'whatsapp', value:`https://wa.me/91${normalised}`, owner:'business' });
+  });
 
   // ---- socials ----
   $rendered('a[href*="instagram.com/"]').each((_, el) => {
