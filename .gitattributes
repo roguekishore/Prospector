@@ -1,0 +1,4 @@
+*.sh eol=lf
+*.service eol=lf
+*.timer eol=lf
+Caddyfile eol=lf
