@@ -1,0 +1,56 @@
+# Capture Lambda — Chromium + Playwright + the Lambda runtime interface client.
+#
+# Built on Playwright's own image rather than an AWS base: it already carries a
+# Chromium build matched to the Playwright version and every shared library that
+# headless Chrome needs on Debian. Installing Chromium onto an AWS base image
+# means chasing that dependency list by hand, and a missing .so surfaces as an
+# opaque browser launch failure at runtime rather than a build error.
+#
+# The version MUST match `playwright` in package.json (1.63.0). A mismatch is
+# Playwright's loudest failure mode: "Executable doesn't exist at ...".
+#
+# Architecture must match the Lambda function's. Build on the same architecture
+# you deploy to, or pass --platform explicitly:
+#
+#   docker build --platform linux/arm64 -f Dockerfile.capture -t prospector-capture .
+#
+# Push and deploy:
+#   aws ecr get-login-password --region ap-south-1 \
+#     | docker login --username AWS --password-stdin <acct>.dkr.ecr.ap-south-1.amazonaws.com
+#   docker tag prospector-capture <acct>.dkr.ecr.ap-south-1.amazonaws.com/prospector-capture:latest
+#   docker push <acct>.dkr.ecr.ap-south-1.amazonaws.com/prospector-capture:latest
+#
+# Function config: 2048 MB, 900s timeout, no VPC, env CAPTURE_BUCKET=<bucket>.
+# Memory is 2048 and not 1024 because `_forceImageDecode` rasterizes every image
+# on the page with no ceiling, and an OOM kills the whole batch, not one domain
+# (`docs/DEPLOYMENT.md`, sizing section).
+
+FROM mcr.microsoft.com/playwright:v1.63.0-noble
+
+ENV NODE_ENV=production \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
+
+WORKDIR /var/task
+
+# Dependencies first so the layer caches across source edits.
+COPY package.json package-lock.json* ./
+
+# `aws-lambda-ric` is what makes a plain container image speak Lambda's runtime
+# API. Playwright's image is not a Lambda base image and has no runtime client.
+#
+# better-sqlite3 is dropped: it is only used by src/db, which nothing in the
+# capture path touches, and it is the one dependency that needs a native build.
+RUN npm pkg delete dependencies.better-sqlite3 \
+ && npm install --omit=dev --no-audit --no-fund \
+ && npm install --no-save aws-lambda-ric
+
+COPY src/ ./src/
+COPY config/ ./config/
+
+# Chromium cannot run as root without --no-sandbox, and Playwright's image ships
+# a `pwuser` with the browser cache already readable.
+USER pwuser
+
+ENTRYPOINT ["/usr/bin/npx", "aws-lambda-ric"]
+CMD ["src/capture/lambda.handler"]
