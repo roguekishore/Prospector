@@ -24,26 +24,45 @@
 # Memory is 2048 and not 1024 because `_forceImageDecode` rasterizes every image
 # on the page with no ceiling, and an OOM kills the whole batch, not one domain
 # (`docs/DEPLOYMENT.md`, sizing section).
+#
+# Base image pinned by digest (the multi-arch index, so --platform linux/arm64
+# still resolves the right per-arch manifest) rather than the `v1.63.0-noble`
+# tag, which mcr.microsoft.com can repoint without notice.
 
-FROM mcr.microsoft.com/playwright:v1.63.0-noble
+FROM mcr.microsoft.com/playwright@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
 
 ENV NODE_ENV=production \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
-    NPM_CONFIG_UPDATE_NOTIFIER=false
+    NPM_CONFIG_UPDATE_NOTIFIER=false \
+    HOME=/tmp
 
 WORKDIR /var/task
 
 # Dependencies first so the layer caches across source edits.
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
+
+# `npm ci` against the committed lock, not `npm install` — the lock is the one
+# that gets tested, and `ci` fails loudly if it and package.json ever disagree.
+#
+# `--ignore-scripts` is what drops better-sqlite3's native build: it is only
+# used by src/db, which nothing in the capture path touches, and it is the one
+# dependency here that needs node-gyp. sharp needs no lifecycle script — its
+# platform binary is a regular optionalDependency — so `--ignore-scripts` costs
+# nothing for the package this image actually uses. Verified locally: `npm ci
+# --ignore-scripts` leaves `require('sharp')` working.
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 # `aws-lambda-ric` is what makes a plain container image speak Lambda's runtime
-# API. Playwright's image is not a Lambda base image and has no runtime client.
-#
-# better-sqlite3 is dropped: it is only used by src/db, which nothing in the
-# capture path touches, and it is the one dependency that needs a native build.
-RUN npm pkg delete dependencies.better-sqlite3 \
- && npm install --omit=dev --no-audit --no-fund \
- && npm install --no-save aws-lambda-ric
+# API — Playwright's image is not a Lambda base image and has no runtime client.
+# It compiles a native addon (libcurl-backed), which Ubuntu noble does not carry
+# build tools for by default; installed and removed in the same layer so the
+# toolchain doesn't linger in the shipped image.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential cmake autoconf libtool pkg-config libcurl4-openssl-dev \
+ && npm install --no-save aws-lambda-ric@4.0.2 \
+ && apt-get purge -y --auto-remove build-essential cmake autoconf libtool pkg-config libcurl4-openssl-dev \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY src/ ./src/
 COPY config/ ./config/
