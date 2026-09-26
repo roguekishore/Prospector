@@ -34,14 +34,20 @@ proving `data/` survives. Task 7.4's root-key deletion is also untested.
 
 The capture function is **staged, never invoked** — that was the spec's intent.
 
-Two environment notes worth keeping, because both cost a debugging cycle and
-neither is visible from the code. `./p` runs on Windows under Git Bash, where
-MSYS rewrites any bare absolute-Unix-path argument before it reaches a native
-`.exe`; `MSYS_NO_PATHCONV=1` at the top of `./p` stops that mangling every
-`/prospector/*` SSM name, and the cost is that local paths must then be passed as
-`cd` plus a relative name instead. Git Bash also ships no `getent`, so `resolve_a`
-falls back through `dig` to `nslookup`. Neither `terraform validate` nor
-`shellcheck` can see either problem.
+**`./p doctor` exists so this class of failure cannot recur.** Nine checks —
+binaries, DNS through `resolve_a`, absolute paths surviving the trip to a native
+`.exe`, the aws CLI printing non-ASCII, `curl` discarding a body, `.env` parsing
+by key name — all of which run with no credentials and no box. `./p up` calls it
+first. Verified both directions: green on this machine, and red with the correct
+diagnosis when the environment fixes are stripped out of a copy.
+
+It exists because most of the cost of this spec was not AWS. `./p` runs on
+Windows under Git Bash, where MSYS rewrites bare absolute-Unix-path arguments
+before they reach a native `.exe` (hence `MSYS_NO_PATHCONV=1`, and hence local
+paths going as `cd` plus a relative name, and `/dev/null` as `NULL_DEV`), there is
+no `getent`, the aws CLI encodes stdout as cp1252 unless told otherwise, and
+editors save UTF-16LE. `terraform validate`, `shellcheck` and `bash -n` pass on
+every one of those.
 
 - [x] **Places raw-body archiving (R5.3).** `postSearch` writes every
       successful response to `data/<vertical>/places-raw/<sha>.json`; `sha` is

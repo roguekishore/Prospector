@@ -139,6 +139,92 @@ resolve_a() {
   fi | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' | sort -u || true
 }
 
+# The null device to hand a *native* binary. MSYS_NO_PATHCONV=1 (above) stops Git
+# Bash translating /dev/null into NUL, so curl.exe tries to create a file named
+# literally "/dev/null", fails, and exits non-zero *after* printing its result —
+# which appended a spurious "?" to every status code this script reported.
+NULL_DEV=/dev/null
+[ -n "${WINDIR:-}" ] && NULL_DEV=NUL
+
+# ---------------------------------------------------------------------------
+# doctor — preflight, run first by `up`.
+#
+# Every check here needs no AWS account and no box, because the expensive
+# mistakes on this project were not AWS mistakes: they were this laptop not being
+# the Linux machine the script was written as though it were. `terraform
+# validate`, `shellcheck` and `bash -n` all passed on every one of them. If you
+# add a check, it belongs here only if it can fail on a machine with no
+# credentials.
+# ---------------------------------------------------------------------------
+DOCTOR_FAILED=0
+_dok()   { printf '  ok    %s\n' "$*"; }
+_dfail() { printf '  FAIL  %s\n' "$*" >&2; DOCTOR_FAILED=1; }
+
+cmd_doctor() {
+  echo "[p] doctor — checking this machine before it touches AWS"
+
+  local b
+  for b in git terraform aws curl; do
+    if command -v "$b" >/dev/null 2>&1; then _dok "$b present"
+    else _dfail "$b is not on PATH (R1.4 needs all four)"; fi
+  done
+
+  # `resolve_a` is the reason this one exists: the original code called `getent`,
+  # which Git Bash does not ship, so DNS silently never matched and Caddy could
+  # never be enabled from here.
+  local addrs
+  addrs="$(resolve_a amazonaws.com | head -n3 | tr '\n' ' ')"
+  if [ -n "$addrs" ]; then _dok "DNS resolves (amazonaws.com -> ${addrs% })"
+  else _dfail "resolve_a returned nothing — no working getent, dig or nslookup"; fi
+
+  # Absolute paths must reach a native .exe unmangled, or every /prospector/*
+  # SSM name arrives as C:/Program Files/Git/prospector/* and SSM rejects it.
+  # The aws CLI checks a local path before it needs credentials, and echoes it
+  # back, which makes it a probe that works offline. Matching on the "path "
+  # prefix matters: a mangled path still *contains* the original as a substring.
+  local probe out
+  probe="/prospector/__doctor_probe"
+  out="$(aws s3 cp "$probe" s3://prospector-doctor-probe/x 2>&1 || true)"
+  case "$out" in
+    *"path $probe does not exist"*) _dok "absolute paths reach native binaries intact" ;;
+    *) _dfail "a native binary received a rewritten path — MSYS_NO_PATHCONV is not taking effect. aws said: $out" ;;
+  esac
+
+  # The aws CLI is Python and on Windows encodes stdout with the console
+  # codepage, so one arrow in a log line killed `ship` after a successful install.
+  out="$(aws s3 cp "arrow-$(printf '\342\206\222')-end" s3://prospector-doctor-probe/x 2>&1 || true)"
+  case "$out" in
+    *'\u2192'*) _dfail "the aws CLI cannot print non-ASCII (got an escape) — check PYTHONIOENCODING/PYTHONUTF8" ;;
+    *"arrow-$(printf '\342\206\222')-end"*) _dok "the aws CLI prints non-ASCII" ;;
+    *) _dfail "could not tell whether the aws CLI handles non-ASCII. It said: $out" ;;
+  esac
+
+  # curl must be able to throw a body away; see NULL_DEV above.
+  # 7 (connection refused) is the expected answer and must not abort the run;
+  # 23 is "failed writing body", which is the failure being tested for.
+  local rc=0
+  curl -s -o "$NULL_DEV" -w '' --max-time 5 http://127.0.0.1:1/ >/dev/null 2>&1 || rc=$?
+  if [ "$rc" = 23 ]; then _dfail "curl cannot write to $NULL_DEV — status codes get a spurious suffix"
+  else _dok "curl can discard a body ($NULL_DEV)"; fi
+
+  # .env last, and by key name only — never echo a secret.
+  if [ -f "$HERE/.env" ]; then
+    local k missing=""
+    for k in GOOGLE_PLACES_KEY CONTROL_PASSWORD; do
+      [ -n "$(_dotenv_get "$k")" ] || missing="$missing $k"
+    done
+    if [ -z "$missing" ]; then _dok ".env parses and has the required keys"
+    else _dfail ".env is missing or empty for:$missing (if the file looks right, check it is UTF-8, not UTF-16)"; fi
+  else
+    _dfail ".env not found — copy .env.example and fill it in"
+  fi
+
+  if [ "$DOCTOR_FAILED" != 0 ]; then
+    die "doctor found problems above — fix them before deploying"
+  fi
+  log "doctor: all checks passed"
+}
+
 ensure_state_bucket() {
   if aws s3api head-bucket --bucket "$TFSTATE_BUCKET" --region "$REGION" 2>/dev/null; then
     return 0
@@ -349,6 +435,7 @@ wait_for_dns_and_enable_caddy() {
 
 cmd_up() {
   need_bin terraform aws git
+  cmd_doctor          # cheap, and catches the class of thing that cost the most
   ensure_state_bucket
   terraform_apply persist
   terraform_apply stack        # first run: no function yet (image tag is "none")
@@ -415,7 +502,7 @@ cmd_status() {
     fi
 
     local code
-    code="$(curl -s -o /dev/null -w '%{http_code}' "https://prospect.themaverick.tech/api/status" || echo '?')"
+    code="$(curl -s -o "$NULL_DEV" -w '%{http_code}' "https://prospect.themaverick.tech/api/status" || echo '?')"
     echo "https, no auth:   $code (expect 401)"
   fi
 
@@ -459,7 +546,8 @@ usage() {
   cat <<EOF
 usage: ./p <up|ship|secrets|status|logs|down>
 
-  up       terraform apply persist + stack, secrets, ship, enable Caddy
+  doctor   preflight this machine: binaries, DNS, path handling, encoding, .env
+  up       doctor, then terraform apply persist + stack, secrets, ship, enable Caddy
   ship     git archive HEAD -> S3, install.sh on the box, update the function
   secrets  copy .env into SSM SecureString
   status   SSM ping, service state, DNS vs EIP, HTTPS 401, image tag, DLQ depth
@@ -474,6 +562,7 @@ main() {
   case "$cmd" in
     up)      load_admin_creds;  cmd_up ;;
     down)    load_admin_creds;  cmd_down ;;
+    doctor)  cmd_doctor ;;
     ship)    load_deploy_creds; cmd_ship ;;
     status)  load_deploy_creds; cmd_status ;;
     logs)    load_deploy_creds; cmd_logs ;;

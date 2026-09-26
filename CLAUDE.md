@@ -31,6 +31,25 @@ is one line per item.
 **Captures are for human eyes only.** Nothing in `extract` or `score` reads a
 `.webp` — the ranking comes from the crawl, not the screenshots.
 
+**Get the thinnest path running before building wide.** The box deploy was
+written complete, validated statically, then run — and needed 17 fixes, each
+hiding the next, because `terraform validate`, `shellcheck` and `bash -n` pass on
+every behavioural defect there is. One SSM write, one unit started, one Caddy
+boot, executed early, would have found three whole clusters in minutes. Estimate
+remaining work from what has *executed*, never from what is written.
+
+**Never suppress an error you are about to use.** `|| true` on a predicate is
+fine. `2>/dev/null` on a command whose output you then act on is a bug: it turns
+a hard failure into a plausible empty string. One such line converted a Terraform
+error into `""` that flowed ten minutes downstream into a fake timeout, and
+another silently dropped a required field from `./p status`. If a helper returns a
+value, every caller checks it — not just the careful one.
+
+**For anything the deploy writes, say who reads it and as which uid.** Three
+Caddy failures were one question unasked: the service runs as `caddy`, so a
+mode-700 root-owned config directory cannot work, while `auth.env` can stay 600
+because systemd reads it as root before dropping privileges.
+
 ## Verifying a change offline
 
 No network, no API quota:
@@ -63,6 +82,23 @@ reconciled to the code, not the reverse. Spec wins for contracts: file layout,
 JSON shapes, field names.
 
 ## Gotchas
+
+- **`./p doctor` first, always.** It preflights this machine with no credentials
+  and no box: binaries, DNS, path handling, CLI encoding, `.env`. `./p up` runs
+  it. If you add a check it must be able to fail on a machine with no AWS access.
+- **This laptop is Windows/Git Bash, not Linux — four traps, none visible in the
+  code and none catchable by any linter.** Git Bash rewrites bare absolute-Unix
+  paths before handing them to a native `.exe`, so `MSYS_NO_PATHCONV=1` guards
+  every `/prospector/*` SSM name — and the price is that *local* paths must then
+  go as `cd` plus a relative name, and `/dev/null` must be `NUL` (see
+  `NULL_DEV`). There is no `getent`, so DNS goes through `resolve_a`. The aws CLI
+  encodes stdout as cp1252 unless `PYTHONIOENCODING`/`PYTHONUTF8` are set, and one
+  arrow in a log line is fatal. Editors here save UTF-16LE, which `_dotenv_utf8`
+  and `src/cli/index.js` both work around.
+- **LocalStack would not have caught most of this**, so don't reach for it: it
+  emulates the AWS API, which was the smallest of the failure clusters, and its
+  Community edition does not enforce IAM at all — least-privilege work passes
+  green against it and fails for real.
 
 - `npm run pipeline` (`cli all`) runs **five** stages — discover, qualify, audit,
   extract, report. `score` is excluded on purpose; run it yourself.
