@@ -1,0 +1,18 @@
+[Unit]
+Description=Prospector control panel
+After=network.target
+
+[Service]
+Type=simple
+User=prospector
+Group=prospector
+WorkingDirectory=/opt/prospector/current
+ExecStartPre=+/opt/prospector/load-env.sh
+EnvironmentFile=/run/prospector/env
+Environment=CAPTURE_BUCKET=prospector-captures-700897991126
+ExecStart=/usr/local/bin/node src/cli/index.js control --port 7778
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

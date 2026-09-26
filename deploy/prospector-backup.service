@@ -1,0 +1,12 @@
+[Unit]
+Description=Prospector places backup (discovered/qualified/places-raw -> S3)
+
+[Service]
+Type=oneshot
+User=prospector
+Group=prospector
+WorkingDirectory=/opt/prospector/current
+ExecStartPre=+/opt/prospector/load-env.sh
+EnvironmentFile=/run/prospector/env
+Environment=CAPTURE_BUCKET=prospector-captures-700897991126
+ExecStart=/usr/local/bin/node scripts/backup-places.js

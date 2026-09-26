@@ -15,3 +15,12 @@ fixtures/places/
 crm/
 # generated from data/ by scripts/compress-shots.js
 data-webp/
+
+# terraform — .terraform.lock.hcl IS committed (R1.3); everything else here is
+# per-machine state/cache, and state lives in S3 (use_lockfile = true), never here.
+terraform/**/.terraform/
+terraform/**/*.tfstate
+terraform/**/*.tfstate.*
+terraform/**/crash.log
+terraform/**/*.tfvars
+terraform/**/*.tfplan

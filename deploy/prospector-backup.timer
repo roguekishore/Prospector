@@ -1,0 +1,11 @@
+[Unit]
+Description=Run prospector-backup.service every 15 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Unit=prospector-backup.service
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

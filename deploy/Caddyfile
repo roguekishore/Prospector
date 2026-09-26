@@ -1,0 +1,9 @@
+{
+    storage file_system /var/lib/prospector/caddy
+}
+prospect.themaverick.tech {
+    basic_auth {
+        operator {$CONTROL_AUTH_HASH}
+    }
+    reverse_proxy 127.0.0.1:7778
+}
