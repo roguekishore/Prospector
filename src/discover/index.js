@@ -13,6 +13,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { registrable } = require('./provider');
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,21 @@ function isRejectedDomain(url) {
 // ---------------------------------------------------------------------------
 // Grid tiling
 // ---------------------------------------------------------------------------
+/**
+ * Short SHA of the deployed checkout, stamped into every run.
+ *
+ * Run 1 truncated because the box ran older code than the repo and nothing said
+ * so — the only trace was `_qualified.json` in a log path. One line here makes
+ * that visible at the top of every run instead of two days later.
+ * @returns {string} short SHA, or 'unknown' outside a git checkout
+ */
+function gitCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'],
+      { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch { return 'unknown'; }
+}
+
 /**
  * Split a bbox into rows×cols sub-rectangles.
  * Each tile gets a 0-based _index for fixture filename generation.
@@ -268,11 +284,18 @@ async function run(argv, ctx) {
   const runId     = makeRunId();
   const queriedAt = new Date().toISOString();
 
-  log(`[discover] vertical=${verticalSlug} source=${sourceArg} tiles=${tiles.length} keywords=${keywords.length}`);
+  log(`[discover] commit=${gitCommit()} vertical=${verticalSlug} source=${sourceArg} tiles=${tiles.length} keywords=${keywords.length}`);
 
   // Collect all raw results
   const allRaw = [];
   let rawResultsCount = 0;
+
+  // Request accounting. `requestsIssued` is what Places actually bills;
+  // `paginatedQueries` is the direct proof the nextPageToken field mask is live
+  // on this box — without it every query returns one page and this stays 0.
+  let requestsIssued    = 0;
+  let paginatedQueries  = 0;
+  let ceilingQueries    = 0;   // hit 60 = 3 pages: pagination cannot reach deeper
 
   for (const tile of tiles) {
     for (const keyword of keywords) {
@@ -292,9 +315,14 @@ async function run(argv, ctx) {
         results = [];
       }
 
+      const pages = results._pages ?? 1;
+      requestsIssued += results._requests ?? 1;
+      if (pages > 1)             paginatedQueries++;
+      if (results.length >= 60)  ceilingQueries++;
+
       rawResultsCount += results.length;
       allRaw.push(...results);
-      log(`[discover] tile${tile._index} kw="${keyword}" → ${results.length} results`);
+      log(`[discover] tile${tile._index} kw="${keyword}" → ${results.length} results (${pages}p)`);
     }
   }
 
@@ -329,15 +357,33 @@ async function run(argv, ctx) {
   const greenfield = businesses.filter(b => b.skip_reason === 'aggregator-profile-only').length;
   log(`[discover] total=${businesses.length} with_domain=${withDomain} greenfield=${greenfield}`);
 
+  const queries = tiles.length * keywords.length;
+  log(`[discover] ${verticalSlug}: ${requestsIssued} requests, ` +
+      `${paginatedQueries}/${queries} queries paginated, ${rawResultsCount} raw results`);
+  // Only `places-new` paginates; brave and fixture return one page by design,
+  // so warning there would cry wolf on every smoke run.
+  if (paginatedQueries === 0 && sourceArg === 'places-new') {
+    log(`[discover] WARN ${verticalSlug}: nothing paginated — check that ` +
+        `'nextPageToken' is in the field mask on THIS box (places.js:17)`);
+  }
+  if (ceilingQueries > 0) {
+    log(`[discover] ${verticalSlug}: ${ceilingQueries} queries hit the 60-result ` +
+        `ceiling — still truncated there, only a finer grid reaches deeper`);
+  }
+
   // Build output
   const output = {
     run:         runId,
+    commit:      gitCommit(),
     vertical:    verticalSlug,
     source:      sourceArg,
     queried_at:  queriedAt,
     tiles:       tiles.length,
     keywords:    keywords.length,
     raw_results: rawResultsCount,
+    requests:    requestsIssued,
+    paginated:   paginatedQueries,
+    at_ceiling:  ceilingQueries,
     businesses,
   };
 

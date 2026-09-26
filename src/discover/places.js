@@ -110,6 +110,7 @@ async function search({ keyword, tile, apiKey, signal, city, log }) {
   const results = [];
   let pageToken = null;
   let page = 0;
+  let httpCalls = 0;   // actual requests billed, retries included
 
   while (page < 3) {
     const body = {
@@ -126,6 +127,7 @@ async function search({ keyword, tile, apiKey, signal, city, log }) {
     if (pageToken) body.pageToken = pageToken;
 
     let { ok, data } = await postSearch(body, apiKey, signal, log);
+    httpCalls++;
 
     // A pageToken is not always valid the instant the previous page returns.
     // Treating that rejection as "no more pages" would cap every tile at 20
@@ -134,6 +136,7 @@ async function search({ keyword, tile, apiKey, signal, city, log }) {
     if (!ok && pageToken) {
       await sleep(2000);
       ({ ok, data } = await postSearch(body, apiKey, signal, log));
+      httpCalls++;
     }
     if (!ok || !data) break;
 
@@ -148,6 +151,12 @@ async function search({ keyword, tile, apiKey, signal, city, log }) {
     if (!pageToken) break;
   }
 
+  // Request accounting for the caller. Attached to the array rather than
+  // changing the return type, so `brave` and `fixture` — which never paginate —
+  // keep satisfying the same provider contract untouched. Run 1 left no record
+  // of either number, which is why its truncation went unnoticed for two days.
+  Object.defineProperty(results, '_pages',    { value: page,      enumerable: false });
+  Object.defineProperty(results, '_requests', { value: httpCalls, enumerable: false });
   return results;
 }
 
