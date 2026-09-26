@@ -240,6 +240,86 @@ capture's 2–11 hours. Quota permits ~13.6 full sweeps a day; Coimbatore runs o
 of businesses long before the quota does. Cost per sweep is the open question,
 not throughput.
 
+## Hosting the box
+
+Settled 2026-09-26. Everything below is a decision, not a proposal.
+
+**One box in rogue, Ubuntu 24.04 on arm64 (t4g.small).** Deliberately *not*
+Amazon Linux 2023, which is what the hub runs. Playwright publishes arm64
+Chromium builds for Ubuntu and treats AL2023 as unsupported, so
+`playwright install --with-deps` has no apt to work with there and Chromium's
+shared libraries become a hand-resolved dependency hunt. t4g.small is free per
+account until 2026-12-31.
+
+**Two hostnames, one box, one Caddy.**
+
+| Hostname | Serves | Port | Bind |
+|---|---|---|---|
+| `prospect.themaverick.tech` | control — `src/control/` | 7778 | `127.0.0.1` |
+| `leads.themaverick.tech` | the deck — `src/server/` | 7777 | `127.0.0.1`, hard-coded at `src/server/index.js:202` |
+
+Names, not paths. Both apps build root-absolute URLs — `ui.html`'s single
+`api()` helper (`src/control/ui.html:249`) and the deck's `/data/*` and
+`/preview/*` assets — so mounting one under `/control/` means editing both apps.
+Caddy's `handle_path` cannot help: it strips a prefix on the way in but cannot
+change what the browser asks for.
+
+Routing both to one hostname by explicit path was considered and rejected. The
+two `/api/*` surfaces do not currently overlap (control owns `status`, `run/*`,
+`events`, `verticals`, `pipeline/*`; the deck owns `index.json` and friends) but
+the first endpoint added to either side collides silently, and the symptom is a
+confusing 404 rather than an error. Separate names also permit separate auth
+policy, which matters: the deck is something a prospect might eventually be
+shown, control never is.
+
+**Caddy, not nginx.** Automatic ACME issuance and renewal — no certbot, no cron,
+no webroot, no hand-written server blocks. `basic_auth` with bcrypt is built in,
+`file_server` covers `/data/*`, `reverse_proxy` covers the API. The only argument
+for nginx was reusing warden's `deploy/` tooling, and since this is a different
+box in a different account there is nothing to reuse.
+
+Two Caddy gotchas: cert storage must sit on a persistent volume or every restart
+re-issues into a Let's Encrypt rate limit, and HTTP-01 needs port 80 reachable
+(DNS-01 would need a Netlify plugin build).
+
+**Caddy also removes two failure modes nginx would have introduced.** Recorded
+because both look like things a later pass would want to "harden" back in:
+
+- *Response buffering.* The live log is SSE — one response that never ends.
+  nginx accumulates upstream output and forwards it in chunks, which shows a
+  phone nothing for minutes and then a wall of text, indistinguishable from a
+  hung run. The app already defends itself (`X-Accel-Buffering: no` at
+  `src/control/index.js:149`, plus a 25s ping at `:156` to stay under nginx's
+  60s idle timeout) so nginx would have worked — but Caddy flushes
+  `text/event-stream` immediately and sets no read timeout on a stream, so
+  neither defence is load-bearing here.
+- *CSP.* Copying warden's header (`script-src 'self'`) blanks the control panel.
+  `ui.html` is one file with an inline `<script>` and an inline `<style>`, so the
+  browser fetches the page, refuses to execute it, and leaves a styled corpse
+  with console errors — confusing precisely because the page loads. Caddy sends
+  no CSP unless asked. Add one only after splitting `ui.html` into three files.
+
+**Auth: Caddy `basic_auth`, with `CONTROL_TOKEN` left unset.** Unset means the
+control server binds `127.0.0.1` (`src/control/index.js:279`) and Caddy is the
+only process on the box listening publicly — the shape warden already uses with
+uvicorn on 8000. Setting the token instead binds `0.0.0.0` and puts the secret in
+a query string, where it lands in access logs and phone history. The token stays
+in the code for the case where nothing is in front of the app.
+
+**Security group: 80 and 443 from anywhere, nothing else.** 7777 and 7778 never
+face the internet. Shell access is SSM Session Manager — no port 22, matching the
+hub — which needs the instance profile and egress for the agent.
+
+**DNS is Netlify, not Route53** (`terraform/outputs.tf:2` records the same for
+warden). Two manual A records, and both must resolve *before* Caddy starts or the
+ACME challenge fails.
+
+**Cost: one more public IPv4, ~$3.60/mo.** Every public IPv4 has been billed at
+$0.005/hr since Feb 2024, attached or not. The hub already pays it; a second box
+answering for its own name pays it again, so ~$7.10/mo across the two. The only
+way to avoid it is proxying prospector through the hub's EIP, rejected — that
+puts warden's box in the path of every capture-control request.
+
 ## Serving
 
 **The index is the real scaling wall, and it arrives before the Lambda work
@@ -266,10 +346,8 @@ behind it. Mounted, `src/server/index.js:73` becomes an S3 GET per request and
 round trips. FUSE mounts also go stale, and the server 500s when they do. Mount
 only `raw/` read-only, on demand, if `scan-platform.js` ever needs it.
 
-**Caddy, not nginx.** Automatic ACME, `basicauth` with bcrypt, `file_server` for
-`/data/*`, `reverse_proxy` for the API. Two gotchas: cert storage must be a
-persistent volume or it re-issues on every restart into a rate limit, and
-HTTP-01 needs port 80 reachable (DNS-01 would need a Netlify plugin build).
+The web tier is Caddy, on the same box, serving both hostnames — see
+**Hosting the box** above.
 
 The auth gate must cover `/data/*` too. Gate only `/` and the captures and
 per-domain JSON stay public while the homepage prompts — and it looks correct
@@ -294,6 +372,10 @@ when you test it.
       (`src/discover/places.js:17`, local only per `docs/STATUS.md:102-103`).
 - [ ] **Places quota headroom** sized against the real keyword x tile count
       before a city-wide sweep.
+- [ ] **Two A records in Netlify DNS** — `prospect` and `leads` — resolving
+      before Caddy first starts, or ACME fails.
+- [ ] **Caddy cert storage on a persistent path** (`/var/lib/caddy`), so a
+      restart does not re-issue into a Let’s Encrypt rate limit.
 
 ## Order of work
 
