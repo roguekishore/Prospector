@@ -51,7 +51,7 @@ resource "aws_route_table_association" "public" {
 # agent's own outbound connection, which needs no inbound rule at all.
 resource "aws_security_group" "box" {
   name        = "prospector-box"
-  description = "Caddy only — no SSH"
+  description = "Caddy only - no SSH"
   vpc_id      = aws_vpc.main.id
 
   ingress {
