@@ -20,6 +20,15 @@ set -euo pipefail
 # platform.
 export MSYS_NO_PATHCONV=1
 
+# The aws CLI is Python, and on Windows it encodes stdout with the console
+# codepage (cp1252), so printing anything outside it dies with "'charmap' codec
+# can't encode character". install.sh logs an arrow, which was enough to kill
+# `ship` *after* a successful install — the box was fine, the CLI just could not
+# render its output. Any docker/npm output with box drawing or a dash would do
+# the same. A no-op where the locale is already UTF-8.
+export PYTHONIOENCODING=utf-8
+export PYTHONUTF8=1
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ACCOUNT_ID="700897991126"
