@@ -42,7 +42,8 @@ const { readCity }    = require('../../lib-keys');
 const { db, tx, close } = require('../db/mysql');
 
 // ---------------------------------------------------------------------------
-// Domains that are never leads (§2.6 of W1 spec) — also checked after redirect
+// Domains that are never leads (the families discover rejects), checked again
+// here against the post-redirect host so a site forwarding to Facebook is skipped
 // ---------------------------------------------------------------------------
 const REJECT_DOMAINS = new Set([
   'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'x.com',

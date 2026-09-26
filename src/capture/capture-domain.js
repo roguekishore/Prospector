@@ -7,7 +7,8 @@
  * its presence is the completion marker (`completionFiles`, and `COMPLETION` in
  * `s3.js`). Nothing here measures the page: no headers, timings, asset tally or
  * mobile metrics. The deck shows the shots, `extract` reads the DOM, and neither
- * wants a number this stage could produce. W2-capture.md.
+ * wants a number this stage could produce. The settle sequence, consent
+ * handling and failure classes are explained in docs/ARCHITECTURE.md, "capture".
  */
 
 const fs   = require('fs');
@@ -212,7 +213,7 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout }) {
   // hrefs and to know which domain is the site's own.
   const finalUrl = page.url() || (mainResponse ? mainResponse.url() : url);
 
-  // ── Settle sequence (§3.1) ───────────────────────────────────────────────
+  // ── Settle sequence, in this order ───────────────────────────────────────
   const settleDeadline = Date.now() + 10_000;
 
   // 1. Freeze animations
@@ -227,10 +228,10 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout }) {
     _delay(3000),
   ]);
 
-  // 4. Scroll + lazy load (§5)
+  // 4. Scroll + lazy load
   await _scrollAndLoad(page, settleDeadline);
 
-  // 5. Force-eager image decode (capped 5s, §5.2)
+  // 5. Force-eager image decode (capped 5s)
   await Promise.race([
     _forceImageDecode(page),
     _delay(5000),
@@ -246,7 +247,7 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout }) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await _atomicScreenshot(page, path.join(outDir, 'desktop.webp'), { fullPage: false });
 
-  // ── Mobile viewport (§6.3) ───────────────────────────────────────────────
+  // ── Mobile viewport: desktop UA, no device emulation ─────────────────────
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
 

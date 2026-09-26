@@ -2,7 +2,7 @@
    Dispatcher for all pipeline stages.
    Interface contract: every stage module exports { run: async (argv, ctx) => {} }
    ctx = { root, config, log }
-   W3-extract-score.md §11 */
+   docs/ARCHITECTURE.md, "Stage contract" */
 'use strict';
 
 const path = require('path');
@@ -69,7 +69,7 @@ function loadConfig() {
 }
 
 // ---- logger ----
-// Callable as log(...) for W1-style stages AND as log.info/warn/error for W3-style stages.
+// Callable as log(...) AND as log.info/warn/error; stages use both styles.
 function log(...a) { console.log('[info]', ...a); }
 log.info  = (...a) => console.log('[info]',  ...a);
 log.warn  = (...a) => console.warn('[warn]',  ...a);

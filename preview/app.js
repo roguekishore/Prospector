@@ -7,7 +7,8 @@
    and the operator's own answer.
 
    No framework and no build step. The whole state is a URL hash and one page of
-   rows; `app.css` (spec/MASTER.md §9) is the design contract this paints into. */
+   rows; `app.css` (docs/ARCHITECTURE.md, "Deck design") is the design contract
+   this paints into. */
 'use strict';
 
 (() => {

@@ -36,7 +36,9 @@ const { canonicalDomain, readCity } = require('../../lib-keys');
 const { db, close } = require('../db/mysql');
 
 // ---------------------------------------------------------------------------
-// Domains that are never valid leads (§2.6 of W1 spec)
+// Domains that are never valid leads: social profiles, directories, link
+// shorteners and free site builders. A business whose only website is one of
+// these is kept with domain NULL and skip_reason 'aggregator-or-social-only'.
 // ---------------------------------------------------------------------------
 const REJECT_DOMAINS = new Set([
   'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'x.com',

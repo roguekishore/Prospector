@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * Acceptance tests for W1 (discover + qualify), AC1–AC10 of W1-discovery.md §7.
+ * Acceptance tests for discover + qualify, AC1–AC10. The assertions below are
+ * the criteria; the W1 spec they were numbered in has been retired.
  *
  *     DATABASE_URL=mysql://root:pw@127.0.0.1:3306/prospector_test npm run test:w1
  *

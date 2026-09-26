@@ -5,7 +5,8 @@ closed; don't reopen them without new evidence.
 
 - Per-item state (built, broken, deferred): `docs/STATUS.md`.
 - Remaining work and its order: `docs/PENDING-SPECS.md`.
-- File layouts and JSON shapes: `spec/MASTER.md` (spec wins for contracts).
+- Tables, statuses and file shapes: `docs/SCHEMA.md`. It wins for those; the
+  code wins for behaviour, and this file describes the behaviour.
 
 *Measured* figures come from run 1 (`logs/night.log`). Everything else is
 modelled and says so.
@@ -71,6 +72,24 @@ clasher.
 
 ## Pipeline
 
+### Stage contract
+
+Every stage, and every command `src/cli` dispatches, keeps these:
+
+- **Interface.** `module.exports = { run: async (argv, ctx) => {} }`, with
+  `ctx = { root, config, log }`. `argv` is the raw array after the stage name;
+  each stage parses its own flags. `run` returns `{ ok, err, skipped }` and
+  closes the MySQL pool before returning.
+- **Idempotent and resumable.** The work list is a query over
+  `companies.status`, so running a stage again does exactly what is left.
+- **Per-domain atomic.** Files are written as `<name>.tmp`, then renamed. A kill
+  mid-run never leaves a half-written file, and nothing uploads a `.tmp`.
+- **Fail-soft per domain.** A capture failure becomes that domain's
+  `error.json` and the run continues. An extract failure is logged and counted,
+  writes no `error.json`, and never marks the capture failed.
+- **Exit codes:** `0` success, `1` some domains errored (or `all` stopped at a
+  stage that produced nothing), `2` fatal: unknown stage, config or I/O.
+
 ### discover
 
 Slices the Coimbatore bounding box (`config/city.json`) into a 5×5 grid, then
@@ -80,7 +99,7 @@ single query caps at 60 results (3 pages × 20) and a city-wide query silently
 truncates dense areas.
 
 - **Pagination depends on the `nextPageToken` field mask**
-  (`src/discover/places.js:19`). Without it the API omits the token and every
+  (`src/discover/places.js:17`). Without it the API omits the token and every
   query stops at 20. That was run 1's silent failure: 952 of 3,600 queries
   (26.4%) capped, an estimated 2,000–3,000 leads never collected, and no error
   logged. Every run now logs its commit, per-query page counts and a summary of
@@ -94,7 +113,7 @@ truncates dense areas.
   kept with `domain NULL` and `skip_reason = 'aggregator-profile-only'`: a
   business paying a portal every month for leads it does not own is a
   first-website pitch, not a redesign.
-- **Rate limit** 8 req/s in code (`src/discover/places.js:47`) against 600/min
+- **Rate limit** 8 req/s in code (`src/discover/places.js:42`) against 600/min
   and 75,000/day.
 - **Only stage that spends Places quota.** It is left out of the
   `.claude/settings.json` allowlist so it always prompts, and the panel shows the
@@ -165,11 +184,11 @@ same container in the Lambda. One page visit produces four files, flat in
 - **~12 s per business, ~7 s of it deliberate settle** (11.5 s mean, measured at
   concurrency 1 on 8 vCPU). The settle is a deadline race, not a sleep:
   `Promise.race([_forceImageDecode(page), _delay(5000)])` at
-  `capture-domain.js:278,302`. Starve the CPU and the decode loses, and the
+  `capture-domain.js:236,256`. Starve the CPU and the decode loses, and the
   screenshot comes out half-rasterised. Low CPU costs capture quality, not just
   time.
 - **Hard per-capture deadline**, 60 s (`--deadline`,
-  `src/capture/capture-domain.js:103`). Shots that landed are kept and listed in
+  `src/capture/capture-domain.js:109`). Shots that landed are kept and listed in
   `error.json` as `partial`, `kind: "deadline"`. Not retried: a slow page burns
   the deadline again.
 - **Complete** means `desktop.webp`, `mobile.webp` and `rendered.html` all
@@ -185,15 +204,199 @@ same container in the Lambda. One page visit produces four files, flat in
 - **An extract failure never fails a capture.** It is logged and counted, and
   the capture is uploaded either way. Extract is our own parser over bytes we
   already hold — re-running it costs nothing.
-- **Extract output:** `email`, the first valid address in document order
-  (`mailto:` links first, then page text), and `links[]`, every http(s) link
-  whose registrable domain differs from the site's own, deduplicated, each
-  `social` or `external`. No phones, addresses, hours or agency credit — Places
-  already supplies the first two, and the operator derives agencies from `links`.
+- **The mobile screenshot is the product.** It is what the pitch attaches. A
+  cookie banner, a blank lazy-load band or a half-rendered hero in it makes the
+  lead worthless, which is what everything below is for.
 
-### `capture --extract-only`
+#### Browser and page
 
-Part of capture, not a stage. Skips the browser and re-extracts what failed, so a parsing change never costs a re-crawl. That is its
+- **One browser, one context per domain**, closed in a `finally`. A context is
+  ~5–10 MB against ~80 MB for a browser, so `--concurrency` counts contexts. A
+  leaked context is what exhausts memory on a long run.
+- **Launch.** The box uses `channel: 'chromium'` (full Chromium in new headless
+  mode) with `--disable-blink-features=AutomationControlled`. The Lambda uses
+  the image's default build and adds `--no-sandbox` and
+  `--disable-dev-shm-usage`.
+- **Context options are fixed**, so a capture looks the same tomorrow: 1440×900,
+  `deviceScaleFactor: 1`, `en-IN`, `Asia/Kolkata`, `reducedMotion: 'reduce'`,
+  `colorScheme: 'light'`, service workers blocked. `ignoreHTTPSErrors: true`,
+  because an expired certificate is a finding and the site behind it must still
+  be captured.
+- **User agent:** desktop Chrome plus `ProspectorBot/1.0 (+mailto:…)`. The
+  Chrome prefix is there because many sites serve broken markup to unknown
+  agents; the suffix is the identification politeness requires, and it stays
+  when a site blocks it. The address in `capture-domain.js` is still the
+  placeholder `prospector@example.com`.
+- **Navigation** is `goto(final_url or https://<domain>/, { waitUntil:
+  'domcontentloaded' })`, never `networkidle`: analytics beacons, chat widgets
+  and autoplay video never go idle, so it would burn the full timeout on every
+  lead. A navigation timeout is not a failure; capture continues with whatever
+  rendered. Any other navigation error is classified and ends the capture.
+- **`finalUrl` is `page.url()`**, not the response URL. A JavaScript redirect
+  after `domcontentloaded` moves the page without a new main response, and
+  extract needs the URL the DOM belongs to.
+
+#### Settle sequence
+
+In this order, budgeted at ~10 s. Fonts before the shot, consent before the
+scroll, scroll before the shot.
+
+1. **Freeze.** A stylesheet zeroes every animation and transition duration and
+   delay, and every `<video>` is paused at frame 0. Carousels are the reason: an
+   unfrozen slider gives a different hero on every run.
+2. **Dismiss consent** (below).
+3. `document.fonts.ready`, capped at 3 s.
+4. **Stepped scroll** to the bottom in 80%-of-viewport steps, 120 ms apart,
+   capped at 30,000 px, then back to the top. Stepped, because
+   `IntersectionObserver` loaders only fire for viewports actually traversed;
+   capped, so an infinite-scroll page cannot eat the budget. It also puts
+   scroll-loaded content into `rendered.html`.
+5. **Force images:** `loading="lazy"` becomes `eager`, `data-src` is copied to
+   an empty `src`, and every incomplete image is decoded, raced against 5 s so
+   one broken image cannot stall the capture.
+6. **Freeze again**, since lazy content can bring its own animations.
+7. Wait 1,200 ms.
+
+#### Consent
+
+Three strategies, in order. The outcome is not recorded anywhere.
+
+1. **Block the script.** Before navigation, any request matching
+   `cookiebot|onetrust|cookieyes|termly|iubenda|osano|quantcast|cookie-?consent|cookie-?notice|gdpr|borlabs`
+   is aborted.
+2. **Click.** Buttons by role, then any element by text, matching *Accept all,
+   Accept all cookies, I accept, Accept, Allow all, Got it, OK, I agree, Agree,
+   Understood, Continue, Close, Sounds good*. First match wins, 2 s budget.
+   Anything matching `settings|preferences|manage|customi[sz]e|reject|decline|more info`
+   is never clicked: it opens a modal, which is worse than the banner.
+3. **Remove what survived:** a `fixed` or `sticky` element with `z-index` over
+   900, taller than 60 px, whose text mentions `cookie|consent|gdpr|privacy`. The
+   text test is what keeps a legitimate sticky header, which the operator needs
+   to see.
+
+How common banners are on Coimbatore sites is unmeasured, probably low. The
+handling stays regardless, because one banner ruins the pitch asset.
+
+#### Viewports
+
+- **Desktop first**, 1440×900. Then **mobile**, 390×844, with a fresh scroll,
+  image pass, freeze and an 800 ms wait, because resizing re-triggers
+  responsive layout and lazy loading. `rendered.html` is taken after both, so it
+  holds the DOM after the mobile re-settle.
+- **Mobile keeps the desktop user agent**, with no `isMobile`, touch or device
+  emulation. The shot exists to show what a desktop-layout site does squeezed
+  into a phone; a mobile UA can switch the site to a separate mobile theme and
+  hide the defect the pitch is about.
+- **Encoding:** each shot is a PNG in memory, resized by `sharp` to 720 px wide
+  (`fit: 'inside'`, never enlarged), WebP quality 50, effort 4, written as
+  `.tmp` and renamed. About 34 KB for both.
+
+#### Failures and retries
+
+Every failure is per domain and writes `error.json` (shape and `kind` values in
+`docs/SCHEMA.md`); the run moves on.
+
+- **Retried once:** `nav-timeout`, `crash`, `blocked-429`, `blocked-403`, after
+  5 s (30 s for a 429). **Never retried:** `dns`, `refused`, `robots`,
+  `deadline` — a slow page burns the deadline again.
+- **Headful fallback.** A `blocked-403` retry asks for headful, but it only
+  takes effect when the browser had to be relaunched: the context ignores the
+  flag and a live browser stays headless. `--headful` launches headful for the
+  whole run. How many sites block headless is unmeasured; if it passes ~10% of a
+  run, make headful the default rather than a fallback.
+- **Crash recovery.** `browser.isConnected()` is checked before each capture and
+  a dead browser is relaunched. A thrown capture is caught and written as
+  `crash` or `unknown`.
+
+#### Politeness
+
+Non-negotiable, for qualify and capture alike. A stage that cannot obey these
+skips the domain.
+
+- **robots.txt honoured**, parsed once per host and cached for the run. Qualify
+  skips a disallowed `/` as `robots-disallow`; capture writes
+  `kind: "robots"`. Neither fetches the path anyway.
+- **1,500 ms minimum between requests to the same host**, on top of the global
+  concurrency cap (qualify 8, capture 4).
+- **Identifying user agent**, never stripped to get past a block. New headless
+  is used because old headless is flagged as a bot even for legitimate traffic,
+  not to disguise anything.
+- **Homepage only.** A survey, not a crawl: no contact page, no second page.
+- **Hard budget:** 30 s navigation (`--timeout`), ~10 s settle, 60 s over the
+  whole capture (`--deadline`).
+- **Extract fetches nothing** (below).
+
+### Extract (inside capture)
+
+Not a stage and not a command: it is what capture does to each domain after the
+shots land, and it lives in `src/capture/extract/`. A parser over `rendered.html`, and nothing else: no fetch, no HEAD, no DNS, no
+model, no clock. `extractDir({ dir, domain, finalUrl })` in
+`src/capture/extract/index.js` is synchronous, parses with cheerio, and writes
+`extract.json` (shape in `docs/SCHEMA.md`). `finalUrl` resolves relative hrefs
+and names the site's second own domain; it defaults to `https://<domain>/`.
+Three callers share it: capture on the box and the Lambda pass the browser's
+`page.url()`, `capture --extract-only` passes `companies.final_url`.
+
+**Output is a pure function of `rendered.html`, `domain` and `finalUrl`.** Two
+runs give byte-identical files, and `npm run test:extract` asserts it. One
+honest caveat: after a JavaScript redirect to another domain, `page.url()` and
+`final_url` differ, and so can the own-domain filter, so a `--extract-only` re-extract
+may not reproduce the Lambda's file exactly.
+
+No phones, addresses, hours or agency credit — Places already supplies the first
+two, and the operator derives agencies from `links`.
+
+#### Links (`src/capture/extract/links.js`)
+
+Every outside link, in document order. The site's **own domains** are two: the
+registrable domain of `https://<domain>/` and of `finalUrl`, so a site that
+redirects `example.com` to `example.net` does not list itself.
+
+For each `a[href]` and `area[href]`:
+
+1. Skip an empty href or one starting with `#`.
+2. Resolve against `finalUrl`, drop the hash, and delete `utm_source`,
+   `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `gclid`, `fbclid`,
+   `mc_cid`, `mc_eid`.
+3. Keep only `http:` and `https:` after resolution. That drops `mailto:`,
+   `tel:`, `javascript:` and the rest, and keeps a protocol-relative `//host/x`.
+4. Skip anything longer than 2,048 characters.
+5. `target_domain` is `tldts.parse(url).domain`, lowercased. Skip it when null,
+   one of the own domains, or WhatsApp (`wa.me`, `whatsapp.com`;
+   `api.whatsapp.com` resolves to the latter). WhatsApp is a phone number
+   wearing a URL, and Places has the phone.
+6. Dedupe on the normalised URL; first occurrence wins.
+7. `kind` is `social` when `target_domain` is in `SOCIAL_HOSTS` (facebook,
+   instagram, twitter, x, youtube, youtu.be, linkedin, pinterest, tiktok, t.me,
+   snapchat), else `external`.
+8. `region` is the nearest `nav`, `header`, `footer`, `main` or `aside`
+   ancestor, else `main`.
+9. `text` is the element's text, whitespace collapsed, trimmed, at most 120
+   characters.
+
+Internal links, shadow DOM and iframes are out of scope.
+
+#### Email (`src/capture/extract/email.js`)
+
+One address, lowercase, or `null`: `companies.email` is one column, and the
+operator writes to whichever address the site puts first.
+
+1. `a[href^="mailto:"]` in document order, with `mailto:` and any `?…` query
+   stripped. A site that links an address means that one.
+2. Otherwise the page text: `<body>` with `<script>` and `<style>` dropped and a
+   newline at every non-inline element boundary. `$('body').text()` would glue
+   `<p>info@foo.com</p><p>Call us</p>` into `info@foo.comCall`, a
+   valid-looking wrong address.
+3. Match `/[\w.+\-]+@[\w\-]+\.[\w.]{2,}/g`; the first accepted match wins.
+
+Rejected in both passes: a domain in `REJECT_EMAIL_DOMAINS` (`example.com`,
+`sentry.io`, `wixpress.com`, `cloudflare.com`, `schema.org`, `w3.org`,
+`google.com`, `googleapis.com`), a domain ending in an image extension
+(`logo@2x.png`), and `noreply@`, `no-reply@`, `donotreply@`.
+
+#### `capture --extract-only`
+
+Skips the browser and re-extracts what failed, so a parsing change never costs a re-crawl. That is its
 only reason to exist; a normal run never invokes it.
 
 Its work list is `status = 1 AND extract_status = -2`: captured, and extract
@@ -626,7 +829,7 @@ Constraints it enforces:
 - **Stop is safe.** SIGTERM, then SIGKILL after 8 s. Capture is per-domain
   atomic, so a stop loses at most the page in flight.
 - **Auth is Caddy `basic_auth`, with `CONTROL_TOKEN` unset.** Unset, the server
-  binds `127.0.0.1` (`src/control/index.js:286`) and Caddy is the only public
+  binds `127.0.0.1` (`src/control/index.js:316`) and Caddy is the only public
   listener. Setting the token binds `0.0.0.0` and puts the secret in a query
   string, where it lands in logs and phone history. The token stays for the case
   where nothing is in front.
@@ -679,6 +882,51 @@ design contract, and the rewrite is `app.js` alone. `src/db/index.js`,
   `"` doubled, and a leading `=`, `+`, `-` or `@` prefixed with an apostrophe: a
   business called `=Zeta` is a name, not a formula.
 - **No CSP**, for the same reason control has none.
+
+### Deck design
+
+`preview/app.css` is the design contract. Extend it in the same idiom; don't
+rewrite or reinterpret it. Where this section and the CSS disagree, the CSS
+wins.
+
+- **The screenshots are the only colour in the interface.** Every coloured
+  pixel in view belongs to a lead, not to the chrome, and that is what makes
+  reviewing hundreds of sites in one sitting tolerable. `#000` ground, `#fff`
+  ink, and greys only: no accent, no brand colour, no colour-coded badge, no
+  chart palette. A feature that seems to need colour uses weight, opacity,
+  inversion or space instead.
+- **Hierarchy is four opacity steps** (`--o1` 1, `--o2` .64, `--o3` .40,
+  `--o4` .24) and hairline rules (`--rule` `rgba(255,255,255,.12)`,
+  `--rule-strong` .22). **Emphasis is an inverted block**, white ground and
+  black ink, as on a pressed chip or tier button.
+- **Tier is a glyph or a letter, never a hue:** A, B, C, X, told apart by
+  opacity.
+- **One monospace stack** (`--mono`), a fixed type scale (`.t-micro` 10 px to
+  `.t-num` 34 px), `tabular-nums` on every numeric column, spacing in multiples
+  of `--u` (8 px). No shadows, no rounded corners, no animation beyond the
+  120 ms crossfade (`--t`).
+- **Layout:** the lead view is `270px | minmax(0,1fr) | 300px`, narrowing at
+  1100 px; below 860 px the rails collapse and nothing scrolls sideways.
+- **No toolchain and no network.** Plain HTML, CSS and JS: no framework, no
+  bundler, no build step. No external font, CDN or telemetry request;
+  `index.html` loads `app.css` and `app.js` and nothing else.
+
+Accessibility, as the deck implements it:
+
+- Every control is a real `<button>` or `<a href>`, never a `div` with a click
+  handler, and every key binding (A/B/C/X tier, pressing the current one
+  clears it; P pitch; Esc back) is also a visible, clickable control. The
+  keycap footer is the keyboard documentation.
+- Filter chips, tabs and the pitch button carry `aria-pressed`; the tier
+  buttons are `role="radio"` with `aria-checked` as well; the nav marks the
+  current view with `aria-current="page"`. Keys are ignored while a textarea or
+  input has focus.
+- Every screenshot `<img>` has a real alt: "Mobile screenshot of <name>" in the
+  grid, "<shot> screenshot of <name>" in the lead view.
+- `:focus-visible` is a 1 px white outline at a 2 px offset; never remove it.
+  `prefers-reduced-motion: reduce` turns off every animation and transition.
+- `--o4` is decorative only. Never put text the operator needs to read at .24
+  on black.
 
 ## Observability
 

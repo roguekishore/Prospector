@@ -2,7 +2,8 @@
 
 /**
  * robots.txt fetcher, parser, and per-run cache.
- * MASTER.md §8: parse once per host, cache for the run.
+ * Parse once per host, cache for the run (docs/ARCHITECTURE.md, capture,
+ * "Politeness").
  */
 
 const https = require('https');

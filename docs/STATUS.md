@@ -410,8 +410,9 @@ contract and only `app.js` needed rewriting. Verified by `npm run test:deck`
 - **Places rate limiting** — 8 req/sec limiter, backoff, `pageToken` retry.
 - **Two missing pitch angles** — `mobile-tap-targets`, `mixed-content`. Five of
   seven fixture leads were falling through to `generic`.
-- **`spec/W1-discovery.md` reconciled to the shipped code** — rate limit,
-  no-merge-on-portal, new §2.6.1, two acceptance criteria.
+- **The W1 discovery spec reconciled to the shipped code** — rate limit,
+  no-merge-on-portal, the portal-profile bucket, two acceptance criteria.
+  `spec/` has since been retired into `docs/`.
 
 ## Note on `logs/`
 

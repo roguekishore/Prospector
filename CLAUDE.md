@@ -101,9 +101,10 @@ client — no AWS account, but it does take two real captures.
 `scripts/smoke-companies.json` so it needs no Places key; it asserts on the
 folder **and** on the rows. `npm run test:clean` removes both.
 
-`npm run test:w1` runs the W1 acceptance tests (AC1–AC10, 41 assertions). It
-needs no Places key either — discover runs `--source fixture` — but qualify does
-make **real DNS and HTTP requests**. It empties the test tables in a `finally`.
+`npm run test:w1` runs the discover + qualify acceptance tests (AC1–AC10, 41
+assertions). It needs no Places key either — discover runs `--source fixture` —
+but qualify does make **real DNS and HTTP requests**. It empties the test tables
+in a `finally`.
 
 ## Which doc is authoritative
 
@@ -111,16 +112,15 @@ make **real DNS and HTTP requests**. It empties the test tables in a `finally`.
 |---|---|
 | How it's built, where it runs, and why | `docs/ARCHITECTURE.md` |
 | Spec order (A–E, in `.kiro/specs/`) and files still to remove | `docs/PENDING-SPECS.md` |
-| MySQL tables, statuses, who writes which column | `docs/SCHEMA.md` |
+| MySQL tables, statuses, who writes which column; `extract.json` and `error.json` | `docs/SCHEMA.md` |
+| Capture's settle, consent and retry rules; extract's link and email rules; the deck's design rules | `docs/ARCHITECTURE.md` |
 | What's built, what's broken, what's deferred on purpose | `docs/STATUS.md` |
 | How to run a stage, what flags it takes | `docs/COMMANDS.md` |
-| On-disk schemas and the run contract | `spec/MASTER.md` |
-| The MySQL tables `extract.json` feeds | `docs/SCHEMA.md` |
-| Per-stage detail and acceptance criteria | `spec/W1`–`spec/W4` |
+| What a spec built and how | `.kiro/specs/spec-*/design.md` |
 
-**Code wins over spec for behaviour.** Where the two disagreed, W1's spec was
-reconciled to the code, not the reverse. Spec wins for contracts: file layout,
-JSON shapes, field names.
+**`docs/SCHEMA.md` wins for tables and file shapes; code wins for behaviour.**
+Where a doc and the code disagree about what happens, fix the doc. The old
+`spec/` contracts were retired into these files; don't recreate them.
 
 ## Gotchas
 
@@ -161,6 +161,6 @@ JSON shapes, field names.
 - **The peering and the database are written but not applied.** `terraform/mavdb`
   and `terraform/db` have never run; so has nothing that needs mavdb. Anything
   measured against MySQL so far was measured against a local MySQL 8.0.39.
-- Older commit messages and spec text mention `discovered.json`,
-  `qualified.json` and `_qualified.json`. Those files do not exist; the rows
-  replaced them.
+- Older commit messages mention `discovered.json`, `qualified.json`,
+  `_qualified.json` and `spec/`. None of them exist; the rows replaced the
+  files, and `docs/` replaced `spec/`.

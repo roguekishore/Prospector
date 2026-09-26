@@ -235,6 +235,36 @@ columns ingest writes, so loading it is a straight copy:
 So a company's S3 folder holds `desktop.webp`, `mobile.webp`, `rendered.html`,
 `extract.json`, and `error.json` only when the capture failed.
 
+- Keys in the order shown, top level and per link. Serialised as
+  `JSON.stringify(doc, null, 2) + "\n"`, UTF-8, written as `extract.json.tmp`
+  then renamed.
+- No run id, no timestamp, no counts, so a re-run over the same `rendered.html`
+  is byte-identical. Add a field here before adding it to the code.
+
+## `error.json`
+
+Written by capture only, in the same folder, when a capture failed or was cut by
+the deadline. Never deleted: a domain that failed, was retried and succeeded
+keeps it, so `isComplete()` is the authority on whether a capture is done, not
+this file. Extract never writes it.
+
+```jsonc
+{
+  "domain": "blitzglobe.com",
+  "stage": "capture",
+  "at": "2026-09-18T09:41:02.000Z",
+  "kind": "nav-timeout",
+  "message": "Timeout 30000ms exceeded",
+  "partial": ["desktop.webp"],       // shots on disk when it failed
+  "attempts": 2
+}
+```
+
+`kind` is one of `robots`, `dns`, `refused`, `nav-timeout`, `blocked-403`,
+`blocked-429`, `crash`, `deadline`, `unknown`. `recordDomain` copies `kind`
+into `companies.capture_error` when the capture is not complete, and clears it
+when it is.
+
 ## Re-ingest
 
 For one `(city, domain)`, in one transaction: delete the `links` rows of every

@@ -55,8 +55,7 @@ reaching a real one:
     preview/        the deck's front end
     scripts/        smoke and acceptance tests, the Lambda dispatcher
     terraform/      persist, stack, mavdb (peering), db (the database)
-    spec/           frozen contracts — MASTER plus one per workstream
-    docs/           STATUS (what works, what doesn't), COMMANDS, SCHEMA
+    docs/           ARCHITECTURE, SCHEMA, STATUS (what works, what doesn't), COMMANDS
 
 State is in MySQL; bytes are on disk and in S3, keyed the same way in both:
 

@@ -46,7 +46,7 @@ DATABASE_URL=mysql://root:pw@127.0.0.1:3306/prospector_test npm run test:db
 | `npm run test:deck` | no | The deck's routes through Fastify `inject` — paging, filters, decisions, CSV, screenshots |
 | `npm run test:extract` | no | Extract acceptance tests |
 | `npm run test:lambda` | two real captures | Drives the Lambda's batch flow over two domains with a stub S3 client |
-| `npm run test:w1` | real DNS + HTTP | W1 acceptance tests. Discover runs `--source fixture`; qualify really probes |
+| `npm run test:w1` | real DNS + HTTP | Discover + qualify acceptance tests. Discover runs `--source fixture`; qualify really probes |
 | `npm run test:run` | five real captures | Seeds `companies` from `scripts/smoke-companies.json` and captures them. No Places key |
 | `npm run test:clean` | no | Deletes the folders `test:run` wrote and empties the test tables |
 

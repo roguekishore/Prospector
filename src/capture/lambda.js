@@ -22,7 +22,8 @@
  * * **One browser per invocation, not per domain.** Chromium launch is 1-2s; at
  *   10 domains a batch that is 10-20s of pure waste otherwise.
  * * **Fail-soft per domain.** A thrown capture is caught, recorded, and the
- *   batch continues — the same contract `spec/MASTER.md` §2.2 sets for disk.
+ *   batch continues — the same contract every stage keeps on disk
+ *   (`docs/ARCHITECTURE.md`, "Stage contract").
  * * **The upload happens either way.** A failed extract never withholds or
  *   undoes a capture upload: the capture is the expensive half and extract can be
  *   re-run from the uploaded `rendered.html` at no cost.

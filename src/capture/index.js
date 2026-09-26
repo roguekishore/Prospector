@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * W2 — Capture stage entry point. Capture, then extract, per domain.
+ * Capture stage entry point. Capture, then extract, per domain.
  *
  * Extract runs in the same worker slot as the capture that produced its input:
  * it is cheerio over one local file, so the alternative — a second pass over the
@@ -171,13 +171,13 @@ async function run(argv, ctx) {
       const t0 = Date.now();
       let result = await _attemptCapture(browser, biz, outDir, headful, navTimeout, log, 1, deadline);
 
-      // Retry policy (§8.1)
+      // Retry policy: once, for these four kinds only
       if (!result.ok && _shouldRetry(result.kind)) {
         const retryWait = result.kind === 'blocked-429' ? 30_000 : 5_000;
         log.info(`[${_pad(pos, total)}]  ×  ${domain}  ${result.kind} (retry in ${retryWait / 1000}s)`);
         await new Promise(r => setTimeout(r, retryWait));
 
-        // For 403: retry headful (§8.2)
+        // For 403: ask for headful. Only takes effect if the browser is relaunched
         const useHeadful = headful || result.kind === 'blocked-403';
         if (!browser.isConnected()) browser = await _launchBrowser(useHeadful);
         result = await _attemptCapture(browser, biz, outDir, useHeadful, navTimeout, log, 2, deadline);
@@ -271,7 +271,7 @@ function _extract(outDir, domain, finalUrl, log) {
 
 async function _attemptCapture(browser, biz, outDir, headful, timeout, log, attempt = 1, deadline = 60_000) {
   try {
-    // Crash recovery: rebuild browser if disconnected (§8.3)
+    // Crash recovery: rebuild browser if disconnected
     if (!browser.isConnected()) {
       browser = await _launchBrowser(headful);
     }
