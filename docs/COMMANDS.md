@@ -9,6 +9,7 @@
 | `npm run audit -- [vertical]` | Open each qualified domain in a real browser, capture screenshots and performance data |
 | `npm run extract` | Parse raw HTML and headers into `signals.json`, `links.json`, `contacts.json` |
 | `npm run score` | Run the weighted scoring formula, write `score.json` per domain *(opt-in, skipped by `pipeline`)* |
+| `node src/cli control` | Progress dashboard + run control on :7778. Set `CONTROL_TOKEN` for network access |
 | `npm run report` | Build `data/index.json`, `leads.csv`, `pitch.csv`; optionally scrape agency pricing |
 | `npm run pipeline` | Run discover → qualify → audit → extract → report in order |
 

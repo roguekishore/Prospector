@@ -344,6 +344,49 @@ Four properties that are easy to get wrong, and are handled:
 Async invoke reports nothing back. Attach a DLQ or failure destination, or a
 domain that fails its two automatic retries is simply absent with nothing logged.
 
+## Control — `node src/cli control`
+
+A dashboard on port 7778 that shows capture progress and starts runs, built for a
+phone first. `src/control/`.
+
+**Progress is read from disk, never from the runner.** `qualified.json` says what
+should be captured, `isComplete()` says what was, `error.json` says what failed
+and why — the same triple `--resume` uses, read for display instead of for
+skipping. That means a Lambda capture only appears once S3 is synced, which is the
+honest number, because the deck serves from that same disk.
+
+Three things it does:
+
+- **Progress** — captured / pending / failed per vertical and in total, with the
+  failure breakdown by kind. Pushed over SSE every 3s.
+- **Run** — capture the remaining domains, either `local` (this box, slow,
+  unattended overnight) or `lambda` (dispatch batches). Concurrency, per-capture
+  deadline and batch size are all set from the page.
+- **New vertical** — add a name and keywords, then run
+  discover → qualify → capture back to back. The request estimate
+  (25 tiles x keywords, up to 3 pages) is shown before the button, because
+  discover is the only stage that spends Places quota and a phone tap is a low
+  bar for spending money.
+
+### Constraints it enforces
+
+**One run at a time.** Two concurrent captures would fight for the same 2 GB and
+the same per-host throttle, and the second would re-capture what the first is
+mid-way through.
+
+**A pipeline halts on a failing stage.** Qualifying domains discover never found,
+or capturing a list qualify never vetted, produces a confidently empty result
+rather than an error — the worse outcome.
+
+**Stop is safe.** SIGTERM then SIGKILL after 8s. Capture is per-domain atomic, so
+a stop loses at most the page in flight and `--resume` continues from there.
+
+**Auth is not optional.** The server starts runs, spends Places quota and edits
+`config/`. Without `CONTROL_TOKEN` it binds `127.0.0.1` only and says so; with one
+it binds `0.0.0.0` and gates every route but the page itself. A shared token is
+the floor — put Caddy with `basicauth` and TLS in front before it answers on a
+public address.
+
 ## Observability
 
 The capture Lambda emits CloudWatch Embedded Metric Format on every batch — a

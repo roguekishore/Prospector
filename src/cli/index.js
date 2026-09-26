@@ -127,6 +127,7 @@ Stages:
   score                   Weighted formula → tier, score, angle
   report                  Rebuild index.json + CSV exports
   serve                   Static frontend + review API
+  control                 Progress dashboard + run control (--port 7778)
   all                     discover → qualify → audit → extract → report (not score)
 
 Common options:
@@ -149,7 +150,7 @@ Stage-specific:
   const config = loadConfig();
   const ctx    = { root: ROOT, config, log };
 
-  const STAGES = ['discover','qualify','audit','extract','score','report','serve'];
+  const STAGES = ['discover','qualify','audit','extract','score','report','serve','control'];
 
   if (stageArg === 'all') {
     for (const stage of ['discover','qualify','audit','extract','report']) {
