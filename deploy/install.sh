@@ -227,14 +227,24 @@ if [ "$ENABLE_CADDY" = true ] || [ "$DNS_UP" = true ]; then
   PASSWORD="$(aws ssm get-parameter --name /prospector/control-password --with-decryption \
     --region "$REGION" --query 'Parameter.Value' --output text)"
   HASH="$(caddy hash-password --plaintext "$PASSWORD")"
-  install -d -m 700 /etc/caddy
+  # 755, not 700: caddy.service runs as the unprivileged `caddy` user and has to
+  # read /etc/caddy/Caddyfile itself — 700 root-owned made it exit with
+  # "reading config from file: permission denied". The hash stays protected by
+  # auth.env's own 600 below, which costs nothing, because systemd reads
+  # EnvironmentFile as root before dropping to the service user.
+  install -d -m 755 /etc/caddy
   printf 'CONTROL_AUTH_HASH=%s\n' "$HASH" > /etc/caddy/auth.env
   chmod 600 /etc/caddy/auth.env
 
   mkdir -p /etc/systemd/system/caddy.service.d
   install -m 644 "$DEST/deploy/caddy-override.conf" /etc/systemd/system/caddy.service.d/override.conf
   install -m 644 "$DEST/deploy/Caddyfile" /etc/caddy/Caddyfile
+  # The Caddyfile points `storage file_system` here so certificates survive on
+  # the persistent volume rather than being re-issued from Let's Encrypt on every
+  # box rebuild. Caddy writes them as its own user, so this has to be owned by
+  # caddy, not root.
   mkdir -p "$DATA_ROOT/caddy"
+  chown -R caddy:caddy "$DATA_ROOT/caddy"
 
   systemctl daemon-reload
   # CONTROL_AUTH_HASH has to be in *this* process's environment: the Caddyfile
