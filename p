@@ -41,13 +41,16 @@ need_bin() {
 # ---------------------------------------------------------------------------
 _csv_field() {
   local file="$1" want="$2"
-  awk -F',' -v want="$want" '
+  # A CSV saved by Windows tools (Excel, the IAM console's own download on this
+  # box) commonly leads with a UTF-8 BOM on the header line — strip it before
+  # matching, or the first column's header never equals anything.
+  sed '1s/^\xef\xbb\xbf//' "$file" | awk -F',' -v want="$want" '
     NR==1 {
       for (i=1;i<=NF;i++) { gsub(/^"|"$|\r/,"",$i); if (tolower($i)==tolower(want)) col=i }
       next
     }
     NR==2 && col { gsub(/^"|"$|\r/,"",$col); print $col; exit }
-  ' "$file"
+  '
 }
 
 load_creds_from_csv() {
