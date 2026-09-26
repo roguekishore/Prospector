@@ -74,17 +74,21 @@ and extract share one folder per domain.
 
 Not verified, and needing the operator:
 
-- [ ] **`terraform plan` for both roots.** Edited and `fmt -check` + `validate`
-      clean; no plan run. The reason recorded here was wrong — it blamed an
-      expired SSO token, but **this project has no SSO and no profile**: `p`
+- [x] **`terraform plan` for both roots — run 2026-09-27, and spec A's diff is
+      exactly what was claimed.** `persist`: `aws_s3_bucket_versioning.captures`
+      `"Enabled" -> "Suspended"`, in place. `stack`: `aws_iam_role_policy.box` and
+      `aws_iam_role_policy.capture_lambda` updated in place. No replacements, no
+      destroys, nothing else. **Not applied.**
+
+      The reason previously recorded here for not planning was wrong — it blamed
+      an expired SSO token, but **this project has no SSO and no profile**: `p`
       authenticates from access-key CSVs and unsets `AWS_PROFILE` (see *Auth* in
       `docs/ARCHITECTURE.md`). All three CSVs are present and
-      `sts get-caller-identity` succeeds on each, verified 2026-09-27. What
-      actually blocked the plan is that `terraform` was run directly, so it
-      inherited the laptop's forbidden SSO `default` profile; exporting the CSV
-      keys first is all it needed. The diff should be exactly: versioning
-      `Suspended`, the Lambda policy's two S3 statements, and the box policy's
-      narrowed `places/*`.
+      `sts get-caller-identity` succeeds on each. `terraform` had simply been run
+      bare, inheriting the laptop's forbidden SSO `default` profile. That one
+      wrong belief is why nobody ran the plan that would have caught the network
+      migration below — the check was skipped for a credential problem that did
+      not exist.
 - [ ] **The Lambda image build.** `docker build` for `linux/arm64` and
       `node -e "require('/var/task/src/capture/lambda')"` inside it were not run.
 - [ ] **One real batch.** See the IAM item under *Open — Lambda capture*.
@@ -335,6 +339,49 @@ contract and only `app.js` needed rewriting. Verified by `npm run test:deck`
       seeded rows; no human has used it on real leads.
 
 ## Open — robustness before the next run
+
+- [ ] **The network moved roots in code but not in state — blocks and plans
+      written, nothing applied.** `ec424b1` moved the VPC, subnet, internet
+      gateway and route table from `terraform/stack` to `terraform/persist` so
+      the mavdb peering survives `./p down`. That commit changed the code only.
+      The live resources were built by stack and are still in `stack.tfstate`,
+      while `persist.tfstate` holds 11 resources and no network at all — so a
+      plain `./p up` would have had persist **create a second VPC** and then stack
+      **destroy the live one**, taking `i-0bf50fee5a6cbc935` and EIP
+      `35.154.77.31` with it. `fmt -check` and `validate` pass on this, because
+      neither reads state; only a plan does. Confirmed the stack is up:
+      instance `running`, `prospector-capture` `Active`.
+
+      Written, and verified by plan on 2026-09-27:
+
+      - `terraform/persist/imports.tf` — six `import` blocks. Plan:
+        **`6 to import, 0 to add, 1 to change, 0 to destroy`**, the one change
+        being spec A's bucket versioning. No resource plans as replaced, because
+        the configs are the ones stack applied: same CIDR `10.43.0.0/16`, same
+        subnet, same AZ, same tags.
+      - `terraform/stack/removed.tf` — five `removed` blocks with
+        `destroy = false`. Plan: all five "will no longer be managed by
+        Terraform, but will not be destroyed", **`0 to destroy`**.
+
+      **Six imports, not five.** stack's route table carried its default route as
+      an inline `route {}` block; persist declares a standalone `aws_route`
+      instead (deliberately — an inline route would make persist the owner of
+      every route in the table and delete the peering route `terraform/mavdb`
+      adds). The route is the same route in AWS, so it is adopted as
+      `rtb-02df595120a2a98c9_0.0.0.0/0`. Left out, the apply fails
+      `RouteAlreadyExists`.
+
+      **persist must be applied first, and stack cannot even be *planned* before
+      it is**: `stack/network.tf:15` and `box.tf:111` read persist's `vpc_id` and
+      `subnet_id`, which do not exist until persist adopts the resources that
+      produce them. Stack's plan today ends in exactly that one error, after
+      computing the five releases — which is how the `0 to destroy` above was
+      read.
+
+      **Both files must be deleted immediately after applying**, in a follow-up
+      commit: an `import` block whose target is already in state is an error, so
+      until they are gone `./p up` is no longer repeatable — and "both roots
+      re-apply as a no-op" is the property this repo relies on.
 
 - [x] **Every clock in the database is UTC, the two MySQL fills included.**
       `toMysqlDatetime` (`src/db/record.js:63`) writes `DATETIME` columns in UTC
