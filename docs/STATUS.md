@@ -305,6 +305,25 @@ contract and only `app.js` needed rewriting. Verified by `npm run test:deck`
       kept in localStorage. A decision made on one device appears on another
       after a refresh, and survives `./p ship` — **still to confirm by hand with
       the operator once the deck is public** (spec B done-when 8).
+- [ ] **The one date the deck shows is the UTC date, not the operator's.**
+      Storage is UTC everywhere on purpose — that is what makes the laptop, the
+      box and Lambda agree (see the clock item under *Open — robustness before
+      the next run*) — but `reviewed_at` is rendered by truncating the stored
+      string: `String(r.reviewed_at).slice(0, 10)` in `preview/app.js:386`. IST
+      is UTC+5:30, so a decision taken between **00:00 and 05:30 IST shows the
+      previous day's date**. Nothing else is affected: it is the only timestamp
+      any UI displays. `captured_at` is returned by `src/server/index.js:253` and
+      rendered nowhere, the control panel's "Running since" comes from
+      `Date.now()` (`src/control/runner.js:122`) and is formatted with
+      `toLocaleTimeString()`, so that one is already correct in local time.
+
+      The fix belongs in the renderer, not the column: format the instant in
+      `Asia/Kolkata` rather than slicing the UTC string, which also means parsing
+      it as UTC first — `new Date(s.replace(' ', 'T') + 'Z')` — because
+      `new Date('2026-09-26 18:52:34')` is read as *local* by every browser and
+      would shift the date the other way. Worth doing whenever the deck next
+      changes; it misreports only a 5½-hour window and only by one day.
+
 - [ ] **Nothing has been reviewed through it yet.** Every assertion is against
       seeded rows; no human has used it on real leads.
 
