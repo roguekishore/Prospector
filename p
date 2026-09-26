@@ -12,6 +12,14 @@
 # R1.4 — needs only bash, terraform, the aws CLI and git on the laptop.
 set -euo pipefail
 
+# Git Bash on Windows silently rewrites any argument that looks like an
+# absolute Unix path before exec'ing a native .exe — `/prospector/foo` becomes
+# `C:/Program Files/Git/prospector/foo`. Every SSM parameter name here starts
+# with `/prospector/`, so without this every aws ssm call sends a mangled name
+# and SSM rejects it as "not a fully qualified name". A no-op on every other
+# platform.
+export MSYS_NO_PATHCONV=1
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ACCOUNT_ID="700897991126"
