@@ -109,6 +109,27 @@ ssm_get() {
     --query Parameter.Value --output text --region "$REGION" 2>/dev/null || true
 }
 
+# Print every A record for a name, one IPv4 per line, empty if it doesn't
+# resolve. Not `getent`: that's a glibc NSS tool and Git Bash on Windows ships
+# no such binary, so the DNS checks below found nothing forever — Caddy could
+# never have been enabled here, no matter what the record said. nslookup is the
+# one resolver present on all three platforms, but it prints the *server's* own
+# address first, so only lines after "Name:" are real answers.
+resolve_a() {
+  local name="$1"
+  if command -v getent >/dev/null 2>&1; then
+    getent ahostsv4 "$name" 2>/dev/null | awk '{print $1}'
+  elif command -v dig >/dev/null 2>&1; then
+    dig +short A "$name" 2>/dev/null
+  else
+    nslookup -type=A "$name" 2>/dev/null | tr -d '\r' | awk '
+      /^Name:/ { f = 1 }
+      f && /^(Address|Addresses):/ { sub(/^[^:]*:[[:space:]]*/, ""); print }
+      f && /^[[:space:]]+[0-9]+\./  { gsub(/[[:space:]]/, ""); print }
+    '
+  fi | grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' | sort -u || true
+}
+
 ensure_state_bucket() {
   if aws s3api head-bucket --bucket "$TFSTATE_BUCKET" --region "$REGION" 2>/dev/null; then
     return 0
@@ -286,18 +307,15 @@ ensure_deploy_key() {
 }
 
 wait_for_dns_and_enable_caddy() {
-  local eip instance_id dns_ip
+  local eip instance_id
   eip="$(ssm_get eip)"
   log "box is up — EIP $eip"
   log "add a Netlify DNS record: prospect.themaverick.tech A $eip"
 
   for _ in $(seq 1 60); do
-    # `|| true`: getent legitimately exits non-zero every time the name
-    # doesn't resolve yet — that's the expected case on most iterations of
-    # this loop, not an error, and under this script's `set -o pipefail` it
-    # would otherwise abort the whole run silently on the very first poll.
-    dns_ip="$(getent hosts prospect.themaverick.tech 2>/dev/null | awk '{print $1}' | head -n1 || true)"
-    if [ "$dns_ip" = "$eip" ]; then
+    # Match against every A record, not just the first: a name mid-migration
+    # can answer with both the old host and the new one.
+    if resolve_a prospect.themaverick.tech | grep -qx "$eip"; then
       log "DNS resolved — enabling Caddy"
       instance_id="$(ssm_get instance-id)"
       local cmd_id sha
@@ -371,14 +389,14 @@ cmd_status() {
 
   echo "eip:              ${eip:-unknown}"
   if [ -n "$eip" ]; then
-    local dns_ip
-    # `|| true`: getent legitimately exits non-zero every time the name
-    # doesn't resolve yet — that's the expected case on most iterations of
-    # this loop, not an error, and under this script's `set -o pipefail` it
-    # would otherwise abort the whole run silently on the very first poll.
-    dns_ip="$(getent hosts prospect.themaverick.tech 2>/dev/null | awk '{print $1}' | head -n1 || true)"
-    echo "dns resolves to:  ${dns_ip:-not resolving}"
-    if [ "$dns_ip" = "$eip" ]; then echo "dns matches eip:  yes"; else echo "dns matches eip:  no"; fi
+    local dns_ips
+    dns_ips="$(resolve_a prospect.themaverick.tech | tr '\n' ' ' | sed 's/ $//')"
+    echo "dns resolves to:  ${dns_ips:-not resolving}"
+    if printf '%s\n' "$dns_ips" | tr ' ' '\n' | grep -qx "$eip"; then
+      echo "dns matches eip:  yes"
+    else
+      echo "dns matches eip:  no"
+    fi
 
     local code
     code="$(curl -s -o /dev/null -w '%{http_code}' "https://prospect.themaverick.tech/api/status" || echo '?')"
