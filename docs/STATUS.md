@@ -48,6 +48,25 @@ and extract share one folder per domain.
       clean and every invocation would have died at require time.
 - [x] **Places raw-body archiving removed.** No `places-raw/` locally or in S3.
 
+- [x] **Extract is not a stage.** A directory under `src/` is a stage if and only
+      if `all` runs it, so extract — which runs inside capture, per domain —
+      lives in `src/capture/extract/`. There is no `extract` command, no
+      `npm run extract` and no `src/extract/`; `node src/cli extract` fails with
+      "Unknown command". `src/cli/index.js` keeps two lists, `PIPELINE` and
+      `COMMANDS`, and the help text shows them apart. Re-running extract over
+      captures that already exist is `capture --extract-only`. — a7d3735
+
+`capture --extract-only` has **not been run against a database.**
+`npm run test:extract` covers `extractDir` offline, but the flag's own path — the
+work list, the S3 fallback for a `rendered.html` that is not on disk, the
+`recordDomain` write — is verified by reading it, not by executing it. The work
+list `status = 1 AND extract_status = -2` is right and has no hole:
+`src/db/record.js:117` writes `-2` whenever a capture completes without a usable
+`extract.json`, so no row can sit at `status = 1` with `extract_status` NULL. One
+command closes this, and `--dry-run` spends nothing:
+
+    DATABASE_URL=mysql://root:pw@127.0.0.1:3306/prospector_test       node src/cli capture --extract-only --dry-run
+
 Not verified, and needing the operator:
 
 - [ ] **`terraform plan` for both roots.** Edited and `fmt -check` + `validate`

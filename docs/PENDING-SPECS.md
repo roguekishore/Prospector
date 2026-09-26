@@ -47,7 +47,7 @@ earlier.
 | `src/score/`, `lib-scoring.js`, `src/report/`, `src/extract/signals/`, `src/extract/contacts.js` | Done, spec A | — |
 | `config/{angles,reasons,themeforest-slugs,agency-aliases}.json` | Done, spec A | — |
 | `scripts/{emit-sample,gen-fixtures,compress-shots}.js`, `ops/run-night.sh` | Done, spec A | — |
-| `docs/DEPLOYMENT.md` | Merged into `docs/ARCHITECTURE.md` | Deleted in the working tree, not yet committed |
+| `docs/DEPLOYMENT.md` | Merged into `docs/ARCHITECTURE.md` (`## The box`) | — |
 | `src/db/index.js`, `better-sqlite3`, `index.db*` in `.gitignore`, `preview/data.js`, `preview/mocks.js` | Done, spec B (`src/server/` and `preview/app.js` rewritten, not deleted) | — |
 | `scripts/backup-places.js`, `deploy/prospector-backup.{service,timer}`, `config/verticals.json`, `scripts/smoke-seed.json` | Done, spec B | The box's persistent `verticals.json` is still there and is what `migrate --import-verticals` reads; `install.sh` removes the two backup units on its next run |
 | `logs/*.log`, `ops/recover.sh` | Spec C | Operator's go; their figures are already in `docs/STATUS.md` |
