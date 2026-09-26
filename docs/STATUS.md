@@ -33,9 +33,27 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
 - [ ] **Re-run `discover` on the fixed field mask.** During run 1 the box lacked
       the `nextPageToken` field-mask fix, so every tile×keyword returned page 1
       only, capped at 20 results. **3,906 is a floor, not a census**, biased
-      hardest against dense commercial belts. Size the loss first by counting
-      `20 results` lines in `logs/night.log`. Quota is not a constraint — run 1
-      used ~14% of the daily ceiling.
+      hardest against dense commercial belts.
+
+      Loss now measured from `logs/night.log`: **3,600 requests, 952 capped at
+      exactly 20 (26.4%)**, 31,284 raw results, 4,315 audited. Capped queries
+      held 19,040 of those results — 61% of the data from 26% of the spend.
+      Worst by vertical: builders-promoters **59%**, gyms-fitness 34%,
+      plot-promoters 33%; lightest commercial-leasing 9.5%. Untruncated
+      estimate ~5,504 requests → ~7,600–9,600 audited.
+
+      Quota is not a constraint: run 1 used **4.8%** of the 75,000/day
+      `SearchTextRequest` ceiling, not the ~14% previously recorded here (that
+      figure matches an untruncated sweep, 10,800/75,000, and appears to have
+      been a projection recorded as a measurement).
+
+- [x] **Instrument `discover` so this cannot recur silently.** Every run now
+      logs `commit=<sha>` in its header, per-query page counts, and a summary
+      of requests issued / queries paginated / queries at the 60-result
+      ceiling — all four also written into `discovered.json`. A `places-new`
+      run with zero paginated queries now warns outright. Run 1 left no record
+      of any of this, which is why the truncation went unnoticed.
+      — `src/discover/index.js:100`, `src/discover/places.js:150`
 
 ## Open — review deck (`preview/`)
 
@@ -58,15 +76,42 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
       deliberate settle sleeps. 8 vCPUs sat idle. Default is 4; the night driver
       passes 8. At 16 a full 18-vertical run goes from ~5h to ~3.3h.
       — `src/capture/index.js:45`, `ops/run-night.sh:11`
-- [ ] **Add a hard per-capture deadline (~60s).** `--timeout` bounds navigation
-      only, not the settle sequence or `_forceImageDecode`, so one capture ran
-      677s against a 12s mean. Wrap the whole capture in `Promise.race` and keep
-      whatever shots landed. Seen once in a tail sample; true frequency
-      unmeasured — count outliers in `logs/night.log` first.
-      — `src/capture/capture-domain.js`
+- [x] **Hard per-capture deadline.** Whole capture wrapped in `Promise.race`
+      against `--deadline` (default 60s); whatever shots landed are kept and
+      listed in `error.json` as `partial`, `kind: "deadline"`. Not retried —
+      re-running a slow page just burns the deadline again. Verified both ways:
+      `--deadline 1` trips it and exits clean, default path unchanged at 12.4s.
+      **60s is ~5x the 11.5s mean measured on an 8-vCPU box — a 2-vCPU
+      t4g.small is slower, so watch the `deadline` count on the first vertical
+      and raise it rather than losing pages.**
+      — `src/capture/capture-domain.js:29`, `src/capture/index.js:50`
 - [x] **Stop the score stage destroying `error.json`.** Removed the
       `unlinkSync` on success (`src/score/index.js:140`). Prior-stage errors
       now survive a successful score run.
+
+## Open — Lambda capture
+
+- [x] **Capture Lambda built.** Handler, S3 layer, dispatcher, Dockerfile.
+      `captureDomain` already took `outDir`, so the handler points it at `/tmp`,
+      uploads, and clears it — no rewrite, CLI path unchanged.
+      — `src/capture/lambda.js`, `src/capture/s3.js`, `scripts/dispatch.js`,
+      `Dockerfile.capture`
+- [x] **S3 key layout fixed.** `captures/<vertical>/<domain>/<file>`, no date.
+      History comes from bucket versioning instead, which keeps the key
+      derivable from columns that exist. — `src/capture/s3.js`
+- [ ] **Enable S3 object versioning on the bucket.** Load-bearing: without it a
+      re-capture silently destroys the previous one. The layout has no date
+      precisely because versioning carries history.
+- [ ] **`npm install`** — `@aws-sdk/client-s3` and `@aws-sdk/client-lambda` were
+      added to `package.json` but not installed here.
+- [ ] **Build and push the image, create the function.** 2,048 MB, 900s, no VPC,
+      `CAPTURE_BUCKET` set. Commands in `Dockerfile.capture`.
+- [ ] **Attach a DLQ or failure destination.** Async invoke retries twice then
+      drops the event with nothing logged. Re-running `scripts/dispatch.js` is
+      the cheap recovery — `captureExists` makes every batch idempotent.
+- [ ] **Verify one batch end to end before fanning out.** Nothing here has run
+      against real AWS; only the key helpers, the upload walker and the batching
+      were testable offline.
 
 ## Deferred on purpose
 
