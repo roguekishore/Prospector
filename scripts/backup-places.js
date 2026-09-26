@@ -5,10 +5,9 @@
  *
  *     node scripts/backup-places.js [<vertical>]
  *
- * Walks each vertical's `discovered.json`, `qualified.json` and
- * `places-raw/*.json`, and puts each one at the FIXED key `placesKey` /
- * `placesRawKey` (`src/capture/s3.js`) compute for it — city first, same
- * spelling the capture side already uses.
+ * Walks each vertical's `discovered.json` and `qualified.json` and puts each one
+ * at the FIXED key `placesKey` (`src/capture/s3.js`) computes for it — city
+ * first, same spelling the capture side already uses.
  *
  * A no-op, exit 0, when `CAPTURE_BUCKET` is unset — this script runs
  * unconditionally from the control pipeline and from a 15-minute timer, on a
@@ -40,7 +39,7 @@ const crypto = require('crypto');
 
 const ROOT = path.join(__dirname, '..');
 
-const { readCity, canonicalCity } = require('../lib-keys');
+const { readCity } = require('../lib-keys');
 const { placesKey } = require('../src/capture/s3');
 
 function verticalDirs(dataDir, only) {
@@ -119,18 +118,6 @@ async function main() {
       const result = await backupOne(s3, bucket, file, key);
       if (result === 'uploaded') uploaded++; else if (result === 'skipped') skipped++; else failed++;
       console.log(`  ${result} ${slug}/${filename}`);
-    }
-
-    const rawDir = path.join(dir, 'places-raw');
-    if (fs.existsSync(rawDir)) {
-      for (const filename of fs.readdirSync(rawDir)) {
-        if (!filename.endsWith('.json')) continue;
-        const file = path.join(rawDir, filename);
-        const key  = `${canonicalCity(city.name)}/places-raw/${slug}/${filename}`;
-        const result = await backupOne(s3, bucket, file, key);
-        if (result === 'uploaded') uploaded++; else if (result === 'skipped') skipped++; else failed++;
-      }
-      console.log(`  ${slug}/places-raw: processed ${fs.readdirSync(rawDir).length} file(s)`);
     }
   }
 

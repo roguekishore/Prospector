@@ -303,9 +303,8 @@ async function run(argv, ctx) {
         keyword,
         tile,
         apiKey:   adapter._key,
-        vertical: verticalSlug,
+        vertical: verticalSlug,   // fixture.js resolves its file from this
         city:     cityConfig.city,
-        root,
         log,
       };
 

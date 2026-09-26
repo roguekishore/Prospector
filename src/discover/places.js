@@ -8,11 +8,6 @@
  * The key is NEVER logged or written to disk.
  */
 
-const fs   = require('fs');
-const path = require('path');
-
-const { placesRawSha } = require('../capture/s3');
-
 const PLACES_URL = 'https://places.googleapis.com/v1/places:searchText';
 
 const FIELD_MASK = [
@@ -58,31 +53,11 @@ async function acquireSlot() {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /**
- * Archive a raw Places response body to `data/<vertical>/places-raw/<sha>.json`,
- * where `sha` is `placesRawSha(body)` — the same descriptor `placesRawKey`
- * hashes for the S3 key, so `scripts/backup-places.js` finds this file by name
- * alone. Best-effort: a disk error here must not fail the search itself, since
- * the mapped result already exists in memory either way.
- */
-function archiveRawBody(root, vertical, body, data) {
-  if (!root || !vertical) return;
-  try {
-    const dir = path.join(root, 'data', vertical, 'places-raw');
-    fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, `${placesRawSha(body)}.json`);
-    const tmp  = `${file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
-    fs.renameSync(tmp, file);
-  } catch { /* archival, never fatal to discover */ }
-}
-
-/**
  * POST to Places with rate limiting and backoff on 429/5xx.
  * Retries are paced by the same dispenser, so a retry storm cannot exceed quota.
- * On success, archives the raw body — see `archiveRawBody`.
  * @returns {Promise<{ok:boolean, status:number, data:?object}>}
  */
-async function postSearch(body, apiKey, signal, log, writeCtx) {
+async function postSearch(body, apiKey, signal, log) {
   let delay = 1000;
   for (let attempt = 0; attempt < 5; attempt++) {
     await acquireSlot();
@@ -106,9 +81,7 @@ async function postSearch(body, apiKey, signal, log, writeCtx) {
     }
 
     if (res.ok) {
-      const data = await res.json();
-      if (writeCtx) archiveRawBody(writeCtx.root, writeCtx.vertical, body, data);
-      return { ok: true, status: res.status, data };
+      return { ok: true, status: res.status, data: await res.json() };
     }
 
     // 429 = quota, 5xx = transient. Both are worth waiting out.
@@ -133,17 +106,13 @@ async function postSearch(body, apiKey, signal, log, writeCtx) {
  * @param {string} opts.apiKey
  * @param {AbortSignal} [opts.signal]
  * @param {string} opts.city
- * @param {string} [opts.vertical]  archives raw bodies under data/<vertical>/places-raw/ when set
- * @param {string} [opts.root]      repo root; required alongside vertical to archive
  * @returns {Promise<import('./provider').RawBusiness[]>}
  */
-async function search({ keyword, tile, apiKey, signal, city, log, vertical, root }) {
+async function search({ keyword, tile, apiKey, signal, city, log }) {
   const results = [];
   let pageToken = null;
   let page = 0;
   let httpCalls = 0;   // actual requests billed, retries included
-
-  const writeCtx = { root, vertical };
 
   while (page < 3) {
     const body = {
@@ -159,7 +128,7 @@ async function search({ keyword, tile, apiKey, signal, city, log, vertical, root
     };
     if (pageToken) body.pageToken = pageToken;
 
-    let { ok, data } = await postSearch(body, apiKey, signal, log, writeCtx);
+    let { ok, data } = await postSearch(body, apiKey, signal, log);
     httpCalls++;
 
     // A pageToken is not always valid the instant the previous page returns.
@@ -168,7 +137,7 @@ async function search({ keyword, tile, apiKey, signal, city, log, vertical, root
     // the token one more chance before believing it.
     if (!ok && pageToken) {
       await sleep(2000);
-      ({ ok, data } = await postSearch(body, apiKey, signal, log, writeCtx));
+      ({ ok, data } = await postSearch(body, apiKey, signal, log));
       httpCalls++;
     }
     if (!ok || !data) break;
