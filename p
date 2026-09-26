@@ -90,8 +90,23 @@ terraform_apply() {
   ( cd "$HERE/terraform/$1" && terraform init -input=false && terraform apply -auto-approve )
 }
 
+# `cd` + a relative path, never `-chdir=$HERE/...`: MSYS_NO_PATHCONV=1 (set at
+# the top, so SSM names like /prospector/x reach aws.exe intact) also stops Git
+# Bash rewriting /d/PROJECTS/... into D:/PROJECTS/... for native .exes, and
+# terraform.exe cannot resolve a Unix path. Stderr is deliberately *not*
+# swallowed: hiding it here turned this exact bug into a silent empty string.
 tf_output() {
-  terraform -chdir="$HERE/terraform/$1" output -raw "$2" 2>/dev/null || true
+  ( cd "$HERE/terraform/$1" && terraform output -raw "$2" ) || true
+}
+
+# Everything after `apply` reads the box's identity from SSM, not from state:
+# `ship` and `status` run under the scoped deploy user, which cannot read the
+# state bucket (see terraform/stack/params.tf). Terraform writes both parameters,
+# so they track the stack exactly, and `down` removes them along with it — an
+# empty answer means there is no stack, which is what the callers check for.
+ssm_get() {
+  aws ssm get-parameter --name "/prospector/$1" \
+    --query Parameter.Value --output text --region "$REGION" 2>/dev/null || true
 }
 
 ensure_state_bucket() {
@@ -195,14 +210,20 @@ cmd_ship() {
   git archive --format=tar "$sha" | gzip -n > "$tmp/release.tar.gz"
   sha256sum "$tmp/release.tar.gz" | awk '{print $1}' > "$tmp/release.tar.gz.sha256"
 
-  aws s3 cp "$tmp/release.tar.gz"          "s3://$DEPLOY_BUCKET/releases/$sha.tar.gz"          --region "$REGION" >/dev/null
-  aws s3 cp "$tmp/release.tar.gz.sha256"   "s3://$DEPLOY_BUCKET/releases/$sha.tar.gz.sha256"   --region "$REGION" >/dev/null
+  # Relative names from inside $tmp, for the same reason as tf_output: aws.exe is
+  # a native binary and `$tmp` is a Unix path like /tmp/tmp.XXXX, which it reads
+  # as a literal and cannot find.
+  (
+    cd "$tmp"
+    aws s3 cp release.tar.gz        "s3://$DEPLOY_BUCKET/releases/$sha.tar.gz"        --region "$REGION" >/dev/null
+    aws s3 cp release.tar.gz.sha256 "s3://$DEPLOY_BUCKET/releases/$sha.tar.gz.sha256" --region "$REGION" >/dev/null
+  )
   aws ssm put-parameter --name /prospector/release --type String --overwrite \
     --value "$sha" --region "$REGION" >/dev/null
 
   local instance_id cmd_id
-  instance_id="$(tf_output stack instance_id)"
-  [ -n "$instance_id" ] || die "no box in stack.tfstate — run ./p up first"
+  instance_id="$(ssm_get instance-id)"
+  [ -n "$instance_id" ] || die "/prospector/instance-id is unset — run ./p up first"
 
   log "running install.sh $sha on $instance_id via SSM"
   cmd_id="$(aws ssm send-command \
@@ -262,7 +283,7 @@ ensure_deploy_key() {
 
 wait_for_dns_and_enable_caddy() {
   local eip instance_id dns_ip
-  eip="$(tf_output stack eip)"
+  eip="$(ssm_get eip)"
   log "box is up — EIP $eip"
   log "add a Netlify DNS record: prospect.themaverick.tech A $eip"
 
@@ -274,7 +295,7 @@ wait_for_dns_and_enable_caddy() {
     dns_ip="$(getent hosts prospect.themaverick.tech 2>/dev/null | awk '{print $1}' | head -n1 || true)"
     if [ "$dns_ip" = "$eip" ]; then
       log "DNS resolved — enabling Caddy"
-      instance_id="$(tf_output stack instance_id)"
+      instance_id="$(ssm_get instance-id)"
       local cmd_id sha
       sha="$(git rev-parse HEAD)"
       cmd_id="$(aws ssm send-command --instance-ids "$instance_id" --document-name AWS-RunShellScript \
@@ -298,7 +319,8 @@ cmd_up() {
 
   ensure_deploy_key
   local instance_id
-  instance_id="$(tf_output stack instance_id)"
+  instance_id="$(ssm_get instance-id)"
+  [ -n "$instance_id" ] || die "stack applied but /prospector/instance-id is unset"
   wait_for_ssm_online "$instance_id"
 
   ( load_deploy_creds && cmd_ship )   # proves the scoped user is sufficient for ship — R8.1
@@ -318,9 +340,9 @@ cmd_down() {
 # ---------------------------------------------------------------------------
 cmd_status() {
   local instance_id eip
-  instance_id="$(tf_output stack instance_id)"
-  eip="$(tf_output stack eip)"
-  [ -n "$instance_id" ] || die "no stack state — run ./p up first"
+  instance_id="$(ssm_get instance-id)"
+  eip="$(ssm_get eip)"
+  [ -n "$instance_id" ] || die "/prospector/instance-id is unset — run ./p up first"
 
   echo "instance:         $instance_id"
 
@@ -386,8 +408,8 @@ cmd_status() {
 
 cmd_logs() {
   local instance_id cmd_id
-  instance_id="$(tf_output stack instance_id)"
-  [ -n "$instance_id" ] || die "no stack state — run ./p up first"
+  instance_id="$(ssm_get instance-id)"
+  [ -n "$instance_id" ] || die "/prospector/instance-id is unset — run ./p up first"
   cmd_id="$(aws ssm send-command --instance-ids "$instance_id" --document-name AWS-RunShellScript \
     --parameters 'commands=["journalctl -u prospector-control -n 200 --no-pager"]' \
     --region "$REGION" --query 'Command.CommandId' --output text)"
