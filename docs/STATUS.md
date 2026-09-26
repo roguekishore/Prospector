@@ -56,16 +56,21 @@ and extract share one folder per domain.
       `COMMANDS`, and the help text shows them apart. Re-running extract over
       captures that already exist is `capture --extract-only`. — a7d3735
 
-`capture --extract-only` has **not been run against a database.**
-`npm run test:extract` covers `extractDir` offline, but the flag's own path — the
-work list, the S3 fallback for a `rendered.html` that is not on disk, the
-`recordDomain` write — is verified by reading it, not by executing it. The work
-list `status = 1 AND extract_status = -2` is right and has no hole:
-`src/db/record.js:117` writes `-2` whenever a capture completes without a usable
-`extract.json`, so no row can sit at `status = 1` with `extract_status` NULL. One
-command closes this, and `--dry-run` spends nothing:
-
-    DATABASE_URL=mysql://root:pw@127.0.0.1:3306/prospector_test       node src/cli capture --extract-only --dry-run
+- [x] **`capture --extract-only` runs.** Verified 2026-09-27 against a local
+      MySQL 8.0.39 and the 5-domain smoke tree: `extract.json` deleted for
+      `cabiinetdesigns.com` and `thefineceiling.in` and their rows set to
+      `extract_status = -2`, then one run re-extracted both — `2 ok  0 errors
+      0 skipped`, rows back to `extract_status = 1`, the 3 `links` rows restored
+      identically, and the regenerated `extract.json` **byte-identical** (647 B,
+      `cmp`) to the one the original capture wrote a day earlier, which is the
+      determinism claim proved end to end rather than in a unit test. The work
+      list has no hole: `src/db/record.js:117` writes `-2` whenever a capture
+      completes without a usable `extract.json`, so no row can sit at
+      `status = 1` with `extract_status` NULL. The flag reads the **database**,
+      not the disk — deleting `extract.json` alone leaves the row at `1` and the
+      domain is correctly not picked up.
+- [ ] **The S3 fallback in `--extract-only` is still unrun.** `_downloadRendered`
+      / `_uploadExtract` need `CAPTURE_BUCKET` and real credentials. Spec C.
 
 Not verified, and needing the operator:
 
@@ -304,6 +309,33 @@ contract and only `app.js` needed rewriting. Verified by `npm run test:deck`
       seeded rows; no human has used it on real leads.
 
 ## Open — robustness before the next run
+
+- [ ] **Every `DATETIME` we write is UTC; every `TIMESTAMP` MySQL writes is
+      local.** `toMysqlDatetime` (`src/db/record.js:63`) formats with
+      `toISOString()`, so `captured_at`, `extracted_at`, `qualified_at`,
+      `discovered_at` and `reviewed_at` are UTC — while `companies.updated_at` is
+      `TIMESTAMP … DEFAULT CURRENT_TIMESTAMP` (`db/migrations/0001_init.sql:67`),
+      which MySQL fills from the session clock and returns in it. `DATETIME`
+      carries no zone, so the two disagree by the host offset. Measured on this
+      laptop (IST) 2026-09-27: one `recordDomain` call wrote
+      `extracted_at = 2026-09-26 18:41:58` and `updated_at = 2026-09-27
+      00:11:58` into the same row in the same transaction — **330 minutes
+      apart**, the same instant. Consequences: every capture and extract time the
+      deck shows an Indian operator is 5h30m in the past, and any query that
+      compares one of these columns to `NOW()` or to `updated_at` (freshness,
+      "captured in the last hour", ordering across the two) is wrong by the
+      offset. Rows written only by Node are self-consistent, which is why the
+      test suites do not catch it.
+
+      **Not fixed — it needs a call, because both fixes change stored meaning.**
+      Either format local time in `toMysqlDatetime` (matches MySQL's own clock,
+      but then the same run on the box and on the laptop store different
+      strings), or keep UTC and pin `time_zone = '+00:00'` on the pool in
+      `src/db/mysql.js` so `TIMESTAMP` reads back UTC too, and let the deck
+      render in the viewer's locale. The second is host-independent, which
+      matters because capture runs on a laptop in IST, the box, and Lambda; it
+      also means the box's existing rows must be read as UTC. Whichever is
+      chosen, it is cheaper now than after the first real run writes 3,906 rows.
 
 - [ ] **Raise capture concurrency.** Capture is wait-bound, not CPU-bound:
       11.5s per capture at concurrency 1 vs ~12.5s at 8, because ~7s of each is
