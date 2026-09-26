@@ -64,6 +64,16 @@ resource "aws_iam_user_policy" "deploy" {
         Action   = ["ecr:DescribeImages"]
         Resource = data.terraform_remote_state.persist.outputs.ecr_repository_arn
       },
+      {
+        # R6.3 wants `./p status` to report the failure-queue depth, but the queue
+        # lookup was guarded by `|| true` and this user had no SQS access at all,
+        # so the line was skipped in silence and status looked complete without it.
+        # Read-only, and only this queue.
+        Sid      = "ReadFailureQueue"
+        Effect   = "Allow"
+        Action   = ["sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
+        Resource = aws_sqs_queue.capture_failed.arn
+      },
     ]
   })
 }
