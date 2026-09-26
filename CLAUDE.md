@@ -52,6 +52,7 @@ behind with no clean-up script. Delete that directory yourself afterwards.
 
 | Question | Read |
 |---|---|
+| Where the last session stopped and why | `docs/HANDOFF.md` |
 | What's built, what's broken, what's deferred on purpose | `docs/STATUS.md` |
 | How to run a stage, what flags it takes | `docs/COMMANDS.md` |
 | On-disk schemas, run contract, scoring model | `spec/MASTER.md` |
