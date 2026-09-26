@@ -40,11 +40,25 @@ resource "aws_iam_role_policy" "capture_lambda" {
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${aws_cloudwatch_log_group.capture.arn}:*"
       },
+      # Put for the upload, Get because `captureComplete` uses HeadObject, which
+      # is authorized as s3:GetObject:
+      # https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
       {
-        Sid      = "WriteCaptures"
+        Sid      = "Companies"
         Effect   = "Allow"
-        Action   = ["s3:PutObject"]
-        Resource = "${data.terraform_remote_state.persist.outputs.capture_bucket_arn}/*/captures/*"
+        Action   = ["s3:PutObject", "s3:GetObject"]
+        Resource = "${data.terraform_remote_state.persist.outputs.capture_bucket_arn}/*/companies/*"
+      },
+      # Without s3:ListBucket, S3 answers a missing key with 403 rather than 404
+      # (https://www.repost.aws/ja/articles/ARe3OTZ3SCTWWqGtiJ6aHn8Q/why-does-s-3-return-403-instead-of-404-when-the-object-doesnt-exist),
+      # and `_exists` in src/capture/s3.js throws on 403 by design — a 403 is not
+      # evidence of absence. With neither statement every domain in a real batch
+      # would error at the skip check before capturing anything.
+      {
+        Sid      = "ListForHeadObject"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = data.terraform_remote_state.persist.outputs.capture_bucket_arn
       },
       {
         Sid      = "OnFailure"

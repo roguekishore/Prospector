@@ -45,7 +45,7 @@ resource "aws_iam_role_policy" "box" {
         Sid      = "WritePlacesBackup"
         Effect   = "Allow"
         Action   = ["s3:PutObject", "s3:HeadObject"]
-        Resource = "${data.terraform_remote_state.persist.outputs.capture_bucket_arn}/*/places*"
+        Resource = "${data.terraform_remote_state.persist.outputs.capture_bucket_arn}/*/places/*"
       },
       {
         Sid      = "EcrAuth"

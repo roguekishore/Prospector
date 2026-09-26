@@ -7,9 +7,19 @@
 # this root at all.
 
 # ---------------------------------------------------------------------------
-# Capture bucket — captures, and the discover/qualify + places-raw backup this
-# spec adds. Versioning is load-bearing (src/capture/s3.js), not optional: it
-# is what makes a re-capture non-destructive with no date in the key.
+# Capture bucket — <city>/companies/<domain>/ captures and extracts, plus the
+# discover/qualify backup.
+#
+# Versioning is Suspended, not Enabled. A domain is captured once and never
+# re-captured — both `captureComplete` in the Lambda and `--resume` on the box
+# skip one that is already there — so no key is ever overwritten and versioning
+# has nothing to protect. It was load-bearing while `places-raw/` overwrote a
+# per-query key on every run; that archive is gone.
+#
+# Suspended and not absent because a bucket that has once had versioning cannot
+# return to unversioned:
+# https://docs.aws.amazon.com/console/s3/enable-bucket-versioning
+# Noncurrent versions already written stay as they are; nothing here deletes them.
 # ---------------------------------------------------------------------------
 resource "aws_s3_bucket" "captures" {
   bucket = "prospector-captures-700897991126"
@@ -18,7 +28,7 @@ resource "aws_s3_bucket" "captures" {
 resource "aws_s3_bucket_versioning" "captures" {
   bucket = aws_s3_bucket.captures.id
   versioning_configuration {
-    status = "Enabled"
+    status = "Suspended"
   }
 }
 
@@ -43,10 +53,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "captures" {
   }
 }
 
-# Deliberately no lifecycle rule — design.md "Decisions that are closed": a
-# domain is captured once, never on a schedule, so noncurrent versions only
-# accumulate from a deliberate re-capture. Add a lifecycle rule only if a
-# periodic refresh is introduced.
+# Deliberately no lifecycle rule. With versioning suspended there are no new
+# noncurrent versions to expire, and the ones left from the versioned period are
+# few and small. Revisit only if a periodic refresh is ever introduced — that is
+# the point at which re-capture starts overwriting keys again.
 
 # ---------------------------------------------------------------------------
 # Deploy bucket — ./p ship's git-archive releases. 30-day expiry on releases/
