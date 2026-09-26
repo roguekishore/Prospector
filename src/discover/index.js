@@ -305,6 +305,8 @@ async function run(argv, ctx) {
         apiKey:   adapter._key,
         vertical: verticalSlug,
         city:     cityConfig.city,
+        root,
+        log,
       };
 
       let results;

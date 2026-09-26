@@ -104,6 +104,21 @@ function placesKey(city, vertical, filename) {
 }
 
 /**
+ * SHA of a Places request descriptor (body plus page token), shared by the S3
+ * key below and by `discover/places.js`, which writes the same-named file to
+ * `data/<vertical>/places-raw/` before this key ever exists. One spelling, so
+ * `scripts/backup-places.js` finds exactly the file `placesRawKey` expects.
+ */
+function placesRawSha(requestDescriptor) {
+  return crypto.createHash('sha256')
+    .update(typeof requestDescriptor === 'string'
+      ? requestDescriptor
+      : JSON.stringify(requestDescriptor))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/**
  * Key for one raw Places response body.
  *
  * Archived because those responses cost money, cannot be reproduced, and are the
@@ -113,13 +128,7 @@ function placesKey(city, vertical, filename) {
  * near-duplicates, and versioning keeps the earlier bodies.
  */
 function placesRawKey(city, vertical, requestDescriptor) {
-  const sha = crypto.createHash('sha256')
-    .update(typeof requestDescriptor === 'string'
-      ? requestDescriptor
-      : JSON.stringify(requestDescriptor))
-    .digest('hex')
-    .slice(0, 16);
-  return `${canonicalCity(city)}/places-raw/${vertical}/${sha}.json`;
+  return `${canonicalCity(city)}/places-raw/${vertical}/${placesRawSha(requestDescriptor)}.json`;
 }
 
 function contentTypeFor(filePath) {
@@ -208,7 +217,7 @@ async function captureComplete(s3, { bucket, city, domain }) {
 }
 
 module.exports = {
-  captureKey, capturePrefix, placesKey, placesRawKey,
+  captureKey, capturePrefix, placesKey, placesRawKey, placesRawSha,
   contentTypeFor, uploadCaptureDir, putJson, captureComplete,
   COMPLETION,
 };
