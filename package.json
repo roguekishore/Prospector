@@ -5,24 +5,18 @@
   "type": "commonjs",
   "main": "src/cli/index.js",
   "scripts": {
-    "start": "node src/cli/index.js serve",
-    "serve": "node src/cli/index.js serve",
     "discover": "node src/cli/index.js discover",
     "qualify": "node src/cli/index.js qualify",
-    "audit": "node src/cli/index.js audit",
+    "capture": "node src/cli/index.js capture",
     "extract": "node src/cli/index.js extract",
-    "score": "node src/cli/index.js score",
-    "report": "node src/cli/index.js report",
     "pipeline": "node src/cli/index.js all",
-    "compress": "node scripts/compress-shots.js",
-    "fixtures": "node scripts/gen-fixtures.js",
-    "sample": "node scripts/emit-sample.js",
+    "control": "node src/cli/index.js control",
+    "dispatch": "node scripts/dispatch.js",
     "test:run": "node scripts/smoke.js",
     "test:clean": "node scripts/smoke-clean.js",
     "test:w1": "node scripts/test-w1.js",
     "test:extract": "node scripts/test-extract.js",
-    "test:lambda": "node scripts/test-lambda.js",
-    "dispatch": "node scripts/dispatch.js"
+    "test:lambda": "node scripts/test-lambda.js"
   },
   "dependencies": {
     "@aws-sdk/client-lambda": "3.1141.0",

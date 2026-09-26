@@ -35,7 +35,7 @@ const REJECT_DOMAINS = new Set([
 // A business whose only "website" is one of these is NOT worthless: it pays a
 // portal every month for leads it does not own. That is a first-website pitch,
 // not a redesign. Kept with domain:null and skip_reason "aggregator-profile-only"
-// so it is distinguishable from a social-only listing, which signals no budget.
+// so it is distinguishable from a social-only listing, which indicates no budget.
 //
 // These must NEVER merge in dedup (see dedupe()): forty brokers all listing a
 // 99acres profile share one registrable domain and would collapse to one row.
