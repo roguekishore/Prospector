@@ -1012,14 +1012,37 @@ Per 50,000 domains, beyond compute (*modelled*):
 
 - **Clasher network facts.** The instance is read: `mysql 8.4.8`,
   `db.t4g.micro`, private, `mavdb.cv0wqe8og7uh.ap-south-1.rds.amazonaws.com`, in
-  `vpc-0fb530a7a75f1cdb0`, two subnets, and **two** security groups — so
-  `terraform/mavdb` takes `-var mavdb_security_group_id` rather than assuming
-  one. Still unread: that VPC's CIDR, and each subnet's route-table association.
-  Neither is now guessed — a `precondition` computes the CIDR overlap at plan
-  time and fails with both values named, and one `data "aws_route_table"` per
-  subnet resolves the main table when a subnet has no explicit association. What
-  is still unverified is whether mavdb's endpoint resolves to a private IP from
-  rogue, which is a check on the box after `./p peer`.
+  `vpc-0fb530a7a75f1cdb0`, two subnets
+  (`subnet-092a18e2fd85bd0b1`, `subnet-0825e0989e6f07196`), and **two** security
+  groups — so `terraform/mavdb` takes `-var mavdb_security_group_id` rather than
+  assuming one, and `./p peer` fails at plan time naming both until it is given.
+
+  Read 2026-09-27, with the clasher key: **clasher's VPC is `10.0.0.0/16`**, so
+  it does **not** overlap prospector's `10.43.0.0/16` and the CIDR precondition
+  passes. The instance is `available` and `PubliclyAccessible: false`. The two
+  security groups are `sg-0dd18a4efc3b3c824` (`default`, the VPC's default group)
+  and `sg-08d3393b63a12b9ca` (`rds-ec2-1`, purpose-built, "attached to maverick
+  to allow EC2 instances with specific security groups attached to connect").
+  **`rds-ec2-1` is the one to pass:** it is where database access is expressed,
+  and its 3306 ingress is security-group-sourced rather than a CIDR. Ingress
+  across attached groups is a union, so either would function — this is a
+  hygiene choice, not a functional one.
+
+  Still unread: each subnet's route-table association, which is not guessed —
+  one `data "aws_route_table"` per subnet resolves the main table when a subnet
+  has no explicit association. Still unverified: whether mavdb's endpoint
+  resolves to a private IP from rogue, a check on the box after `./p peer`.
+
+- **mavdb's default security group allows 3306 from `0.0.0.0/0`** —
+  `sg-0dd18a4efc3b3c824`, alongside 22 from `172.31.0.0/16`. The instance is not
+  publicly accessible, so this is not reachable from the internet; what it does
+  mean is that **anything inside clasher's VPC, and anything peered to it, can
+  already reach MySQL on 3306** — including all of `10.43.0.0/16` the moment
+  `./p peer` applies, which makes the ingress rule `terraform/mavdb` adds
+  redundant in practice. That rule is still worth adding: it states the intent
+  explicitly, and it is what should remain once the `0.0.0.0/0` rule is narrowed.
+  Narrowing it is **spec E**, it is another team's database, and it should not be
+  changed as a side effect of peering.
 - **mavdb's existing users and grants** have never been inspected. The MySQL MCP
   tool connects to a local 8.0.39 on the laptop, not RDS (spec E).
 - **Lambda cold start** (`Init Duration`) for the ~1.05 GB image, and whether
