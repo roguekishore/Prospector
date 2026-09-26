@@ -8,7 +8,14 @@ User=prospector
 Group=prospector
 WorkingDirectory=/opt/prospector/current
 ExecStartPre=+/opt/prospector/load-env.sh
-EnvironmentFile=/run/prospector/env
+# The `-` is load-bearing. /run/prospector/env is on tmpfs and is created by the
+# ExecStartPre above, so on a fresh boot it does not exist yet — and systemd
+# resolves environment files before it will spawn *any* of the unit's commands,
+# ExecStartPre included. Without the `-` the unit fails at 'resources' and never
+# runs the script that would have created the file, which crash-loops forever.
+# systemd rebuilds the environment at each Exec* spawn, so ExecStart below still
+# sees what ExecStartPre wrote.
+EnvironmentFile=-/run/prospector/env
 Environment=CAPTURE_BUCKET=prospector-captures-700897991126
 ExecStart=/usr/local/bin/node src/cli/index.js control --port 7778
 Restart=on-failure

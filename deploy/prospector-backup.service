@@ -7,6 +7,9 @@ User=prospector
 Group=prospector
 WorkingDirectory=/opt/prospector/current
 ExecStartPre=+/opt/prospector/load-env.sh
-EnvironmentFile=/run/prospector/env
+# See prospector-control.service: the `-` is required because ExecStartPre is
+# what creates this file, and systemd resolves environment files before spawning
+# any command in the unit.
+EnvironmentFile=-/run/prospector/env
 Environment=CAPTURE_BUCKET=prospector-captures-700897991126
 ExecStart=/usr/local/bin/node scripts/backup-places.js
