@@ -6,7 +6,7 @@
  * Three places have to agree on these strings byte for byte:
  *
  *   * the S3 key             (`src/capture/s3.js`)
- *   * the local directory     (`data/<vertical>/<domain>/`)
+ *   * the local directory     (`data/<city>/companies/<domain>/`)
  *   * `companies.domain` and `cities.slug` in MySQL
  *
  * If they ever drift, `--resume` stops recognising finished work and the next
@@ -87,4 +87,17 @@ function readCity(root) {
   return { name: cfg.city, slug: canonicalCity(cfg.city) };
 }
 
-module.exports = { canonicalCity, canonicalDomain, readCity, CITY_RE, DOMAIN_RE };
+/**
+ * Local folder for one company's capture and extract output.
+ *
+ * The mirror of `companyPrefix` in `src/capture/s3.js`: same two segments, same
+ * spelling, so a folder synced up from the box lands on the key the Lambda would
+ * have written. Every local path to capture output is built here — a second
+ * `path.join(DATA, ...)` anywhere else is how the two layouts drift apart.
+ */
+function companyDir(root, city, domain) {
+  const path = require('path');
+  return path.join(root, 'data', canonicalCity(city), 'companies', canonicalDomain(domain));
+}
+
+module.exports = { canonicalCity, canonicalDomain, companyDir, readCity, CITY_RE, DOMAIN_RE };

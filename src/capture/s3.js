@@ -5,15 +5,19 @@
  *
  * ## The layout
  *
- *     <city>/captures/<domain>/desktop.webp
- *                              mobile.webp
- *                              rendered.html    <- post-JS DOM; link extraction reads this
- *                              home.html        <- raw response body; fallback
- *                              headers.json
- *                              error.json       <- present only when the capture failed
+ *     <city>/companies/<domain>/desktop.webp
+ *                               mobile.webp
+ *                               rendered.html   <- post-JS DOM; extract reads this
+ *                               extract.json    <- first email + outside links
+ *                               error.json      <- present only when the capture failed
  *     <city>/places/<vertical>/discovered.json
  *                             /qualified.json
- *     <city>/places-raw/<vertical>/<query-sha>.json
+ *
+ * Flat: one domain is one prefix and nothing nests under it. `src/capture/s3.js`
+ * and `companyDir` in `lib-keys.js` are the only two places that spell it, and
+ * `data/<city>/companies/<domain>/` on disk holds exactly the same five names,
+ * so a folder synced up from the box lands on the key the Lambda would have
+ * written.
  *
  * Every segment is lowercase and comes from `lib-keys.js`, which is the only
  * place a city or a domain is spelled.
@@ -45,29 +49,23 @@
  * 16-hour sweep also crosses midnight, which splits one run across two date
  * prefixes.
  *
- * **Bucket versioning covers re-capture instead.** A re-capture overwrites the
- * key while the previous bytes stay retrievable as a prior version: history with
- * no date in the path and no schema. Enabling versioning is therefore
- * load-bearing, not optional — without it a re-capture is destructive.
- *
- * There is deliberately **no noncurrent-version lifecycle rule**: a domain is
- * captured once, never on a schedule, so versions accumulate only from a
- * deliberate re-capture. Revisit if a periodic refresh is ever introduced — that
- * is the point at which unbounded version growth turns into invisible cost.
+ * A domain is captured once and never re-captured — `captureComplete` below and
+ * `--resume` both skip one that is already there — so a key is written once and
+ * bucket versioning has nothing to protect. It is `Suspended`
+ * (`terraform/persist/main.tf`).
  *
  * ## S3 holds bytes; MySQL holds state
  *
  * "What is left to capture" is answered by `companies.status` (0 pending,
  * 1 done, -1 no website, -2 failed) in one indexed query. The bucket is never
  * consulted for it: that would cost a HEAD per pending domain per dispatch and
- * introduce a second opinion that can disagree with the first. `captureComplete` below
- * exists for `--verify`, a repair mode that reconciles the database against the
- * bucket on demand.
+ * introduce a second opinion that can disagree with the first. `captureComplete`
+ * below exists for the Lambda's skip check and for `--verify`, a repair mode
+ * that reconciles the database against the bucket on demand.
  */
 
-const fs     = require('fs');
-const path   = require('path');
-const crypto = require('crypto');
+const fs   = require('fs');
+const path = require('path');
 
 const { canonicalDomain, canonicalCity } = require('../../lib-keys');
 
@@ -81,54 +79,31 @@ const CONTENT_TYPES = {
 /**
  * The files that make a capture complete.
  *
- * Mirrors `completionFiles()` at `capture-domain.js:127` — both shots plus
- * headers. They must stay in step: a capture that is complete on disk and
- * incomplete in the bucket, or the reverse, makes resume unreliable in exactly
- * the situation resume exists for.
+ * Mirrors `completionFiles()` in `capture-domain.js` — both shots plus
+ * `rendered.html`, which capture writes last for exactly this reason. They must
+ * stay in step: a capture that is complete on disk and incomplete in the bucket,
+ * or the reverse, makes resume unreliable in exactly the situation resume exists
+ * for.
+ *
+ * `extract.json` is deliberately not here. Extract is cheap, offline and
+ * re-runnable; a capture is neither. A domain missing only `extract.json` must
+ * be extracted, not captured again.
  */
-const COMPLETION = ['desktop.webp', 'mobile.webp', 'headers.json'];
+const COMPLETION = ['desktop.webp', 'mobile.webp', 'rendered.html'];
 
-/** Key prefix for one domain's capture output. */
-function capturePrefix(city, domain) {
-  return `${canonicalCity(city)}/captures/${canonicalDomain(domain)}`;
+/** Key prefix for one company's capture and extract output. */
+function companyPrefix(city, domain) {
+  return `${canonicalCity(city)}/companies/${canonicalDomain(domain)}`;
 }
 
-/** Key for one file within a domain's capture. `name` may contain a slash. */
-function captureKey(city, domain, name) {
-  return `${capturePrefix(city, domain)}/${name}`;
+/** Key for one file within a company's folder. */
+function companyKey(city, domain, name) {
+  return `${companyPrefix(city, domain)}/${name}`;
 }
 
 /** Key for a discover/qualify artifact. */
 function placesKey(city, vertical, filename) {
   return `${canonicalCity(city)}/places/${vertical}/${filename}`;
-}
-
-/**
- * SHA of a Places request descriptor (body plus page token), shared by the S3
- * key below and by `discover/places.js`, which writes the same-named file to
- * `data/<vertical>/places-raw/` before this key ever exists. One spelling, so
- * `scripts/backup-places.js` finds exactly the file `placesRawKey` expects.
- */
-function placesRawSha(requestDescriptor) {
-  return crypto.createHash('sha256')
-    .update(typeof requestDescriptor === 'string'
-      ? requestDescriptor
-      : JSON.stringify(requestDescriptor))
-    .digest('hex')
-    .slice(0, 16);
-}
-
-/**
- * Key for one raw Places response body.
- *
- * Archived because those responses cost money, cannot be reproduced, and are the
- * only record of what Google actually returned on the night. The truncation bug
- * stayed invisible for a year for want of exactly this. The name is a SHA of the
- * request, so the same query overwrites its own archive rather than accumulating
- * near-duplicates, and versioning keeps the earlier bodies.
- */
-function placesRawKey(city, vertical, requestDescriptor) {
-  return `${canonicalCity(city)}/places-raw/${vertical}/${placesRawSha(requestDescriptor)}.json`;
 }
 
 function contentTypeFor(filePath) {
@@ -137,8 +112,10 @@ function contentTypeFor(filePath) {
 
 /**
  * Every file under `dir`, relative to it, with forward slashes.
- * `raw/headers.json` is flattened to `headers.json` — the local tree nests it
- * under `raw/` for tidiness, but in S3 one domain is already one prefix.
+ *
+ * The folder is flat by contract (`capture-domain.js` writes no subdirectory),
+ * but the walk recurses anyway so a stray nested file is uploaded rather than
+ * silently dropped.
  */
 function _walk(dir, base = dir) {
   const out = [];
@@ -146,27 +123,26 @@ function _walk(dir, base = dir) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) { out.push(..._walk(full, base)); continue; }
     if (entry.name.endsWith('.tmp')) continue;      // never ship a half-written file
-    const rel = path.relative(base, full).split(path.sep).join('/');
-    out.push({ full, rel: rel.replace(/^raw\//, '') });
+    out.push({ full, rel: path.relative(base, full).split(path.sep).join('/') });
   }
   return out;
 }
 
 /**
- * Upload every file in `dir` under one domain's prefix.
+ * Upload every file in `dir` under one company's prefix.
  *
- * Sequential on purpose. These are five small objects against a Lambda already
+ * Sequential on purpose. These are four small objects against a Lambda already
  * running a browser; parallel uploads buy milliseconds and cost memory that
  * `_forceImageDecode` has better uses for.
  *
  * @param {import('@aws-sdk/client-s3').S3Client} s3
  * @returns {Promise<string[]>} keys written
  */
-async function uploadCaptureDir(s3, { bucket, city, domain, dir }) {
+async function uploadCompanyDir(s3, { bucket, city, domain, dir }) {
   const { PutObjectCommand } = require('@aws-sdk/client-s3');
   const written = [];
   for (const file of _walk(dir)) {
-    const key = captureKey(city, domain, file.rel);
+    const key = companyKey(city, domain, file.rel);
     await s3.send(new PutObjectCommand({
       Bucket:      bucket,
       Key:         key,
@@ -205,19 +181,23 @@ async function _exists(s3, bucket, key) {
  * True when this domain's capture is complete in the bucket.
  *
  * Checks all three completion files, not just the desktop shot. A capture that
- * hit its deadline keeps whatever shots it managed (`capture-domain.js:75`), so
+ * hit its deadline keeps whatever shots it managed (`capture-domain.js`), so
  * `desktop.webp` alone proves nothing — treating it as complete would abandon a
  * half-captured domain forever.
+ *
+ * The caller's role needs `s3:GetObject` on the key *and* `s3:ListBucket` on the
+ * bucket: without the latter S3 answers a missing key with 403 rather than 404,
+ * and `_exists` throws on 403 by design (`terraform/stack/lambda.tf`).
  */
 async function captureComplete(s3, { bucket, city, domain }) {
   for (const name of COMPLETION) {
-    if (!(await _exists(s3, bucket, captureKey(city, domain, name)))) return false;
+    if (!(await _exists(s3, bucket, companyKey(city, domain, name)))) return false;
   }
   return true;
 }
 
 module.exports = {
-  captureKey, capturePrefix, placesKey, placesRawKey, placesRawSha,
-  contentTypeFor, uploadCaptureDir, putJson, captureComplete,
+  companyKey, companyPrefix, placesKey,
+  contentTypeFor, uploadCompanyDir, putJson, captureComplete,
   COMPLETION,
 };
