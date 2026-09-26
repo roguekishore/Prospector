@@ -75,9 +75,9 @@ log.info  = (...a) => console.log('[info]',  ...a);
 log.warn  = (...a) => console.warn('[warn]',  ...a);
 log.error = (...a) => console.error('[error]',...a);
 
-// ---- stage loader (never crashes the dispatcher) ----
-function loadStage(name) {
-  // Map stage names to their module directories
+// ---- command loader (never crashes the dispatcher) ----
+function loadCommand(name) {
+  // Map command names to their module directories
   const dirMap = {
     discover: 'discover',
     qualify:  'qualify',
@@ -92,7 +92,7 @@ function loadStage(name) {
   if (name === 'migrate') {
     try { return require(path.join(ROOT, 'src', 'db', 'migrate.js')); }
     catch (e) {
-      log.error(`Failed to load stage 'migrate': ${e.message}`);
+      log.error(`Failed to load command 'migrate': ${e.message}`);
       process.exit(2);
     }
   }
@@ -103,7 +103,7 @@ function loadStage(name) {
   if (fs.existsSync(candidate)) {
     try { return require(candidate); }
     catch (e) {
-      log.error(`Failed to load stage '${name}': ${e.message}`);
+      log.error(`Failed to load command '${name}': ${e.message}`);
       process.exit(2);
     }
   }
@@ -119,9 +119,9 @@ function loadStage(name) {
 
 // ---- main ----
 async function main() {
-  const [,, stageArg, ...rest] = process.argv;
+  const [,, cmdArg, ...rest] = process.argv;
 
-  if (!stageArg || stageArg === '--help' || stageArg === '-h') {
+  if (!cmdArg || cmdArg === '--help' || cmdArg === '-h') {
     console.log(`
 PROSPECTOR pipeline runner
 
@@ -172,9 +172,9 @@ Every stage but migrate reads MySQL. DATABASE_URL overrides DB_HOST/DB_PASSWORD.
   const COMMANDS = ['migrate','ingest','control','serve'];
   const KNOWN    = [...PIPELINE, ...COMMANDS];
 
-  if (stageArg === 'all') {
+  if (cmdArg === 'all') {
     for (const stage of PIPELINE) {
-      const mod    = loadStage(stage);
+      const mod    = loadCommand(stage);
       const result = await mod.run(argv, ctx);
       if (result && result.ok === 0 && result.err === 0) {
         log.warn(`Stage '${stage}' produced zero output — stopping.`);
@@ -185,20 +185,20 @@ Every stage but migrate reads MySQL. DATABASE_URL overrides DB_HOST/DB_PASSWORD.
     process.exit(process.exitCode || 0);
   }
 
-  if (!KNOWN.includes(stageArg)) {
-    log.error(`Unknown command '${stageArg}'. Stages: ${PIPELINE.join(', ')}, all. ` +
+  if (!KNOWN.includes(cmdArg)) {
+    log.error(`Unknown command '${cmdArg}'. Stages: ${PIPELINE.join(', ')}, all. ` +
               `Commands: ${COMMANDS.join(', ')}`);
     process.exit(2);
   }
 
-  const mod = loadStage(stageArg);
+  const mod = loadCommand(cmdArg);
 
   try {
     const result = await mod.run(argv, ctx);
     if (result && result.err > 0) process.exit(1);
     process.exit(0);
   } catch (e) {
-    log.error(`Fatal error in stage '${stageArg}': ${e.message}`);
+    log.error(`Fatal error in command '${cmdArg}': ${e.message}`);
     if (argv.verbose) console.error(e.stack);
     process.exit(2);
   }

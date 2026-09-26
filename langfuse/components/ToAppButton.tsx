@@ -1,0 +1,236 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Plus, Loader2 } from "lucide-react";
+import { Button } from "./ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import {
+  cloudRegions,
+  cloudRegionSelectorOrder,
+  type CloudRegionKey,
+} from "@/lib/cloud-regions";
+import { useCloudRegionSignIn } from "@/lib/use-cloud-region-sign-in";
+import { isCloudAppHref } from "@/lib/google-ads";
+import { reportLaunchAppConversionIfSignedOut } from "@/lib/ad-conversions";
+
+const REGION_SHORTCUTS: Partial<Record<CloudRegionKey, string>> = {
+  us: "U",
+  hipaa: "H",
+  eu: "E",
+  jp: "J",
+};
+
+function isEditableElement(el: Element | null): boolean {
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (
+    el instanceof HTMLElement &&
+    (el.isContentEditable || el.closest("[contenteditable='true']"))
+  )
+    return true;
+  return false;
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (target instanceof HTMLElement && isEditableElement(target)) return true;
+  let active: Element | null = document.activeElement;
+  while (active?.shadowRoot?.activeElement) {
+    active = active.shadowRoot.activeElement;
+  }
+  if (active && isEditableElement(active)) return true;
+  return false;
+}
+
+interface ToAppButtonProps {
+  signedInText?: string;
+  signUpText?: string;
+  dropdownText?: string;
+}
+
+export const ToAppButton = ({
+  signedInText = "Launch App",
+  signUpText = "Start free",
+  dropdownText = "Launch App",
+}: ToAppButtonProps = {}) => {
+  const { signedInRegions, resolved } = useCloudRegionSignIn();
+
+  const signedInCount = Object.values(signedInRegions).filter(Boolean).length;
+
+  const signedInRegion =
+    signedInCount === 1
+      ? Object.entries(cloudRegions).find(
+          ([key]) => signedInRegions[key as CloudRegionKey],
+        )
+      : null;
+
+  if (signedInCount > 1) {
+    return (
+      <MultiRegionButton
+        signedInRegions={signedInRegions}
+        dropdownText={dropdownText}
+      />
+    );
+  } else if (signedInCount === 1 && signedInRegion) {
+    return (
+      <NavigatingButton href={signedInRegion[1].url} label={signedInText} />
+    );
+  } else {
+    // Regions start unsigned-in until the probe finishes. Treat that as
+    // unknown, not signed-out, so an already-signed-in visitor never flashes
+    // the signup label.
+    return (
+      <NavigatingButton
+        href="/cloud"
+        label={resolved ? signUpText : signedInText}
+      />
+    );
+  }
+};
+
+function NavigatingButton({ href, label }: { href: string; label: string }) {
+  const [navigating, setNavigating] = useState(false);
+  const router = useRouter();
+  const isExternal = href.startsWith("http");
+
+  const navigate = useCallback(() => {
+    setNavigating(true);
+    if (isExternal) {
+      window.location.href = href;
+    } else {
+      router.push(href);
+    }
+  }, [href, isExternal, router]);
+
+  return (
+    <Button
+      variant="primary"
+      size="small"
+      shortcutKey={navigating ? undefined : "L"}
+      icon={
+        navigating ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : undefined
+      }
+      iconPosition="end"
+      href={href}
+      {...(isCloudAppHref(href) ? { "data-launch-app-cta": "" } : {})}
+      onClick={(e) => {
+        e.preventDefault();
+        navigate();
+      }}
+      className="whitespace-nowrap"
+    >
+      {label}
+    </Button>
+  );
+}
+
+function MultiRegionButton({
+  signedInRegions,
+  dropdownText,
+}: {
+  signedInRegions: Record<CloudRegionKey, boolean>;
+  dropdownText: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const visibleRegions = useMemo(
+    () =>
+      cloudRegionSelectorOrder
+        .filter((key) => signedInRegions[key])
+        .map((key) => ({ key, ...cloudRegions[key] })),
+    [signedInRegions],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isEditableTarget(e.target)) return;
+
+      if (!open) {
+        if (e.key.toLowerCase() === "l") {
+          e.preventDefault();
+          setOpen(true);
+        }
+        return;
+      }
+
+      const match = visibleRegions.find(
+        ({ key }) =>
+          REGION_SHORTCUTS[key]?.toLowerCase() === e.key.toLowerCase(),
+      );
+      if (match) {
+        e.preventDefault();
+        // Mirrors the click path: the region links carry
+        // `data-launch-app-cta`, and this shortcut bypasses that listener.
+        reportLaunchAppConversionIfSignedOut();
+        window.location.href = match.url;
+        setOpen(false);
+      }
+    },
+    [open, visibleRegions],
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen} modal>
+      <DropdownMenuTrigger asChild>
+        <Button
+          ref={triggerRef}
+          variant="primary"
+          size="small"
+          shortcutKey="L"
+          className="whitespace-nowrap"
+        >
+          {dropdownText}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          triggerRef.current?.focus();
+        }}
+      >
+        {visibleRegions.map(({ key, label, url }) => (
+          <DropdownMenuItem asChild key={key}>
+            <Link href={url} data-launch-app-cta="">
+              {label}
+              {REGION_SHORTCUTS[key] && (
+                <kbd
+                  className="ml-auto flex justify-center items-center not-italic shrink-0 w-[20px] h-[20px] rounded-px font-sans text-[12px] font-[450] leading-[150%] tracking-[-0.06px] p-0 border border-[rgba(64,61,57,0.20)] dark:border-[rgba(184,182,160,0.30)] bg-[rgba(64,61,57,0.10)] dark:bg-[rgba(184,182,160,0.12)]"
+                  aria-hidden
+                >
+                  {REGION_SHORTCUTS[key]}
+                </kbd>
+              )}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link
+            href="/cloud"
+            className="flex items-center gap-1.5 text-muted-foreground"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add region
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

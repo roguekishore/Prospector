@@ -1,0 +1,247 @@
+"use client";
+
+import { Loader2Icon, SendIcon, SquareIcon, XIcon } from "lucide-react";
+import type {
+  ComponentProps,
+  HTMLAttributes,
+  KeyboardEventHandler,
+} from "react";
+import { Children, forwardRef } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import type { ChatStatus } from "ai";
+
+export type PromptInputProps = HTMLAttributes<HTMLFormElement>;
+
+export const PromptInput = ({ className, ...props }: PromptInputProps) => (
+  <form
+    className={cn(
+      "w-full divide-y overflow-hidden rounded-xl border bg-background shadow-sm",
+      className,
+    )}
+    {...props}
+  />
+);
+
+export type PromptInputTextareaProps = ComponentProps<typeof Textarea> & {
+  minHeight?: number;
+  maxHeight?: number;
+};
+
+export const PromptInputTextarea = forwardRef<
+  HTMLTextAreaElement,
+  PromptInputTextareaProps
+>(
+  (
+    {
+      onChange,
+      className,
+      placeholder = "What would you like to know?",
+      minHeight = 48,
+      maxHeight = 164,
+      ...props
+    },
+    ref,
+  ) => {
+    const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
+      if (e.key === "Enter") {
+        if (e.shiftKey) {
+          // Allow newline
+          return;
+        }
+
+        // Submit on Enter (without Shift)
+        e.preventDefault();
+        const form = e.currentTarget.form;
+        if (form) {
+          form.requestSubmit();
+        }
+      }
+    };
+
+    return (
+      <Textarea
+        ref={ref}
+        className={cn(
+          "w-full resize-none rounded-none border-none p-3 shadow-none outline-none ring-0",
+          "bg-transparent dark:bg-transparent field-sizing-content max-h-[6lh]",
+          "focus-visible:ring-0",
+          className,
+        )}
+        name="message"
+        onChange={(e) => {
+          onChange?.(e);
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        {...props}
+      />
+    );
+  },
+);
+PromptInputTextarea.displayName = "PromptInputTextarea";
+
+export type PromptInputToolbarProps = HTMLAttributes<HTMLDivElement>;
+
+export const PromptInputToolbar = ({
+  className,
+  ...props
+}: PromptInputToolbarProps) => (
+  <div
+    className={cn("flex items-center justify-between p-1", className)}
+    {...props}
+  />
+);
+
+export type PromptInputToolsProps = HTMLAttributes<HTMLDivElement>;
+
+export const PromptInputTools = ({
+  className,
+  ...props
+}: PromptInputToolsProps) => (
+  <div
+    className={cn(
+      "flex items-center gap-1",
+      "[&_button:first-child]:rounded-bl-xl",
+      className,
+    )}
+    {...props}
+  />
+);
+
+export type PromptInputButtonProps = ComponentProps<typeof Button>;
+
+export const PromptInputButton = ({
+  variant = "ghost",
+  className,
+  size,
+  ...props
+}: PromptInputButtonProps) => {
+  const newSize =
+    (size ?? Children.count(props.children) > 1) ? "default" : "icon";
+
+  return (
+    <Button
+      className={cn(
+        "shrink-0 gap-1.5 rounded-lg",
+        variant === "ghost" && "text-muted-foreground",
+        newSize === "default" && "px-3",
+        className,
+      )}
+      size={newSize}
+      type="button"
+      variant={variant}
+      {...props}
+    />
+  );
+};
+
+export type PromptInputSubmitProps = ComponentProps<typeof Button> & {
+  status?: ChatStatus;
+  onStop?: () => void;
+};
+
+export const PromptInputSubmit = ({
+  className,
+  variant = "primary",
+  size = "small",
+  status,
+  children,
+  onStop,
+  onClick,
+  type,
+  ...props
+}: PromptInputSubmitProps) => {
+  const canStop = status === "streaming" && Boolean(onStop);
+  let Icon = <SendIcon className="size-3.5" />;
+  let ariaLabel = "Send";
+
+  if (status === "submitted") {
+    Icon = <Loader2Icon className="size-3.5 animate-spin" />;
+    ariaLabel = "Sending";
+  } else if (status === "streaming") {
+    Icon = <SquareIcon className="size-3 fill-current" />;
+    ariaLabel = canStop ? "Stop" : "Send";
+  } else if (status === "error") {
+    Icon = <XIcon className="size-3.5" />;
+    ariaLabel = "Error";
+  }
+
+  return (
+    <Button
+      {...props}
+      className={className}
+      size={size}
+      type={canStop ? "button" : (type ?? "submit")}
+      variant={variant}
+      icon={children ? undefined : Icon}
+      aria-label={children ? undefined : ariaLabel}
+      onClick={canStop ? onStop : onClick}
+    >
+      {children}
+    </Button>
+  );
+};
+
+export type PromptInputModelSelectProps = ComponentProps<typeof Select>;
+
+export const PromptInputModelSelect = (props: PromptInputModelSelectProps) => (
+  <Select {...props} />
+);
+
+export type PromptInputModelSelectTriggerProps = ComponentProps<
+  typeof SelectTrigger
+>;
+
+export const PromptInputModelSelectTrigger = ({
+  className,
+  ...props
+}: PromptInputModelSelectTriggerProps) => (
+  <SelectTrigger
+    className={cn(
+      "border-none bg-transparent font-medium text-muted-foreground shadow-none transition-colors",
+      'hover:bg-accent hover:text-foreground [&[aria-expanded="true"]]:bg-accent [&[aria-expanded="true"]]:text-foreground',
+      className,
+    )}
+    {...props}
+  />
+);
+
+export type PromptInputModelSelectContentProps = ComponentProps<
+  typeof SelectContent
+>;
+
+export const PromptInputModelSelectContent = ({
+  className,
+  ...props
+}: PromptInputModelSelectContentProps) => (
+  <SelectContent className={cn(className)} {...props} />
+);
+
+export type PromptInputModelSelectItemProps = ComponentProps<typeof SelectItem>;
+
+export const PromptInputModelSelectItem = ({
+  className,
+  ...props
+}: PromptInputModelSelectItemProps) => (
+  <SelectItem className={cn(className)} {...props} />
+);
+
+export type PromptInputModelSelectValueProps = ComponentProps<
+  typeof SelectValue
+>;
+
+export const PromptInputModelSelectValue = ({
+  className,
+  ...props
+}: PromptInputModelSelectValueProps) => (
+  <SelectValue className={cn(className)} {...props} />
+);
