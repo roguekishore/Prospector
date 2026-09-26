@@ -177,7 +177,11 @@ cmd_secrets() {
 # ---------------------------------------------------------------------------
 poll_ssm_command() {
   local instance_id="$1" cmd_id="$2" status
-  for _ in $(seq 1 90); do
+  # 240 x 15s = 60min, matching SSM's own default command timeout. The first
+  # install.sh on a fresh box does apt, Node, Caddy, npm ci *and* builds and
+  # pushes the arm64 capture image on two t4g.small vCPUs; the old 90 x 5s
+  # (7.5min) would have called that a timeout while it was still working.
+  for _ in $(seq 1 240); do
     status="$(aws ssm get-command-invocation --command-id "$cmd_id" --instance-id "$instance_id" \
       --region "$REGION" --query 'Status' --output text 2>/dev/null || echo Pending)"
     case "$status" in
@@ -190,7 +194,7 @@ poll_ssm_command() {
           --region "$REGION" --query 'StandardErrorContent' --output text >&2
         die "install.sh failed on the box (status=$status)" ;;
     esac
-    sleep 5
+    sleep 15
   done
   die "timed out waiting for the SSM command to finish"
 }
