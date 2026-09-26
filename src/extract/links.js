@@ -1,27 +1,47 @@
 /* src/extract/links.js
-   Extract links from rendered.html. W3 §1.3.
-   Dead-link probing is optional (--no-probe). */
+   Outside links from rendered.html — social profiles and other domains.
+   No network: this reads the DOM cheerio already parsed and nothing else. */
 'use strict';
 
-const http  = require('http');
-const https = require('https');
 const { parse: parseDomain } = require('tldts');
 
+/**
+ * Hosts whose presence the operator reads as "this business has a profile
+ * there". Matched on the registrable domain, so `m.facebook.com` and
+ * `www.instagram.com` both land here.
+ */
 const SOCIAL_HOSTS = new Set([
-  'facebook.com','instagram.com','twitter.com','x.com','youtube.com',
-  'linkedin.com','pinterest.com','wa.me','api.whatsapp.com','tiktok.com',
-  't.me','snapchat.com',
+  'facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'youtube.com',
+  'youtu.be', 'linkedin.com', 'pinterest.com', 'tiktok.com', 't.me',
+  'snapchat.com',
 ]);
 
+/**
+ * WhatsApp is a phone number wearing a URL. Places already gives the phone, and
+ * a `wa.me` link in `links[]` would read as an outside profile it is not.
+ * `api.whatsapp.com` needs no entry — its registrable domain is `whatsapp.com`.
+ */
+const WHATSAPP_HOSTS = new Set(['wa.me', 'whatsapp.com']);
+
+/** Longer than this is a data: URI or a tracking blob, not a link worth keeping. */
+const MAX_URL = 2048;
+
+/**
+ * The registrable domain of a URL — `antaryaconcepts.com`, `foo.co.in`.
+ *
+ * `tldts.parse().domain` is already suffix-aware and already includes it; the
+ * previous version appended `publicSuffix` again and produced
+ * `antaryaconcepts.com.com`, which matched nothing and so let every own-domain
+ * link through as `external`.
+ */
 function registrable(url) {
   try {
     const r = parseDomain(url);
-    return r.domain && r.publicSuffix
-      ? `${r.domain}.${r.publicSuffix}`.toLowerCase()
-      : null;
+    return r.domain ? r.domain.toLowerCase() : null;
   } catch { return null; }
 }
 
+/** Nearest landmark ancestor — where on the page the operator would find it. */
 function region($, el) {
   let node = el;
   while (node) {
@@ -36,6 +56,10 @@ function region($, el) {
   return 'main';
 }
 
+/**
+ * Absolute URL with the hash and the usual tracking parameters dropped, so the
+ * same destination linked twice with different campaign tags dedupes to one.
+ */
 function normaliseHref(href, baseURI) {
   try {
     const abs = new URL(href, baseURI);
@@ -47,124 +71,56 @@ function normaliseHref(href, baseURI) {
   } catch { return null; }
 }
 
-function classifyKind(absHref, scheme, leadDomain) {
-  if (scheme === 'mailto:') return 'mailto';
-  if (scheme === 'tel:')    return 'tel';
-  if (scheme === '#')       return 'anchor';
-  try {
-    const rd = registrable(absHref);
-    if (!rd) return 'external';
-    if (SOCIAL_HOSTS.has(rd)) return 'social';
-    if (rd === leadDomain)    return 'internal';
-    return 'external';
-  } catch { return 'external'; }
-}
+/**
+ * Every outside link on the page, in document order.
+ *
+ * "Outside" means the registrable domain differs from the site's own. The site's
+ * own is two domains, not one: the domain the business is filed under, and the
+ * registrable domain of `finalUrl` — a site that redirects `example.com` to
+ * `example.net` must not list itself as an external link.
+ *
+ * @param {import('cheerio').CheerioAPI} $   rendered.html, already loaded
+ * @param {string} finalUrl  the URL the DOM belongs to; relative hrefs resolve against it
+ * @param {string} domain    the business's own domain
+ * @returns {Array<{url,target_domain,kind,region,text}>}
+ */
+function extractLinks($, finalUrl, domain) {
+  const own = new Set(
+    [registrable(`https://${domain}/`), registrable(finalUrl)].filter(Boolean));
 
-async function probeUrl(url) {
-  return new Promise(resolve => {
-    const proto = url.startsWith('https') ? https : http;
-    try {
-      const req = proto.request(url, { method: 'HEAD', timeout: 5000 }, res => {
-        resolve(res.statusCode);
-      });
-      req.on('error', () => resolve(null));
-      req.on('timeout', () => { req.destroy(); resolve(null); });
-      req.end();
-    } catch { resolve(null); }
-  });
-}
+  const seen  = new Set();
+  const links = [];
 
-async function extractLinks($rendered, finalUrl, leadDomain, { probe = true } = {}) {
-  const seen   = new Set();
-  const links  = [];
-  const counts = { total:0, internal:0, external:0, nav:0, footer:0, dead:0, socials:0 };
+  $('a[href], area[href]').each((_, el) => {
+    const raw = ($(el).attr('href') || '').trim();
+    if (!raw || raw.startsWith('#')) return;
 
-  $rendered('a[href], area[href]').each((_, el) => {
-    const $el  = $rendered(el);
-    const raw  = $el.attr('href') || '';
-    if (!raw || raw.startsWith('javascript:')) return;
-
-    const scheme = raw.match(/^([a-z]+:)/i)?.[1]?.toLowerCase() || '';
-    const abs    = normaliseHref(raw, finalUrl);
+    const abs = normaliseHref(raw, finalUrl);
     if (!abs) return;
+    // `mailto:`, `tel:`, `javascript:` and every other scheme resolve fine and
+    // are rejected here, after resolution, so a protocol-relative `//host/x`
+    // still counts as the http(s) link it is.
+    if (!/^https?:$/.test(new URL(abs).protocol)) return;
+    if (abs.length > MAX_URL) return;
+
+    const target = registrable(abs);
+    if (!target) return;
+    if (own.has(target)) return;
+    if (WHATSAPP_HOSTS.has(target)) return;
+
     if (seen.has(abs)) return;
     seen.add(abs);
 
-    const kind   = classifyKind(abs, scheme, leadDomain);
-    const reg    = region($rendered, el);
-    const text   = $el.text().trim().slice(0, 120);
-    const relAttr= $el.attr('rel') || '';
-
-    links.push({ href:abs, text, region:reg, kind, rel:relAttr, visible:true });
-
-    counts.total++;
-    if (kind === 'internal')  counts.internal++;
-    if (kind === 'external')  counts.external++;
-    if (kind === 'social')    counts.socials++;
-    if (reg  === 'nav')       counts.nav++;
-    if (reg  === 'footer')    counts.footer++;
+    links.push({
+      url:           abs,
+      target_domain: target,
+      kind:          SOCIAL_HOSTS.has(target) ? 'social' : 'external',
+      region:        region($, el),
+      text:          $(el).text().replace(/\s+/g, ' ').trim().slice(0, 120),
+    });
   });
 
-  // Agency credit
-  let agency_credit = null;
-  const creditRe = [
-    /(?:designed|developed|created|maintained|powered|crafted|built)\s*(?:&|and)?\s*(?:designed|developed|maintained)?\s*by\s*[:\-]?\s*(.{2,60})/i,
-    /website\s+by\s+(.{2,60})/i,
-    /a\s+unit\s+of\s+(.{2,60})/i,
-  ];
-
-  $rendered('footer, [class*="footer"], [id*="footer"]').each((_, el) => {
-    if (agency_credit) return false;
-    const text = $rendered(el).text();
-    for (const re of creditRe) {
-      const m = re.exec(text);
-      if (!m) continue;
-      let raw_text = m[0].trim();
-      let name = m[1].trim()
-        .replace(/[.,;!]+$/, '')
-        .replace(/\s+/g, ' ');
-
-      // Try to find a link near the credit text
-      let creditDomain = null;
-      $rendered(el).find('a[href]').each((__, link) => {
-        const href = $rendered(link).attr('href') || '';
-        const rd = registrable(href);
-        if (rd && rd !== leadDomain && !SOCIAL_HOSTS.has(rd)) {
-          creditDomain = rd;
-          return false;
-        }
-      });
-
-      agency_credit = {
-        name,
-        domain: creditDomain,
-        raw_text,
-        region: 'footer',
-      };
-      break;
-    }
-  });
-
-  // Dead link probing (internal links only, cap 40, concurrency 4)
-  if (probe) {
-    const toProbe = links.filter(l => l.kind === 'internal').slice(0, 40);
-    const queue   = [...toProbe];
-    const workers = 4;
-    let i = 0;
-
-    const results = await Promise.all(
-      Array.from({ length: Math.min(workers, queue.length) }, async () => {
-        while (i < queue.length) {
-          const link = queue[i++];
-          link.status = await probeUrl(link.href);
-        }
-      })
-    );
-
-    counts.dead = links.filter(l => l.status != null && l.status >= 400).length;
-  }
-
-  return { counts, links, agency_credit };
+  return links;
 }
 
-module.exports = { extractLinks, registrable, SOCIAL_HOSTS };
+module.exports = { extractLinks, registrable, SOCIAL_HOSTS, WHATSAPP_HOSTS };

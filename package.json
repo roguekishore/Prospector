@@ -20,6 +20,7 @@
     "test:run": "node scripts/smoke.js",
     "test:clean": "node scripts/smoke-clean.js",
     "test:w1": "node scripts/test-w1.js",
+    "test:extract": "node scripts/test-extract.js",
     "dispatch": "node scripts/dispatch.js"
   },
   "dependencies": {
