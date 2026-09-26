@@ -23,7 +23,7 @@
  * The cost is that **failures are invisible here**. Async invoke retries twice
  * on its own and then drops the event. Point a failure destination or DLQ at the
  * function, or a domain that fails three times is simply absent with nothing
- * logged. Re-running this script is the cheap recovery: `captureExists` makes
+ * logged. Re-running this script is the cheap recovery: `captureComplete` makes
  * every batch idempotent, so a second pass only picks up what is missing.
  *
  * ## Batch size
@@ -42,6 +42,8 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+
+const { readCity } = require('../lib-keys');
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -78,6 +80,11 @@ async function main() {
   const region   = args.region   || process.env.AWS_REGION       || 'ap-south-1';
   const dryRun   = !!args.dryRun;
 
+  // The city is the top S3 prefix, so it is sent in the event rather than
+  // defaulted inside the function. config/city.json is already the single source
+  // of the bbox and the display name.
+  const city = readCity(ROOT);
+
   const dirs = verticalDirs(path.join(ROOT, 'data'), only);
   if (!dirs.length) {
     console.error('No verticals under data/. Run qualify first.');
@@ -106,7 +113,7 @@ async function main() {
   }
 
   console.log(`\nTotal: ${totalDomains} domains, ${totalBatches} invokes ` +
-              `(batch=${batchSz}, fn=${fnName}, region=${region})`);
+              `(city=${city.slug}, batch=${batchSz}, fn=${fnName}, region=${region})`);
 
   if (dryRun) { console.log('\nDry run — nothing invoked.'); return; }
   if (!totalBatches) return;
@@ -117,7 +124,7 @@ async function main() {
   let sent = 0, errors = 0;
   for (const { slug, runId, batches } of plan) {
     for (const businesses of batches) {
-      const payload = { runId, vertical: slug, businesses };
+      const payload = { runId, city: city.slug, vertical: slug, businesses };
       try {
         await lambda.send(new InvokeCommand({
           FunctionName:   fnName,

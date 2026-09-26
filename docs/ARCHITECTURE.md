@@ -163,6 +163,12 @@ stale and the server 500s when they do.
 ## Schema
 
 ```sql
+CREATE TABLE cities (
+  id     INT AUTO_INCREMENT PRIMARY KEY,
+  slug   VARCHAR(64)  NOT NULL UNIQUE,   -- lib-keys.canonicalCity: 'coimbatore'
+  label  VARCHAR(128) NOT NULL            -- config/city.json "city": 'Coimbatore'
+);
+
 CREATE TABLE verticals (
   id     INT AUTO_INCREMENT PRIMARY KEY,
   slug   VARCHAR(64)  NOT NULL UNIQUE,
@@ -172,7 +178,9 @@ CREATE TABLE verticals (
 CREATE TABLE companies (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
   places_id       VARCHAR(255) NOT NULL UNIQUE,
+  city_id         INT NOT NULL,
   vertical_id     INT NOT NULL,
+  domain          VARCHAR(255),          -- lib-keys.canonicalDomain(website); the S3 key segment
 
   -- Places, verbatim
   name            VARCHAR(255),
@@ -197,9 +205,10 @@ CREATE TABLE companies (
 
   first_seen      DATETIME NOT NULL,
 
+  FOREIGN KEY (city_id)     REFERENCES cities(id),
   FOREIGN KEY (vertical_id) REFERENCES verticals(id),
-  INDEX (vertical_id, status, review_count),
-  INDEX (website),
+  INDEX (city_id, vertical_id, status, review_count),
+  INDEX (domain),
   INDEX (review_status)
 );
 
@@ -269,45 +278,114 @@ one group site become one row. Expect counts not to tie.
 ## S3 layout — FIXED
 
     s3://<bucket>/
-      places/<vertical>/discovered.json
-      places/<vertical>/qualified.json
-      captures/<vertical>/<domain>/desktop.webp
-                                  /mobile.webp
-                                  /home.html
-                                  /rendered.html
-                                  /headers.json
-                                  /error.json        (only when the capture failed)
+      <city>/captures/<domain>/desktop.webp
+                               mobile.webp
+                               rendered.html      post-JS DOM; link extraction reads this
+                               home.html          raw response body; fallback
+                               headers.json
+                               error.json         only when the capture failed
+      <city>/places/<vertical>/discovered.json
+                              /qualified.json
+      <city>/places-raw/<vertical>/<query-sha>.json
 
-Implemented in `src/capture/s3.js`. `raw/` is flattened away — the local tree
-nests it for tidiness, but in S3 one domain is already one prefix.
+Implemented in `src/capture/s3.js`. Every segment is lowercase and produced by
+`lib-keys.js`, which is the only place a city or a domain is spelled. `raw/` is
+flattened away — the local tree nests it for tidiness, but in S3 one domain is
+already one prefix.
 
-**Enable object versioning on the bucket. It is load-bearing, not optional.**
+### City first
 
-Three constraints had to hold at once:
+A city is a whole campaign: one keyword set, one bbox, one billing story, one
+decision to archive. At the top of the key, a second city adds a prefix and
+touches nothing existing, and a city can later be moved to its own bucket as a
+single prefix copy. `config/city.json` already holds the display name, the bbox
+and the grid, and `src/discover/index.js:307` already stamps the city into every
+business — so this dimension exists in the data today and was only missing from
+the key.
 
-1. **Deterministic from columns that exist.** Nothing stores an S3 path, so the
-   key must be computable from `vertical` and `domain` alone.
-2. **Re-capturing must never destroy the previous capture.**
-3. **`ingest` must find finished work cheaply.**
+One domain appearing in two cities is stored twice. At ~34 KB a capture that is
+not worth a dedup table.
 
-A date in the path satisfies (2) and breaks (1) — the date would have to be
-stored to be recoverable, and storing paths was rejected. A run id breaks it
+### The vertical is not in the capture key
+
+Vertical is a classification and classifications get corrected; a domain is a
+fact. A key built from the vertical breaks the moment a company is
+recategorised — the bytes are still good but nothing can compute their
+location — and it stores two copies when one website backs two `place_id`s in
+different verticals.
+
+Nothing needs it. `ingest` works from MySQL rows, the deck queries MySQL, and no
+code lists the bucket by vertical. A flat high-cardinality prefix is also kinder
+to S3's request-rate partitioning than eighteen fat ones.
+
+### No date and no run id either
+
+The key must be computable from columns that exist, because nothing stores a
+path — a date would itself have to be stored to be recoverable. A run id is
 worse: a 16-hour sweep crosses midnight, so even a date splits one run across two
 prefixes.
 
-Versioning resolves all three. A re-capture overwrites the same key while the old
-bytes stay retrievable as a prior version — history for free, no date, no schema.
-(1) holds because the key is vertical + domain. (3) becomes a HEAD on the
-expected key per pending row: O(pending), no bucket listing, and the same "does
-the object exist" test `--resume` already uses against local disk.
+**Enable object versioning on the bucket. It is load-bearing, not optional.** A
+re-capture then overwrites the key while the previous bytes stay retrievable as a
+prior version: history with no date in the path and no schema. Without it a
+re-capture is destructive, and that failure is silent.
 
-Without versioning, a re-capture is destructive and constraint (2) fails
-silently. That is the one piece of bucket config this design cannot do without.
+There is deliberately **no noncurrent-version lifecycle rule**. A domain is
+captured once and never on a schedule, so versions accumulate only from a
+deliberate re-capture. Add an expiry rule if a periodic refresh is ever
+introduced — that is the point at which version growth becomes invisible cost.
 
-**`home.html` and `rendered.html` are uploaded, not discarded.**
+Captures also stay on S3 **Standard**. Standard-IA looks like the obvious saving
+and is not: it bills a 128 KB minimum per object against an average capture of
+~34 KB. The whole question is moot at this scale — 50,000 captures is ~1.7 GB,
+roughly $0.04/month, and the 250,000 PUTs that write them about $1.25 once.
+
+### One canonical spelling
+
+`lib-keys.js` owns `canonicalCity` and `canonicalDomain`. Three places must agree
+byte for byte: the S3 key, the local directory `data/<vertical>/<domain>/`, and
+`companies.domain` / `cities.slug` in MySQL. If they drift, `--resume` stops
+recognising finished work and the next run re-captures the whole estate at full
+cost, indistinguishably from a first run.
+
+The producer of a domain is `registrable()` (`src/discover/provider.js:29`),
+which runs the URL through `tldts.getDomain()` and so already returns a lowercase
+registrable domain with every subdomain — `www` included — removed.
+`canonicalDomain` re-applies the same invariants, is idempotent, and throws
+rather than emitting a path-unsafe segment. A bad key is worse than a loud
+failure: it lands in the bucket and nothing notices until ingest cannot find it.
+
+### `places-raw/` is provenance
+
+`discovered.json` is processed output, not what Google said. The raw response
+bodies are archived because they cost money, cannot be reproduced, and are the
+only record of what the API actually returned on the night — the truncation bug
+stayed invisible for a year for want of exactly this. The object name is a SHA of
+the request descriptor, so a repeated query overwrites its own archive instead of
+accumulating near-duplicates, and versioning keeps the earlier bodies.
+
+### S3 holds bytes; MySQL holds state
+
+"What is left to capture" is `companies.status` — 0 pending, 1 done, -1 no
+website — in one indexed query. The bucket is never consulted for it. Doing so
+would cost a HEAD per pending domain per dispatch and create a second opinion
+that can disagree with the first.
+
+`captureComplete()` therefore exists for a `--verify` repair mode that reconciles
+the database against the bucket on demand, not for the resume path. It checks all
+three completion files (`desktop.webp`, `mobile.webp`, `headers.json`), mirroring
+`completionFiles()` at `capture-domain.js:127`. The earlier version tested only
+`desktop.webp`, which a deadline-truncated capture can have on its own
+(`capture-domain.js:75`) — that read as complete and would have abandoned a
+half-captured domain permanently.
+
+### Both HTML files are uploaded
+
 `docs/DEPLOYMENT.md` treats `raw/` as an optional upload to save transfer — that
-is overruled here. Storing the HTML is what makes every future parsing change a
-re-read instead of a re-crawl, at ~2 GB for ~9,600 domains, about $0.05/month.
+is overruled here. Storing the HTML makes every future parsing change a re-read
+instead of a re-crawl, at ~2 GB for ~9,600 domains, about $0.05/month.
+`rendered.html` is the post-JS DOM and is what link extraction reads;
+`home.html` is the raw response body and the fallback.
 
 Because the HTML ships either way, `DEPLOYMENT.md`'s argument for fusing the
 HTML-parsing step into the capture Lambda no longer holds — the transfer it was

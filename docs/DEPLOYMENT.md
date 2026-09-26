@@ -355,9 +355,9 @@ when you test it.
 
 ## Prerequisites
 
-- [ ] **Settle the S3 key layout** before the capture handler is written — it
-      hard-codes the key, so changing it later means a migration or a second
-      write path. Constraints in `docs/ARCHITECTURE.md`.
+- [x] **Settle the S3 key layout.** Done — `<city>/captures/<domain>/…`, no
+      vertical and no date in the key, one canonical spelling in `lib-keys.js`.
+      `src/capture/s3.js`, rationale in `docs/ARCHITECTURE.md`.
 - [ ] **Terraform provider auth.** Aliases authenticate with static root keys
       (`terraform/providers.tf:5-45`) that were deleted 2026-09-20; operator is
       reissuing them. The `warden-admin` roles exist per account as the

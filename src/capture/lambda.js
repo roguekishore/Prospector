@@ -13,7 +13,7 @@
  *
  * Event shape, from `scripts/dispatch.js`:
  *
- *     { runId, vertical, businesses: [ <qualified.json businesses[] entry>, ... ] }
+ *     { runId, city, vertical, businesses: [ <qualified.json businesses[] entry>, ... ] }
  *
  * Three things this gets deliberately right:
  *
@@ -32,7 +32,8 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const { captureDomain } = require('./capture-domain');
-const { uploadCaptureDir, captureExists } = require('./s3');
+const { uploadCaptureDir, captureComplete } = require('./s3');
+const { canonicalDomain } = require('../../lib-keys');
 
 const BUCKET   = process.env.CAPTURE_BUCKET;
 const REGION   = process.env.AWS_REGION || 'ap-south-1';
@@ -107,15 +108,20 @@ function _emitMetrics({ vertical, ok, failed, skipped, durationMs }) {
 }
 
 /**
- * @param {object} event  { runId, vertical, businesses }
- * @returns {Promise<{runId, vertical, ok, failed, skipped, results}>}
+ * `city` is part of the S3 key, so the dispatcher sends it rather than letting
+ * the function default one — a Lambda that guessed the city would write a whole
+ * batch under the wrong prefix and report success.
+ *
+ * @param {object} event  { runId, city, vertical, businesses }
+ * @returns {Promise<{runId, city, vertical, ok, failed, skipped, results}>}
  */
 async function handler(event) {
   if (!BUCKET) throw new Error('CAPTURE_BUCKET is not set');
 
-  const { runId = 'unknown-run', vertical, businesses = [] } = event || {};
+  const { runId = 'unknown-run', city, vertical, businesses = [] } = event || {};
+  if (!city)               throw new Error('event.city is required');
   if (!vertical)           throw new Error('event.vertical is required');
-  if (!businesses.length)  return { runId, vertical, ok: 0, failed: 0, skipped: 0, results: [] };
+  if (!businesses.length)  return { runId, city, vertical, ok: 0, failed: 0, skipped: 0, results: [] };
 
   const { S3Client } = require('@aws-sdk/client-s3');
   const s3 = new S3Client({ region: REGION });
@@ -126,14 +132,22 @@ async function handler(event) {
   let ok = 0, failed = 0, skipped = 0;
 
   for (const biz of businesses) {
-    const domain = biz && biz.domain;
-    if (!domain) { failed++; continue; }
+    // Normalise once, here: the same string then names the /tmp directory and
+    // every S3 key, so a stray `www.` cannot split one domain across two prefixes.
+    let domain;
+    try { domain = canonicalDomain(biz && biz.domain); }
+    catch {
+      failed++;
+      results.push({ domain: biz && biz.domain, status: 'error', message: 'unusable domain' });
+      continue;
+    }
 
     const outDir = path.join(TMP_ROOT, domain);
     try {
-      // Resume is "does the object exist", the same test --resume uses on disk.
-      // A re-invoke after a partial batch must not re-capture what landed.
-      if (await captureExists(s3, { bucket: BUCKET, vertical, domain })) {
+      // A re-invoke after a partial batch must not re-capture what landed. This
+      // checks all three completion files, so a deadline-truncated domain is
+      // correctly seen as unfinished and gets another attempt.
+      if (await captureComplete(s3, { bucket: BUCKET, city, domain })) {
         skipped++;
         results.push({ domain, status: 'skipped' });
         continue;
@@ -153,7 +167,7 @@ async function handler(event) {
 
       // Uploaded either way: a failed capture still wrote error.json, and a
       // deadline kill still wrote whatever shots landed. Both are worth keeping.
-      const keys = await uploadCaptureDir(s3, { bucket: BUCKET, vertical, domain, dir: outDir });
+      const keys = await uploadCaptureDir(s3, { bucket: BUCKET, city, domain, dir: outDir });
 
       if (result.ok) { ok++;     results.push({ domain, status: 'ok', keys: keys.length }); }
       else           { failed++; results.push({ domain, status: 'failed', kind: result.kind }); }
@@ -171,7 +185,7 @@ async function handler(event) {
   _emitMetrics({ vertical, ok, failed, skipped, durationMs });
   console.log(`[lambda] ${vertical}: ${ok} ok, ${failed} failed, ${skipped} skipped ` +
               `of ${businesses.length} in ${(durationMs / 1000).toFixed(1)}s`);
-  return { runId, vertical, ok, failed, skipped, durationMs, results };
+  return { runId, city, vertical, ok, failed, skipped, durationMs, results };
 }
 
 module.exports = { handler };
