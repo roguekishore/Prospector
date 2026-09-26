@@ -102,15 +102,30 @@ ensure_state_bucket() {
 # ---------------------------------------------------------------------------
 # secrets — .env -> SSM SecureString (R3.2)
 # ---------------------------------------------------------------------------
+# Windows tools (PowerShell's default redirect/Set-Content, some editors) save
+# UTF-16LE with a BOM rather than UTF-8 — src/cli/index.js already carries a
+# workaround for this exact thing when the app loads .env itself. Plain
+# grep/sed here would see every other byte as \0 and match nothing, which is
+# indistinguishable from the key being genuinely absent. Normalize once to
+# UTF-8 before any key lookup.
+_dotenv_utf8() {
+  local file="$HERE/.env"
+  [ -f "$file" ] || return 1
+  if [ "$(head -c2 "$file" | od -An -tx1 | tr -d ' \n')" = "fffe" ]; then
+    iconv -f UTF-16LE -t UTF-8 "$file"
+  else
+    cat "$file"
+  fi | sed '1s/^\xef\xbb\xbf//'
+}
+
 _dotenv_get() {
   local key="$1"
-  [ -f "$HERE/.env" ] || return 0
   # `|| true` at the end: a key that's simply absent (BRAVE_KEY, commonly)
   # makes grep match nothing and exit 1, which under this script's
   # `set -o pipefail` would otherwise kill the whole run right here with no
   # error message at all — silently, mid-`./p up`.
-  grep -E "^${key}=" "$HERE/.env" 2>/dev/null | tail -n1 | sed -E "s/^${key}=//" \
-    | sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/' || true
+  _dotenv_utf8 2>/dev/null | grep -E "^${key}=" | tail -n1 | sed -E "s/^${key}=//" \
+    | sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/; s/\r$//' || true
 }
 
 cmd_secrets() {
