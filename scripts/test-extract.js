@@ -34,7 +34,6 @@ function extract(name, html, { domain = 'antaryaconcepts.com', finalUrl } = {}) 
   return { dir, doc, raw: fs.readFileSync(path.join(dir, 'extract.json'), 'utf8') };
 }
 
-const has   = (doc, url) => doc.links.some(l => l.url === url);
 const find  = (doc, frag) => doc.links.find(l => l.url.includes(frag));
 const page  = body => `<!doctype html><html><head><title>t</title></head><body>${body}</body></html>`;
 

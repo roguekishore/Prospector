@@ -378,6 +378,16 @@ async function main() {
   } catch (e) {
     console.error('\nUnexpected error during tests:', e);
     failed++;
+  } finally {
+    // This run writes a real vertical from the fixture provider. Left behind it
+    // becomes a phantom vertical in the control panel and in every `data/` walk,
+    // and the next `capture` would try to capture it. In a finally, so an
+    // assertion failure still cleans up.
+    const artifacts = path.join(ROOT, 'data', 'interior-design');
+    if (fs.existsSync(artifacts)) {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+      console.log('\nRemoved data/interior-design/ (test artifacts)');
+    }
   }
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
