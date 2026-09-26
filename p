@@ -105,8 +105,12 @@ ensure_state_bucket() {
 _dotenv_get() {
   local key="$1"
   [ -f "$HERE/.env" ] || return 0
-  grep -E "^${key}=" "$HERE/.env" | tail -n1 | sed -E "s/^${key}=//" \
-    | sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/'
+  # `|| true` at the end: a key that's simply absent (BRAVE_KEY, commonly)
+  # makes grep match nothing and exit 1, which under this script's
+  # `set -o pipefail` would otherwise kill the whole run right here with no
+  # error message at all — silently, mid-`./p up`.
+  grep -E "^${key}=" "$HERE/.env" 2>/dev/null | tail -n1 | sed -E "s/^${key}=//" \
+    | sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/' || true
 }
 
 cmd_secrets() {
@@ -240,7 +244,11 @@ wait_for_dns_and_enable_caddy() {
   log "add a Netlify DNS record: prospect.themaverick.tech A $eip"
 
   for _ in $(seq 1 60); do
-    dns_ip="$(getent hosts prospect.themaverick.tech 2>/dev/null | awk '{print $1}' | head -n1)"
+    # `|| true`: getent legitimately exits non-zero every time the name
+    # doesn't resolve yet — that's the expected case on most iterations of
+    # this loop, not an error, and under this script's `set -o pipefail` it
+    # would otherwise abort the whole run silently on the very first poll.
+    dns_ip="$(getent hosts prospect.themaverick.tech 2>/dev/null | awk '{print $1}' | head -n1 || true)"
     if [ "$dns_ip" = "$eip" ]; then
       log "DNS resolved — enabling Caddy"
       instance_id="$(tf_output stack instance_id)"
@@ -315,7 +323,11 @@ cmd_status() {
   echo "eip:              ${eip:-unknown}"
   if [ -n "$eip" ]; then
     local dns_ip
-    dns_ip="$(getent hosts prospect.themaverick.tech 2>/dev/null | awk '{print $1}' | head -n1)"
+    # `|| true`: getent legitimately exits non-zero every time the name
+    # doesn't resolve yet — that's the expected case on most iterations of
+    # this loop, not an error, and under this script's `set -o pipefail` it
+    # would otherwise abort the whole run silently on the very first poll.
+    dns_ip="$(getent hosts prospect.themaverick.tech 2>/dev/null | awk '{print $1}' | head -n1 || true)"
     echo "dns resolves to:  ${dns_ip:-not resolving}"
     if [ "$dns_ip" = "$eip" ]; then echo "dns matches eip:  yes"; else echo "dns matches eip:  no"; fi
 
