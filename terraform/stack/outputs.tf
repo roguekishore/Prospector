@@ -11,7 +11,8 @@ output "capture_function_arn" {
 }
 
 output "capture_image_tag" {
-  value = data.aws_ssm_parameter.capture_image_tag.value
+  value     = data.aws_ssm_parameter.capture_image_tag.value
+  sensitive = true # SSM parameter values are always sensitive to Terraform, tag or not
 }
 
 output "deploy_user_name" {
