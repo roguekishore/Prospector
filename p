@@ -5,9 +5,12 @@
 #   ./p up        build everything from nothing, print the EIP
 #   ./p ship      push HEAD to the box and restart it (refuses a dirty tree)
 #   ./p secrets   copy .env into SSM SecureString
-#   ./p status    SSM ping, service state, DNS vs EIP, HTTPS 401, image tag, DLQ depth
+#   ./p status    SSM ping, service state, DNS vs EIP, HTTPS 401, image tag, DLQ depth,
+#                 MySQL row counts
 #   ./p logs      tail the control service's journal
 #   ./p down      destroy stack.tfstate (persist.tfstate is never touched)
+#   ./p peer      apply terraform/mavdb — the VPC peering to clasher. Not run by up.
+#   ./p db        apply terraform/db — the database, user and grants. Not run by up.
 #
 # R1.4 — needs only bash, terraform, the aws CLI and git on the laptop.
 set -euo pipefail
@@ -40,6 +43,13 @@ DEPLOY_USER="prospector-deploy"
 
 ROOT_CSV="${PROSPECTOR_ROOT_CSV:-$HOME/Downloads/rogue.csv}"
 DEPLOY_CSV="${PROSPECTOR_DEPLOY_CSV:-$HOME/.prospector/deploy.csv}"
+# mavdb lives in a second account. Its root key is read at run time, checked
+# against the account id, handed to one Terraform process as a variable, and
+# never written to disk, SSM or state (R1.6).
+CLASHER_CSV="${PROSPECTOR_CLASHER_CSV:-$HOME/Downloads/clasher.csv}"
+CLASHER_ACCOUNT_ID="028972816671"
+DECK_HOST="leads.themaverick.tech"
+CONTROL_HOST="prospect.themaverick.tech"
 
 log() { echo "[p] $*" >&2; }
 die() { echo "[p] ERROR: $*" >&2; exit 1; }
@@ -99,6 +109,19 @@ terraform_apply() {
   ( cd "$HERE/terraform/$1" && terraform init -input=false && terraform apply -auto-approve )
 }
 
+# Same, but the operator sees the plan and types yes. Used for the two roots that
+# reach outside this stack — a peering accepter and a route in another account,
+# and the database's user and grants — where "apply and find out" is not an
+# acceptable failure mode.
+terraform_apply_reviewed() {
+  local root="$1" answer
+  ( cd "$HERE/terraform/$root" && terraform init -input=false && terraform plan -out=tfplan )
+  echo
+  read -r -p "[p] apply the plan above to terraform/$root? type yes: " answer
+  [ "$answer" = "yes" ] || { rm -f "$HERE/terraform/$root/tfplan"; die "not applied"; }
+  ( cd "$HERE/terraform/$root" && terraform apply tfplan && rm -f tfplan )
+}
+
 # `cd` + a relative path, never `-chdir=$HERE/...`: MSYS_NO_PATHCONV=1 (set at
 # the top, so SSM names like /prospector/x reach aws.exe intact) also stops Git
 # Bash rewriting /d/PROJECTS/... into D:/PROJECTS/... for native .exes, and
@@ -116,6 +139,24 @@ tf_output() {
 ssm_get() {
   aws ssm get-parameter --name "/prospector/$1" \
     --query Parameter.Value --output text --region "$REGION" 2>/dev/null || true
+}
+
+# Build the --cli-input-json for an AWS-RunShellScript send-command out of one
+# shell command per argument.
+#
+# The alternative is `--parameters 'commands=[...]'`, whose shorthand syntax has
+# its own quoting rules layered under the shell's: a command containing a double
+# quote, a bracket or a comma has to be escaped twice, and getting it wrong does
+# not fail — it silently sends a different command. Node is already required
+# here, and JSON.stringify knows exactly one set of rules.
+_ssm_commands_json() {
+  node -e '
+    const commands = process.argv.slice(1);
+    process.stdout.write(JSON.stringify({
+      DocumentName: "AWS-RunShellScript",
+      Parameters:   { commands },
+    }));
+  ' "$@"
 }
 
 # Print every A record for a name, one IPv4 per line, empty if it doesn't
@@ -164,10 +205,19 @@ cmd_doctor() {
   echo "[p] doctor — checking this machine before it touches AWS"
 
   local b
-  for b in git terraform aws curl; do
+  for b in git terraform aws curl node; do
     if command -v "$b" >/dev/null 2>&1; then _dok "$b present"
-    else _dfail "$b is not on PATH (R1.4 needs all four)"; fi
+    else _dfail "$b is not on PATH (R1.4 needs all of them)"; fi
   done
+
+  # Only `./p db` needs it, which is why this warns rather than fails: a laptop
+  # that will never apply the database root is not broken for lacking it.
+  if command -v session-manager-plugin >/dev/null 2>&1; then
+    _dok "session-manager-plugin present (./p db needs it)"
+  else
+    printf '  warn  session-manager-plugin is not on PATH — ./p db cannot open its tunnel\n'
+    printf '        see docs/COMMANDS.md for where to get it\n'
+  fi
 
   # `resolve_a` is the reason this one exists: the original code called `getent`,
   # which Git Bash does not ship, so DNS silently never matched and Caddy could
@@ -210,7 +260,9 @@ cmd_doctor() {
   # .env last, and by key name only — never echo a secret.
   if [ -f "$HERE/.env" ]; then
     local k missing=""
-    for k in GOOGLE_PLACES_KEY CONTROL_PASSWORD; do
+    # MAVERICK_DB_PASSWORD is deliberately not required: only `./p db` reads it,
+    # and it should not be on a laptop that is not applying the database root.
+    for k in GOOGLE_PLACES_KEY CONTROL_PASSWORD DECK_PASSWORD; do
       [ -n "$(_dotenv_get "$k")" ] || missing="$missing $k"
     done
     if [ -z "$missing" ]; then _dok ".env parses and has the required keys"
@@ -240,6 +292,12 @@ ensure_state_bucket() {
 
 # ---------------------------------------------------------------------------
 # secrets — .env -> SSM SecureString (R3.2)
+#
+# Named keys, never a loop over the file. `load-env.sh` turns every parameter
+# under /prospector/ into an environment variable on the box, so a DATABASE_URL
+# that reached SSM would silently override the box's verified-TLS connection
+# with whatever it pointed at (src/db/mysql.js). MAVERICK_DB_PASSWORD is not
+# here for the same reason: only `./p db` ever needs it, and only in memory.
 # ---------------------------------------------------------------------------
 # Windows tools (PowerShell's default redirect/Set-Content, some editors) save
 # UTF-16LE with a BOM rather than UTF-8 — src/cli/index.js already carries a
@@ -281,6 +339,10 @@ cmd_secrets() {
     --overwrite --region "$REGION" --value "$google_key" >/dev/null
   aws ssm put-parameter --name /prospector/control-password --type SecureString \
     --overwrite --region "$REGION" --value "$control_password" >/dev/null
+  # The deck's own credential, separate from control's: control can spend Places
+  # quota and start runs, the deck can only be read (R10.1).
+  aws ssm put-parameter --name /prospector/deck-password --type SecureString \
+    --overwrite --region "$REGION" --value "$deck_password" >/dev/null
   if [ -n "$brave_key" ]; then
     aws ssm put-parameter --name /prospector/brave-key --type SecureString \
       --overwrite --region "$REGION" --value "$brave_key" >/dev/null
@@ -408,29 +470,49 @@ ensure_deploy_key() {
   log "wrote $DEPLOY_CSV"
 }
 
+# Two names, polled independently (R10.5). `prospect` is required — nothing else
+# in `up` finishes without it — while `leads` is reported and picked up whenever
+# it happens to resolve, including by a later `ship`. Coupling them would mean a
+# missing deck record kept the control panel off the internet.
 wait_for_dns_and_enable_caddy() {
   local eip instance_id
   eip="$(ssm_get eip)"
   log "box is up — EIP $eip"
-  log "add a Netlify DNS record: prospect.themaverick.tech A $eip"
+  log "add Netlify DNS records: $CONTROL_HOST A $eip"
+  log "                     and $DECK_HOST A $eip"
 
+  local prospect_up=false leads_up=false
   for _ in $(seq 1 60); do
     # Match against every A record, not just the first: a name mid-migration
     # can answer with both the old host and the new one.
-    if resolve_a prospect.themaverick.tech | grep -qx "$eip"; then
-      log "DNS resolved — enabling Caddy"
-      instance_id="$(ssm_get instance-id)"
-      local cmd_id sha
-      sha="$(git rev-parse HEAD)"
-      cmd_id="$(aws ssm send-command --instance-ids "$instance_id" --document-name AWS-RunShellScript \
-        --parameters "commands=[\"/opt/prospector/current/deploy/install.sh $sha --enable-caddy\"]" \
-        --region "$REGION" --query 'Command.CommandId' --output text)"
-      poll_ssm_command "$instance_id" "$cmd_id"
-      return 0
+    if [ "$prospect_up" = false ] && resolve_a "$CONTROL_HOST" | grep -qx "$eip"; then
+      prospect_up=true
+      log "$CONTROL_HOST resolves to the EIP"
     fi
+    if [ "$leads_up" = false ] && resolve_a "$DECK_HOST" | grep -qx "$eip"; then
+      leads_up=true
+      log "$DECK_HOST resolves to the EIP"
+    fi
+    [ "$prospect_up" = true ] && break
     sleep 10
   done
-  log "DNS did not resolve within 10 minutes — once it does, run ./p ship again and Caddy enables itself"
+
+  if [ "$prospect_up" = false ]; then
+    log "$CONTROL_HOST did not resolve within 10 minutes — once it does, run ./p ship again and Caddy enables itself"
+    return 0
+  fi
+  if [ "$leads_up" = false ]; then
+    log "$DECK_HOST does not resolve yet — the deck stays off until it does; a later ./p ship picks it up"
+  fi
+
+  log "enabling Caddy"
+  instance_id="$(ssm_get instance-id)"
+  local cmd_id sha
+  sha="$(git rev-parse HEAD)"
+  cmd_id="$(aws ssm send-command --instance-ids "$instance_id" --document-name AWS-RunShellScript \
+    --parameters "commands=[\"/opt/prospector/current/deploy/install.sh $sha --enable-caddy\"]" \
+    --region "$REGION" --query 'Command.CommandId' --output text)"
+  poll_ssm_command "$instance_id" "$cmd_id"
 }
 
 cmd_up() {
@@ -451,13 +533,154 @@ cmd_up() {
   ( load_deploy_creds && cmd_ship )   # proves the scoped user is sufficient for ship — R8.1
 
   terraform_apply stack        # creates the function now that the tag is real; no-op after
+  run_migrate "$instance_id"
   wait_for_dns_and_enable_caddy
+}
+
+# Apply db/migrations/ on the box, as the service user, with its environment.
+# Idempotent — a second run prints "up to date" — so `up` runs it every time
+# rather than trying to remember whether it has.
+#
+# Not a hard failure: `up` on a box whose database root has not been applied yet
+# has nothing to migrate against, and that is an ordinary order of operations
+# (`./p peer`, then `./p db`, then `./p up`), not a broken deploy.
+run_migrate() {
+  local instance_id="$1" cmd_id
+  log "running migrate on the box"
+  # systemd-run rather than `sudo -u prospector env $(cat …)`: the environment
+  # file is written by load-env.sh in the format systemd's EnvironmentFile
+  # parses, and that is exactly how the services read it. Re-parsing it in a
+  # shell would split a value on its first space, which for a generated 40-
+  # character password is a bug that shows up once in a while and never
+  # reproduces.
+  cmd_id="$(aws ssm send-command --instance-ids "$instance_id" --document-name AWS-RunShellScript \
+    --parameters 'commands=["/opt/prospector/load-env.sh","systemd-run --wait --collect --pipe --quiet --uid=prospector --gid=prospector --working-directory=/opt/prospector/current --property=EnvironmentFile=-/run/prospector/env /usr/local/bin/node src/cli/index.js migrate"]' \
+    --region "$REGION" --query 'Command.CommandId' --output text)"
+  # A subshell, because poll_ssm_command dies on a failed command and a missing
+  # database is not a reason to abandon a deploy that has otherwise worked.
+  if ! ( poll_ssm_command "$instance_id" "$cmd_id" ); then
+    log "WARN: migrate did not succeed. If the database root has not been applied yet,"
+    log "      run ./p peer then ./p db, and ./p up again."
+  fi
 }
 
 cmd_down() {
   need_bin terraform aws
   ( cd "$HERE/terraform/stack" && terraform init -input=false && terraform destroy -auto-approve )
-  log "stack destroyed. persist.tfstate (buckets, ECR, data volume) was not touched."
+  log "stack destroyed. Not touched: persist.tfstate (buckets, ECR, the data volume,"
+  log "and now the VPC, subnet, gateway and route table), mavdb.tfstate (the peering)"
+  log "and db.tfstate (the database, its user and its grants). The box reconnects to"
+  log "mavdb on the next ./p up because the VPC id the peering points at survives."
+}
+
+# ---------------------------------------------------------------------------
+# peer — terraform/mavdb. Its own root and its own state key, so `./p down` and
+# `./p up` never plan, apply or destroy anything in clasher (R1.4).
+#
+# Two sets of credentials in one process: the rogue root key for the peering
+# connection and the route on this side, the clasher root key for the accepter,
+# the routes back and the security-group rule. The clasher key goes in as a
+# Terraform variable, which means it reaches the provider configuration and
+# nothing else — provider configuration is never written to state (R1.6).
+# ---------------------------------------------------------------------------
+cmd_peer() {
+  need_bin terraform aws
+  [ -f "$CLASHER_CSV" ] || die "clasher credentials CSV not found: $CLASHER_CSV"
+
+  local key secret got
+  key="$(_csv_field "$CLASHER_CSV" 'Access key ID')"
+  secret="$(_csv_field "$CLASHER_CSV" 'Secret access key')"
+  [ -n "$key" ] && [ -n "$secret" ] || die "could not parse an access key out of $CLASHER_CSV"
+
+  # Checked before Terraform sees them, and with the keys themselves rather than
+  # the ambient ones: a CSV for the wrong account would otherwise be discovered
+  # by `allowed_account_ids` half way through a plan, after the rogue-side
+  # peering connection had already been created.
+  got="$(AWS_ACCESS_KEY_ID="$key" AWS_SECRET_ACCESS_KEY="$secret" \
+         aws sts get-caller-identity --query Account --output text 2>&1)" \
+    || die "sts get-caller-identity with the clasher key failed: $got"
+  [ "$got" = "$CLASHER_ACCOUNT_ID" ] \
+    || die "the clasher CSV is for account $got, expected $CLASHER_ACCOUNT_ID — refusing to proceed"
+  log "clasher creds ok ($CLASHER_ACCOUNT_ID)"
+
+  export TF_VAR_clasher_access_key="$key"
+  export TF_VAR_clasher_secret_key="$secret"
+  # Unset on every exit path, including the die inside terraform_apply_reviewed.
+  trap 'unset TF_VAR_clasher_access_key TF_VAR_clasher_secret_key' EXIT
+
+  terraform_apply_reviewed mavdb
+
+  log "peering applied. From the box: getent hosts \$(./p status | grep mavdb) should be private,"
+  log "and nc -zv <that address> 3306 should connect."
+}
+
+# ---------------------------------------------------------------------------
+# db — terraform/db. The database, its one user, its grants, and the two SSM
+# parameters the box reads.
+#
+# mavdb is not publicly accessible and the laptop is not in either VPC, so the
+# MySQL provider cannot reach it directly. The tunnel is an SSM port-forwarding
+# session through the box, which *is* peered:
+#
+#   laptop :13306 --SSM--> box --peering--> mavdb :3306
+#
+# Encrypted end to end (SSM's own channel, then TLS over the peering), and it
+# needs no inbound rule anywhere: the box's SSM agent dials out.
+# ---------------------------------------------------------------------------
+cmd_db() {
+  need_bin terraform aws
+  command -v session-manager-plugin >/dev/null 2>&1 \
+    || die "session-manager-plugin is not on PATH — ./p doctor says where to get it"
+
+  local instance_id mavdb_address maverick
+  instance_id="$(ssm_get instance-id)"
+  [ -n "$instance_id" ] || die "/prospector/instance-id is unset — run ./p up first"
+
+  mavdb_address="$(tf_output mavdb mavdb_address)"
+  [ -n "$mavdb_address" ] || die "terraform/mavdb has no mavdb_address output — run ./p peer first"
+
+  maverick="$(_dotenv_get MAVERICK_DB_PASSWORD)"
+  [ -n "$maverick" ] || die "MAVERICK_DB_PASSWORD is empty in .env (only ./p db needs it)"
+  export TF_VAR_maverick_password="$maverick"
+
+  log "opening an SSM port-forward to $mavdb_address:3306 on 127.0.0.1:13306"
+  aws ssm start-session \
+    --target "$instance_id" \
+    --document-name AWS-StartPortForwardingSessionToRemoteHost \
+    --parameters "host=$mavdb_address,portNumber=3306,localPortNumber=13306" \
+    --region "$REGION" >/dev/null &
+  SESSION_PID=$!
+
+  # One trap for both: the password must not outlive this command, and a session
+  # left running holds a tunnel to the database open for as long as the shell is.
+  trap 'unset TF_VAR_maverick_password; kill "${SESSION_PID:-}" 2>/dev/null || true' EXIT
+
+  local ready=false
+  for _ in $(seq 1 30); do
+    if _port_open 127.0.0.1 13306; then ready=true; break; fi
+    sleep 2
+  done
+  [ "$ready" = true ] || die "127.0.0.1:13306 never accepted a connection (60s)"
+  log "tunnel up"
+
+  terraform_apply_reviewed db
+
+  log "database applied. /prospector/db-host and /prospector/db-password are in SSM;"
+  log "the next ./p up (or ./p ship + a manual migrate) puts them on the box."
+}
+
+# Can something connect to this port? Node is already a hard dependency of the
+# repo and is the one TCP prober present on all three platforms — `nc` is absent
+# from Git Bash, and bash's /dev/tcp is a bashism this script cannot rely on
+# reaching a native resolver correctly on Windows.
+_port_open() {
+  node -e '
+    const net = require("net");
+    const s = net.connect(Number(process.argv[2]), process.argv[1]);
+    s.on("connect", () => { s.destroy(); process.exit(0); });
+    s.on("error",   () => process.exit(1));
+    s.setTimeout(2000, () => { s.destroy(); process.exit(1); });
+  ' "$1" "$2" >/dev/null 2>&1
 }
 
 # ---------------------------------------------------------------------------
@@ -477,35 +700,70 @@ cmd_status() {
   echo "ssm ping:         $ping"
 
   if [ "$ping" = "Online" ]; then
-    local cmd_id out
+    # One command, so one round trip: both services, both local health checks,
+    # and the row counts read as the `prospector` user — which is also the proof
+    # that the peering, the grants and the TLS verification all still work.
+    #
+    # MYSQL_PWD, never -p"$password": a running process's argument list is
+    # world-readable on the box. The document sent to SSM carries the variable
+    # name and not its value (single quotes below, expanded on the box), so the
+    # password is not in SSM's command history either.
+    local cmd_id out sql mysql_cmd
+    sql='SELECT IFNULL(status,999) AS status, COUNT(*) AS rows_ FROM companies GROUP BY status ORDER BY 1'
+    mysql_cmd="/opt/prospector/load-env.sh && systemd-run --wait --collect --pipe --quiet"
+    mysql_cmd="$mysql_cmd --uid=prospector --gid=prospector"
+    mysql_cmd="$mysql_cmd --working-directory=/opt/prospector/current"
+    mysql_cmd="$mysql_cmd --property=EnvironmentFile=-/run/prospector/env"
+    mysql_cmd="$mysql_cmd --setenv=MYSQL_PWD=\$DB_PASSWORD"
+    mysql_cmd="$mysql_cmd /usr/bin/mysql --ssl-mode=VERIFY_IDENTITY"
+    mysql_cmd="$mysql_cmd --ssl-ca=/opt/prospector/rds-global-bundle.pem"
+    mysql_cmd="$mysql_cmd -h \$DB_HOST -u prospector -D prospector -N -B"
+    mysql_cmd="$mysql_cmd -e '$sql' 2>&1 || echo 'mysql: unreachable'"
+
+    local services health_control health_deck
+    services='for u in prospector-control prospector-serve prospector-ingest.timer; do systemctl is-active $u 2>&1 | sed "s|^|$u: |"; done'
+    health_control='curl -s -o /dev/null -w "control health: %{http_code}\n" http://127.0.0.1:7778/ || true'
+    health_deck='curl -s -o /dev/null -w "deck health:    %{http_code}\n" http://127.0.0.1:7777/ || true'
+
     cmd_id="$(aws ssm send-command --instance-ids "$instance_id" --document-name AWS-RunShellScript \
-      --parameters 'commands=["systemctl is-active prospector-control 2>&1 || true","curl -s -o /dev/null -w \"local health: %{http_code}\n\" http://127.0.0.1:7778/ || true"]' \
+      --cli-input-json "$(_ssm_commands_json "$services" "$health_control" "$health_deck" "$mysql_cmd")" \
       --region "$REGION" --query 'Command.CommandId' --output text 2>/dev/null || true)"
     if [ -n "$cmd_id" ]; then
-      sleep 3
+      sleep 5
       out="$(aws ssm get-command-invocation --command-id "$cmd_id" --instance-id "$instance_id" \
         --region "$REGION" --query 'StandardOutputContent' --output text 2>/dev/null || true)"
       echo "on-box:"
       echo "$out" | sed 's/^/  /'
+      echo "  (status 999 = unqualified, -1 no site, 0 pending, 1 captured, -2 failed;"
+      echo "   these are rows, and several rows can share one website)"
     fi
   fi
 
   echo "eip:              ${eip:-unknown}"
   if [ -n "$eip" ]; then
     local dns_ips
-    dns_ips="$(resolve_a prospect.themaverick.tech | tr '\n' ' ' | sed 's/ $//')"
-    echo "dns resolves to:  ${dns_ips:-not resolving}"
+    dns_ips="$(resolve_a "$CONTROL_HOST" | tr '\n' ' ' | sed 's/ $//')"
+    echo "control dns:      ${dns_ips:-not resolving}"
     if printf '%s\n' "$dns_ips" | tr ' ' '\n' | grep -qx "$eip"; then
       echo "dns matches eip:  yes"
     else
       echo "dns matches eip:  no"
     fi
 
+    local deck_ips
+    deck_ips="$(resolve_a "$DECK_HOST" | tr '\n' ' ' | sed 's/ $//')"
+    echo "deck dns:         ${deck_ips:-not resolving}"
+
     local code
-    code="$(curl -s -o "$NULL_DEV" -w '%{http_code}' "https://prospect.themaverick.tech/api/status" || echo '?')"
-    echo "https, no auth:   $code (expect 401)"
+    code="$(curl -s -o "$NULL_DEV" -w '%{http_code}' "https://$CONTROL_HOST/api/status" || echo '?')"
+    echo "control, no auth: $code (expect 401)"
+    code="$(curl -s -o "$NULL_DEV" -w '%{http_code}' "https://$DECK_HOST/" || echo '?')"
+    echo "deck, no auth:    $code (expect 401)"
   fi
 
+  local db_host
+  db_host="$(ssm_get db-host)"
+  echo "mavdb:            ${db_host:-not applied — run ./p peer, then ./p db}"
   local tag
   tag="$(aws ssm get-parameter --name /prospector/capture-image-tag --region "$REGION" \
     --query 'Parameter.Value' --output text 2>/dev/null || echo unknown)"
@@ -544,16 +802,24 @@ cmd_logs() {
 # ---------------------------------------------------------------------------
 usage() {
   cat <<EOF
-usage: ./p <up|ship|secrets|status|logs|down>
+usage: ./p <up|ship|secrets|status|logs|down|peer|db|doctor>
 
   doctor   preflight this machine: binaries, DNS, path handling, encoding, .env
-  up       doctor, then terraform apply persist + stack, secrets, ship, enable Caddy
+  up       doctor, then terraform apply persist + stack, secrets, ship, migrate,
+           enable Caddy. Never runs peer or db.
   ship     git archive HEAD -> S3, install.sh on the box, update the function
   secrets  copy .env into SSM SecureString
-  status   SSM ping, service state, DNS vs EIP, HTTPS 401, image tag, DLQ depth
+  status   SSM ping, service state, DNS vs EIP, HTTPS 401, image tag, DLQ depth,
+           MySQL row counts
   logs     tail the control service's journal
-  down     destroy stack.tfstate — the box, network, Lambda. Never touches
-           persist.tfstate (buckets, ECR, the data volume).
+  down     destroy stack.tfstate — the box and the Lambda. Never touches
+           persist.tfstate (buckets, ECR, the data volume, the network),
+           mavdb.tfstate (the peering) or db.tfstate (the database).
+
+  peer     apply terraform/mavdb: the VPC peering to clasher. Needs the clasher
+           root CSV. Run once, before db.
+  db       apply terraform/db: the database, user, grants and SSM parameters,
+           through an SSM tunnel via the box. Needs MAVERICK_DB_PASSWORD in .env.
 EOF
 }
 
@@ -562,6 +828,8 @@ main() {
   case "$cmd" in
     up)      load_admin_creds;  cmd_up ;;
     down)    load_admin_creds;  cmd_down ;;
+    peer)    load_admin_creds;  cmd_peer ;;
+    db)      load_admin_creds;  cmd_db ;;
     doctor)  cmd_doctor ;;
     ship)    load_deploy_creds; cmd_ship ;;
     status)  load_deploy_creds; cmd_status ;;

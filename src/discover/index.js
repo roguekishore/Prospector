@@ -3,9 +3,25 @@
 /**
  * discover/index.js — Stage 1
  *
- * Grid-tiles the city bounding box, runs every keyword against every tile
- * via the selected provider, deduplicates by registrable domain, rejects
- * aggregators/socials, and writes data/<vertical>/discovered.json.
+ * Grid-tiles the city bounding box, runs every keyword against every tile via
+ * the selected provider, and inserts one `companies` row per place ID.
+ *
+ * ## One row per place ID, and no merging
+ *
+ * `place_id` is unique and that is the only identity rule (docs/SCHEMA.md).
+ * Discover does not merge listings that share a website, in a run or across
+ * runs: forty brokers all listing the same portal profile are forty businesses,
+ * and two showrooms on one company website are two listings the operator may
+ * want to call separately. The old `deduplicate()` pass collapsed both cases and
+ * `also_seen_as` was the scar it left.
+ *
+ * ## Insert per query, not once at the end
+ *
+ * The insert happens straight after each tile × keyword `search`, so killing a
+ * run part-way keeps every row already written (R4.6) and re-running it inserts
+ * only place IDs that are new. `ON DUPLICATE KEY UPDATE company_id = company_id`
+ * is a deliberate no-op — first write wins, including the vertical — and unlike
+ * `INSERT IGNORE` it does not also swallow a truncation or a bad foreign key.
  *
  * CLI contract: module.exports = { run: async (argv, ctx) => {} }
  * where ctx = { root, config, log }
@@ -14,7 +30,10 @@
 const fs   = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+
 const { registrable } = require('./provider');
+const { canonicalDomain, readCity } = require('../../lib-keys');
+const { db, close } = require('../db/mysql');
 
 // ---------------------------------------------------------------------------
 // Domains that are never valid leads (§2.6 of W1 spec)
@@ -34,11 +53,8 @@ const REJECT_DOMAINS = new Set([
 //
 // A business whose only "website" is one of these is NOT worthless: it pays a
 // portal every month for leads it does not own. That is a first-website pitch,
-// not a redesign. Kept with domain:null and skip_reason "aggregator-profile-only"
+// not a redesign. Kept with domain NULL and skip_reason "aggregator-profile-only"
 // so it is distinguishable from a social-only listing, which indicates no budget.
-//
-// These must NEVER merge in dedup (see dedupe()): forty brokers all listing a
-// 99acres profile share one registrable domain and would collapse to one row.
 // ---------------------------------------------------------------------------
 const GREENFIELD_DOMAINS = new Set([
   // property
@@ -94,7 +110,7 @@ function isRejectedDomain(url) {
  * Short SHA of the deployed checkout, stamped into every run.
  *
  * Run 1 truncated because the box ran older code than the repo and nothing said
- * so — the only trace was `_qualified.json` in a log path. One line here makes
+ * so — the only trace was a stale file name in a log path. One line here makes
  * that visible at the top of every run instead of two days later.
  * @returns {string} short SHA, or 'unknown' outside a git checkout
  */
@@ -133,86 +149,106 @@ function makeTiles(bbox, grid) {
 }
 
 // ---------------------------------------------------------------------------
-// Deduplication
+// Mapping one provider result onto a companies row
 // ---------------------------------------------------------------------------
 /**
- * Deduplicate a flat list of RawBusiness objects.
+ * The row a raw provider result becomes, or null when it cannot be one.
  *
- * Pass 1: collapse by provider_id (adjacent-tile duplicates).
- * Pass 2: collapse by registrable domain — keep higher review_count,
- *         union phone/address, accumulate also_seen_as.
+ * `status` is NULL for anything qualify should probe and -1 for anything it
+ * never will, with `skip_reason` saying which kind of nothing it is. That
+ * distinction is the pitch: a social-only listing indicates no budget, a portal
+ * profile indicates a monthly bill for leads the business does not own, and no
+ * website at all indicates a first-website conversation.
  *
- * @param {object[]} raw
- * @returns {object[]}
+ * @returns {?object} { place_id, name, website_raw, domain, status, skip_reason, … }
  */
-function deduplicate(raw) {
-  // Pass 1 — by provider_id
-  const byId = new Map();
-  for (const b of raw) {
-    if (!b.provider_id) continue;
-    if (!byId.has(b.provider_id)) {
-      byId.set(b.provider_id, { ...b, also_seen_as: [] });
-    }
-  }
-  const uniqById = Array.from(byId.values());
+function toRow(b) {
+  if (!b || !b.provider_id) return null;
 
-  // Pass 2 — by registrable domain
-  const byDomain = new Map();   // domain → merged entry
-  const noDomain = [];          // entries with no domain stay separate
+  const raw = b.website_raw || null;
+  let domain = null;
+  let status = null;
+  let skipReason = null;
 
-  for (const b of uniqById) {
-    const dom = registrable(b.website_raw);
-    if (!dom) {
-      noDomain.push(b);
-      continue;
-    }
-    // A portal domain is shared by many unrelated businesses. Merging on it
-    // would silently discard every broker but one. Keep them all separate.
-    if (GREENFIELD_DOMAINS.has(dom) || REJECT_DOMAINS.has(dom)) {
-      noDomain.push(b);
-      continue;
-    }
-    if (!byDomain.has(dom)) {
-      byDomain.set(dom, { ...b, _domain_tmp: dom, also_seen_as: [] });
+  if (!raw) {
+    status = -1; skipReason = 'no-website';
+  } else if (isGreenfieldDomain(raw)) {
+    status = -1; skipReason = 'aggregator-profile-only';
+  } else if (isRejectedDomain(raw)) {
+    status = -1; skipReason = 'aggregator-or-social-only';
+  } else {
+    const reg = registrable(raw);
+    if (!reg) {
+      status = -1; skipReason = 'unusable-website';
     } else {
-      const existing = byDomain.get(dom);
-      // Keep the entry with higher review_count
-      const keep   = (b.review_count || 0) > (existing.review_count || 0) ? b : existing;
-      const discard = keep === b ? existing : b;
-
-      const merged = {
-        ...keep,
-        _domain_tmp: dom,
-        // Union contacts
-        phone:   keep.phone   || discard.phone   || null,
-        address: keep.address || discard.address || null,
-        also_seen_as: [
-          ...(keep.also_seen_as    || []),
-          ...(discard.also_seen_as || []),
-          discard.provider_id,
-        ].filter(Boolean),
-      };
-      byDomain.set(dom, merged);
+      try { domain = canonicalDomain(reg); }
+      catch { domain = null; status = -1; skipReason = 'unusable-website'; }
     }
   }
 
-  return [...byDomain.values(), ...noDomain];
+  return {
+    place_id:        String(b.provider_id),
+    name:            String(b.name || '').slice(0, 255),
+    website_raw:     raw ? String(raw).slice(0, 2048) : null,
+    domain,
+    rating:          b.rating ?? null,
+    review_count:    b.review_count ?? null,
+    address:         b.address ? String(b.address).slice(0, 512) : null,
+    phone:           b.phone ? String(b.phone).slice(0, 32) : null,
+    lat:             b.lat ?? null,
+    lng:             b.lng ?? null,
+    business_status: b.business_status ? String(b.business_status).slice(0, 32) : null,
+    primary_type:    b.primary_type ? String(b.primary_type).slice(0, 64) : null,
+    status,
+    skip_reason:     skipReason,
+  };
 }
 
-// ---------------------------------------------------------------------------
-// Atomic write helper
-// ---------------------------------------------------------------------------
+const INSERT_COLUMNS = [
+  'place_id', 'city', 'vertical_id', 'name', 'website_raw', 'domain',
+  'rating', 'review_count', 'address', 'phone', 'lat', 'lng',
+  'business_status', 'primary_type', 'discovered_run', 'discovered_at',
+  'status', 'skip_reason',
+];
+
 /**
- * Write JSON atomically: write to .tmp, then rename.
- * @param {string} filepath
- * @param {object} data
+ * Insert one query's results. Returns how many rows were new.
+ *
+ * The count comes from asking which place IDs are already there, not from
+ * `affectedRows`. mysql2 connects with `CLIENT_FOUND_ROWS`, under which a
+ * duplicate whose `ON DUPLICATE KEY UPDATE` changed nothing still reports one
+ * row, so `affectedRows` equals the batch size whatever happened and every
+ * tile reads as entirely new. Duplicates *within* one batch are collapsed
+ * first — adjacent tiles routinely return the same listing twice.
  */
-function writeAtomic(filepath, data) {
-  const dir = path.dirname(filepath);
-  fs.mkdirSync(dir, { recursive: true });
-  const tmp = filepath + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
-  fs.renameSync(tmp, filepath);
+async function insertRows(conn, rows, { city, verticalId, runId, discoveredAt }) {
+  if (!rows.length) return 0;
+
+  const byId = new Map();
+  for (const r of rows) if (!byId.has(r.place_id)) byId.set(r.place_id, r);
+  const unique = [...byId.values()];
+
+  const [known] = await conn.query(
+    'SELECT place_id FROM companies WHERE place_id IN (?)',
+    [unique.map(r => r.place_id)]);
+
+  const params = [];
+  for (const r of unique) {
+    params.push(
+      r.place_id, city, verticalId, r.name, r.website_raw, r.domain,
+      r.rating, r.review_count, r.address, r.phone, r.lat, r.lng,
+      r.business_status, r.primary_type, runId, discoveredAt,
+      r.status, r.skip_reason);
+  }
+  const placeholders = unique
+    .map(() => `(${INSERT_COLUMNS.map(() => '?').join(', ')})`)
+    .join(', ');
+
+  await conn.query(
+    `INSERT INTO companies (${INSERT_COLUMNS.join(', ')}) VALUES ${placeholders}` +
+    ' ON DUPLICATE KEY UPDATE company_id = company_id',
+    params);
+  return unique.length - known.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,23 +261,30 @@ function writeAtomic(filepath, data) {
 async function run(argv, ctx) {
   const { root, log } = ctx;
 
-  // Parse argv
   const verticalSlug = argv[0];
   if (!verticalSlug) {
-    throw new Error('Usage: discover <vertical> [--source places-new|brave|fixture] [--limit N] [--dry-run]');
+    throw new Error('Usage: discover <vertical> [--source places-new|brave|fixture] [--dry-run]');
   }
 
-  const sourceArg  = getFlag(argv, '--source')  || 'places-new';
-  const limitArg   = getFlag(argv, '--limit');
-  const limit      = limitArg ? parseInt(limitArg, 10) : Infinity;
-  const dryRun     = argv.includes('--dry-run');
+  const sourceArg = getFlag(argv, '--source') || 'places-new';
+  const dryRun    = argv.includes('--dry-run');
 
-  // Load configs
-  const cityConfig     = JSON.parse(fs.readFileSync(path.join(root, 'config', 'city.json'), 'utf8'));
-  const verticalsConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'verticals.json'), 'utf8'));
+  const cityConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'city.json'), 'utf8'));
+  const city       = readCity(root).slug;
 
-  const vertical = verticalsConfig.find(v => v.slug === verticalSlug);
-  if (!vertical) throw new Error(`Unknown vertical: ${verticalSlug}`);
+  const conn = db();
+  const [verticals] = await conn.query(
+    'SELECT vertical_id, slug, label, keywords FROM verticals WHERE slug = ? AND enabled = TRUE',
+    [verticalSlug]);
+  if (!verticals.length) throw new Error(`Unknown vertical: ${verticalSlug}`);
+  const vertical = verticals[0];
+  // `keywords` is a JSON column; mysql2 parses it, but a driver that hands back
+  // the raw string would otherwise iterate it character by character.
+  const keywords = typeof vertical.keywords === 'string'
+    ? JSON.parse(vertical.keywords) : vertical.keywords;
+  if (!Array.isArray(keywords) || !keywords.length) {
+    throw new Error(`Vertical ${verticalSlug} has no keywords`);
+  }
 
   // Load provider adapter
   let adapter;
@@ -262,8 +305,7 @@ async function run(argv, ctx) {
     throw new Error(`Unknown source: ${sourceArg}. Use places-new, brave, or fixture`);
   }
 
-  const tiles    = makeTiles(cityConfig.bbox, cityConfig.grid);
-  const keywords = vertical.keywords;
+  const tiles = makeTiles(cityConfig.bbox, cityConfig.grid);
 
   // --dry-run: print request list and exit
   if (dryRun) {
@@ -278,24 +320,24 @@ async function run(argv, ctx) {
     for (const kw of keywords) {
       log(`  "${kw} ${cityConfig.city}"`);
     }
-    return;
+    return { ok: 0, err: 0 };
   }
 
-  const runId     = makeRunId();
-  const queriedAt = new Date().toISOString();
+  const runId        = makeRunId();
+  const discoveredAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   log(`[discover] commit=${gitCommit()} vertical=${verticalSlug} source=${sourceArg} tiles=${tiles.length} keywords=${keywords.length}`);
-
-  // Collect all raw results
-  const allRaw = [];
-  let rawResultsCount = 0;
 
   // Request accounting. `requestsIssued` is what Places actually bills;
   // `paginatedQueries` is the direct proof the nextPageToken field mask is live
   // on this box — without it every query returns one page and this stays 0.
+  let rawResultsCount   = 0;
   let requestsIssued    = 0;
   let paginatedQueries  = 0;
   let ceilingQueries    = 0;   // hit 60 = 3 pages: pagination cannot reach deeper
+  let inserted          = 0;
+  let seen              = 0;
+  let searchErrors      = 0;
 
   for (const tile of tiles) {
     for (const keyword of keywords) {
@@ -312,6 +354,8 @@ async function run(argv, ctx) {
       try {
         results = await adapter.search(callArgs);
       } catch (err) {
+        // Rows already inserted stay (R4.6); this query is simply lost.
+        searchErrors++;
         log(`[discover] WARN tile${tile._index} kw="${keyword}" error: ${err.message}`);
         results = [];
       }
@@ -320,47 +364,29 @@ async function run(argv, ctx) {
       requestsIssued += results._requests ?? 1;
       if (pages > 1)             paginatedQueries++;
       if (results.length >= 60)  ceilingQueries++;
-
       rawResultsCount += results.length;
-      allRaw.push(...results);
-      log(`[discover] tile${tile._index} kw="${keyword}" → ${results.length} results (${pages}p)`);
+
+      const rows = [];
+      for (const b of results) {
+        const row = toRow(b);
+        if (!row) { log(`[discover] WARN tile${tile._index} kw="${keyword}": a result had no place id`); continue; }
+        rows.push(row);
+      }
+
+      const n = await insertRows(conn, rows, {
+        city, verticalId: vertical.vertical_id, runId, discoveredAt });
+      inserted += n;
+      seen     += rows.length - n;
+
+      log(`[discover] tile${tile._index} kw="${keyword}" → ${results.length} results (${pages}p)  ${n} new  ${rows.length - n} seen`);
     }
   }
-
-  // Deduplicate
-  const deduped = deduplicate(allRaw);
-  log(`[discover] deduped: ${allRaw.length} raw → ${deduped.length} unique by provider_id+domain`);
-
-  // Build final business list
-  const businesses = [];
-
-  for (const b of deduped) {
-    if (businesses.length >= limit) break;
-
-    const domRaw = registrable(b.website_raw);
-
-    // Lead-portal profile → greenfield bucket, kept for a first-website pitch
-    if (isGreenfieldDomain(b.website_raw)) {
-      businesses.push(toBusinessEntry(b, domRaw, null, 'aggregator-profile-only'));
-      continue;
-    }
-
-    // Reject aggregators/socials
-    if (isRejectedDomain(b.website_raw)) {
-      businesses.push(toBusinessEntry(b, domRaw, null, 'aggregator-or-social-only'));
-      continue;
-    }
-
-    businesses.push(toBusinessEntry(b, domRaw, b.provider_id, null));
-  }
-
-  const withDomain = businesses.filter(b => b.domain !== null).length;
-  const greenfield = businesses.filter(b => b.skip_reason === 'aggregator-profile-only').length;
-  log(`[discover] total=${businesses.length} with_domain=${withDomain} greenfield=${greenfield}`);
 
   const queries = tiles.length * keywords.length;
+  log(`[discover] ${verticalSlug}: ${inserted} new rows, ${seen} already known, ` +
+      `${rawResultsCount} raw results`);
   log(`[discover] ${verticalSlug}: ${requestsIssued} requests, ` +
-      `${paginatedQueries}/${queries} queries paginated, ${rawResultsCount} raw results`);
+      `${paginatedQueries}/${queries} queries paginated`);
   // Only `places-new` paginates; brave and fixture return one page by design,
   // so warning there would cry wolf on every smoke run.
   if (paginatedQueries === 0 && sourceArg === 'places-new') {
@@ -372,51 +398,13 @@ async function run(argv, ctx) {
         `ceiling — still truncated there, only a finer grid reaches deeper`);
   }
 
-  // Build output
-  const output = {
-    run:         runId,
-    commit:      gitCommit(),
-    vertical:    verticalSlug,
-    source:      sourceArg,
-    queried_at:  queriedAt,
-    tiles:       tiles.length,
-    keywords:    keywords.length,
-    raw_results: rawResultsCount,
-    requests:    requestsIssued,
-    paginated:   paginatedQueries,
-    at_ceiling:  ceilingQueries,
-    businesses,
-  };
-
-  const outDir = path.join(root, 'data', verticalSlug);
-  const outFile = path.join(outDir, 'discovered.json');
-  writeAtomic(outFile, output);
-  log(`[discover] wrote ${outFile}`);
+  return { ok: inserted + seen, err: searchErrors };
 }
 
-// ---------------------------------------------------------------------------
-// Helper: build one business entry for the output array
-// ---------------------------------------------------------------------------
-function toBusinessEntry(b, domain, placesId, skipReason) {
-  const entry = {
-    places_id:       placesId || b.provider_id || null,
-    name:            b.name || '',
-    domain:          skipReason ? null : domain,
-    website_raw:     b.website_raw || null,
-    rating:          b.rating    ?? null,
-    review_count:    b.review_count ?? null,
-    address:         b.address   || null,
-    phone:           b.phone     || null,
-    lat:             b.lat       ?? null,
-    lng:             b.lng       ?? null,
-    business_status: b.business_status || null,
-    primary_type:    b.primary_type    || null,
-  };
-
-  if (skipReason) entry.skip_reason = skipReason;
-  if (b.also_seen_as && b.also_seen_as.length > 0) entry.also_seen_as = b.also_seen_as;
-
-  return entry;
+/** The CLI closes nothing for us; a stage that leaves the pool open hangs. */
+async function runAndClose(argv, ctx) {
+  try { return await run(argv, ctx); }
+  finally { await close(); }
 }
 
 // ---------------------------------------------------------------------------
@@ -433,4 +421,7 @@ function getFlag(argv, flag) {
   return argv[idx + 1];
 }
 
-module.exports = { run };
+module.exports = {
+  run: runAndClose,
+  _run: run, toRow, makeTiles, isGreenfieldDomain, isRejectedDomain,
+};

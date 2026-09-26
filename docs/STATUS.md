@@ -58,6 +58,89 @@ Not verified, and needing the operator:
       `node -e "require('/var/task/src/capture/lambda')"` inside it were not run.
 - [ ] **One real batch.** See the IAM item under *Open — Lambda capture*.
 
+All three close in spec C task 1 (`.kiro/specs/spec-c-running-capture/`).
+
+## spec B — MySQL and the deck (`.kiro/specs/spec-b-mysql-deck/`)
+
+**The code is built and tested; none of the infrastructure has been applied.**
+MySQL is the source of truth for businesses and pipeline state: `discovered.json`,
+`qualified.json`, `config/verticals.json`, SQLite and the places backup are all
+gone, and every stage reads and writes `companies`.
+
+`.kiro/specs/spec-b-mysql-deck/HANDBACK.md` is the hand-back: what was verified,
+what was not, and the one thing left to decide.
+
+Verified on the laptop against a local MySQL 8.0.39, 2026-09-26:
+
+| Suite | Result |
+|---|---|
+| `npm run test:db` | 99 assertions — migrate, discover, qualify, `recordDomain`, ingest |
+| `npm run test:deck` | 77 assertions — paging, filters, decisions, CSV, screenshots |
+| `npm run test:w1` | 41 assertions — AC1–AC10, qualify over real DNS and HTTP |
+| `npm run test:run` | 5 real captures, asserted on disk **and** on the rows |
+| `npm run test:extract` | 38 assertions |
+| `npm run test:lambda` | 28 assertions, 2 real captures |
+
+`npm run test:clean` leaves `data/` and the test tables empty. Done-when 3's
+grep — `qualified.json`, `discovered.json`, `verticals.json`, `better-sqlite3`,
+`backup-places`, `verdict === 'audit'`, `placesKey` over `src scripts deploy
+package.json` — finds nothing.
+
+Two real bugs found by running it, both fixed:
+
+- **Eight concurrent ingest workers deadlocked** on `recordDomain`'s
+  `SELECT … FOR UPDATE` over the non-unique `by_site` index. Under REPEATABLE
+  READ that takes next-key locks covering the gaps between index entries, so two
+  workers on adjacent domains lock each other out. `tx()` now runs at READ
+  COMMITTED, which takes no gap locks, with a bounded retry behind it for the
+  foreign-key checks on `links`. — `src/db/mysql.js`
+- **Every insert counted as new.** `migrate --import-verticals` reported "19
+  inserted, 0 already present" on a re-import of the same file, and discover's
+  `N new / M seen` had the same fault. mysql2 connects with `CLIENT_FOUND_ROWS`,
+  under which a duplicate whose `ON DUPLICATE KEY UPDATE` changed nothing still
+  reports a row — so `affectedRows` equals the batch size whatever happened.
+  Both now read which keys are already present before inserting. The rows were
+  always right; only the counts lied, which is the kind of lie that makes a
+  re-run look like a fresh one. — `src/db/migrate.js`, `src/discover/index.js`
+
+Needing the operator, in this order:
+
+- [ ] **`./p peer`** — apply `terraform/mavdb`. Needs the clasher root CSV, and
+      **`-var mavdb_security_group_id=<sg-…>`**: mavdb has two security groups
+      (`sg-0dd18a4efc3b3c824`, `sg-08d3393b63a12b9ca`) and picking one here would
+      be a guess about another team's network. The plan must show **only creates**
+      in clasher — the accepter, one route per route table, one ingress rule. Any
+      `update` or `replace` there means stop.
+- [ ] **`./p db`** — apply `terraform/db`. Needs `MAVERICK_DB_PASSWORD` in `.env`
+      and `session-manager-plugin` on `PATH` (`./p doctor` warns when it is
+      missing). Afterwards, check the password appears in no SSM parameter and no
+      SSM command history.
+- [ ] **`terraform apply persist` then `stack`.** The network moved from `stack`
+      to `persist`, so the peering survives `./p down`. **If the stack is up**
+      this needs `import` blocks in persist and `removed { lifecycle { destroy =
+      false } }` blocks in stack, applied persist-first, then both plans clean and
+      the blocks deleted in a follow-up commit. Neither set of blocks is written:
+      whether the stack is up could not be checked from here.
+- [ ] **`./p up`** — `ship`, then `migrate` on the box, then Caddy. Add
+      `DECK_PASSWORD` to `.env` first, or the leads site block is skipped.
+- [ ] **A Netlify A record, `leads` → the EIP.** Until it resolves the deck is
+      reachable only on the box's loopback. `./p` polls both names independently,
+      so a missing record never keeps the control panel off the internet.
+- [ ] **Seed the `verticals` table on the box.** `migrate --import-verticals
+      /var/lib/prospector/config/verticals.json` — the persistent copy on the data
+      volume, which `install.sh` no longer maintains but has not deleted either.
+      If it is gone, the same 19 verticals are in git:
+      `git show 4f5c735:config/verticals.json`. Nothing else will put them back,
+      and discover reads its keywords from that table.
+- [ ] **Done-when 1, 2, 6, 8** — the `mysql --ssl-mode=VERIFY_IDENTITY` and
+      `SHOW GRANTS` from an SSM shell, two clean plans across a `./p down` /
+      `./p up`, the two 401s, and a decision made on one device appearing on
+      another.
+- [ ] **Rebuild `Dockerfile.capture`.** The lock changed (`better-sqlite3` out,
+      `mysql2` in). Docker Desktop was not running here, so
+      `npm ci --ignore-scripts` inside the image is unverified — though it now
+      has nothing needing node-gyp to fail on.
+
 ## box-discover-qualify (`.kiro/specs/box-discover-qualify/`)
 
 **The box is live.** `./p up` ran against rogue (700897991126) on 2026-09-26 and
@@ -150,7 +233,10 @@ Verify with `npm run test:extract`, then `npm run test:run` for a real crawl.
 
 ## Open — needs a re-crawl
 
-- [ ] **Re-run `discover` on the fixed field mask.** During run 1 the box lacked
+- [ ] **Re-run `discover` on the fixed field mask.** Was held until spec B; the
+      code is now ready and the run writes straight into MySQL. It still waits
+      for `./p peer` and `./p db`, because the box cannot reach mavdb until
+      those are applied. During run 1 the box lacked
       the `nextPageToken` field-mask fix, so every tile×keyword returned page 1
       only, capped at 20 results. **3,906 is a floor, not a census**, biased
       hardest against dense commercial belts.
@@ -170,25 +256,33 @@ Verify with `npm run test:extract`, then `npm run test:run` for a real crawl.
 - [x] **Instrument `discover` so this cannot recur silently.** Every run now
       logs `commit=<sha>` in its header, per-query page counts, and a summary
       of requests issued / queries paginated / queries at the 60-result
-      ceiling — all four also written into `discovered.json`. A `places-new`
-      run with zero paginated queries now warns outright. Run 1 left no record
+      ceiling. A `places-new` run with zero paginated queries now warns
+      outright. Run 1 left no record
       of any of this, which is why the truncation went unnoticed.
       — `src/discover/index.js:100`, `src/discover/places.js:150`
 
-## Open — the deck (spec B)
+## The deck (spec B)
 
-`src/server/`, `src/db/` and `preview/` are retired and unreachable: they depend
-on the deleted `report` stage and on score fields. Spec B rebuilds the deck on
-MySQL. Two findings from the old one are worth carrying over:
+Rebuilt on MySQL. `node src/cli serve` on 127.0.0.1:7777, `leads.themaverick.tech`
+in front of it. `src/db/index.js`, `preview/data.js` and `preview/mocks.js` are
+deleted; `preview/app.css` is unchanged, because it was always the design
+contract and only `app.js` needed rewriting. Verified by `npm run test:deck`
+(77 assertions, offline).
 
-- [ ] **A view for the no-website pool.** 259 dental businesses have no website
+- [x] **A view for the no-website pool.** 259 dental businesses have no website
       at all, 211 of them with phone numbers — a larger pool than the 139 dental
       leads that had one, including clinics at 4,684 and 2,302 reviews. Maximum
-      ability to pay, no incumbent to displace. They exist only in
-      `qualified.json` and the old deck could not show them.
-- [ ] **The operator's decisions are at risk today.** They live in browser
-      localStorage plus a fire-and-forget `PUT` (`preview/app.js:134`). Spec B's
-      `companies.tier` / `pitch` / `note` columns are the fix.
+      ability to pay, no incumbent to displace. They are rows with
+      `domain IS NULL`, and the deck has a tab for them that takes decisions like
+      any other row. — `src/server/index.js` (`view=no-website`)
+- [x] **The operator's decisions are at risk today.** Closed: they are
+      `companies.tier` / `pitch` / `note` / `reviewed_at`, written by a `PUT`
+      whose failure reverts the control and shows "not saved". No decision is
+      kept in localStorage. A decision made on one device appears on another
+      after a refresh, and survives `./p ship` — **still to confirm by hand with
+      the operator once the deck is public** (spec B done-when 8).
+- [ ] **Nothing has been reviewed through it yet.** Every assertion is against
+      seeded rows; no human has used it on real leads.
 
 ## Open — robustness before the next run
 
@@ -249,10 +343,12 @@ MySQL. Two findings from the old one are worth carrying over:
       Lambda's own Invocations/Errors count batches, not pages, and read clean
       through a total collapse, which is why the handler counts for itself.
       — `src/capture/lambda.js`, `AWS-COMMAND-CENTER warden/app/adapters/capture.py`
-- [ ] **Tag the account `prospector` in `/warden/registry`** and grant the warden
-      reader role `cloudwatch:GetMetricData` + `lambda:GetFunctionConfiguration`.
-      The local `accounts.local.json` copy is tagged; the authoritative SSM one
-      is not, so the tile renders `not_applicable` until it is.
+- [ ] **Tag the account `prospector` in `/warden/registry`.** The local
+      `accounts.local.json` copy is tagged; the authoritative SSM one is not, so
+      the tile renders `not_applicable` until it is. No reader-role change is
+      needed: rogue's `infra` capability already grants
+      `cloudwatch:GetMetricData` and `lambda:GetFunctionConfiguration`
+      (confirmed in warden's tfstate). Spec D.
 - [ ] **The Lambda role could not have read its own skip check.** The policy
       granted `s3:PutObject` only. `captureComplete` uses HeadObject, authorized
       as `s3:GetObject`, and without `s3:ListBucket` a missing key answers 403
@@ -260,9 +356,16 @@ MySQL. Two findings from the old one are worth carrying over:
       a real batch would have errored before capturing anything. Fixed in
       `terraform/stack/lambda.tf` (`Companies` + `ListForHeadObject`), **not
       applied**. A stub-S3 test cannot catch this class of bug.
+- [ ] **`terraform apply stack` is pending for the box role.** `ReadCompanies`,
+      `ListCompanies` and `PutExtract` are written and the `*/places*` write is
+      gone, but `ingest` on the box cannot read a thing until that is applied.
+      — `terraform/stack/box.tf`
+- [ ] **The deployed image predates spec A.** `prospector-capture:03ce726…`
+      still writes `captures/` and does not extract. `./p ship` rebuilds it;
+      do that before any real invoke. Spec C task 1.
 - [ ] **Verify one batch end to end before fanning out.** `npm run test:lambda`
       covers the handler's logic against a stub client; nothing has run against
-      real AWS.
+      real AWS. Spec C.
 
 ## Deferred on purpose
 
@@ -312,6 +415,7 @@ MySQL. Two findings from the old one are worth carrying over:
 
 ## Note on `logs/`
 
-`logs/night.log` is force-tracked run-1 evidence (1.4 MB). Two open items above
-say to grep it — sizing the 20-result truncation, and counting capture outliers.
-Drop it once both are closed.
+`logs/night.log` is force-tracked run-1 evidence (1.4 MB). The two things it was
+kept for — sizing the 20-result truncation and counting capture outliers — are
+measured and recorded above. Spec C deletes it and the other run-1 logs, with
+the operator's go.

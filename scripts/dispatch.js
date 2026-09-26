@@ -4,16 +4,13 @@
  * Dispatch capture-and-extract batches to Lambda.
  *
  *     node scripts/dispatch.js [<vertical>] [--batch 10] [--dry-run]
+ *                              [--retry-failed]
  *                              [--function prospector-capture] [--region ap-south-1]
  *
- * Reads `data/<vertical>/qualified.json`, takes every business with
- * `verdict === "audit"`, and fires one async invoke per batch of 10. The function
- * captures and extracts each domain and writes both to
- * `s3://<bucket>/<city>/companies/<domain>/`.
- *
- * **No database involved.** The work list comes from the qualify artifact, so
- * capture can run before MySQL exists — which is the point of the S3 handoff in
- * `docs/ARCHITECTURE.md`. `ingest` catches up afterwards.
+ * Takes every domain at `status = 0` (plus `-2` with `--retry-failed`) and fires
+ * one async invoke per batch of 10. The function captures and extracts each
+ * domain into `s3://<bucket>/<city>/companies/<domain>/`; `ingest` is what turns
+ * that back into rows.
  *
  * ## Why async invoke
  *
@@ -38,14 +35,20 @@
  * Larger batches amortize the cold start better and lose everything in flight
  * when one times out. The per-capture deadline is what makes any of this
  * bounded — without it the worst case is unbounded and no batch size is safe.
+ *
+ * ## --dry-run needs the database but no AWS credentials
+ *
+ * The plan it prints is the work list, which only MySQL knows. Nothing is
+ * invoked and the Lambda client is never constructed, so it runs on a laptop
+ * with no keys — which is what makes it safe to leave in the allowlist.
  */
 
-const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
 const { readCity, canonicalDomain } = require('../lib-keys');
+const { db, close } = require('../src/db/mysql');
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -54,18 +57,12 @@ function parseArgs(argv) {
     const a = arr.shift();
     if (a.startsWith('--')) {
       const key = a.slice(2);
-      if (key === 'dry-run') { out.dryRun = true; continue; }
+      if (key === 'dry-run')      { out.dryRun = true; continue; }
+      if (key === 'retry-failed') { out.retryFailed = true; continue; }
       out[key] = arr.length && !arr[0].startsWith('--') ? arr.shift() : true;
     } else out._.push(a);
   }
   return out;
-}
-
-function verticalDirs(dataDir, only) {
-  if (!fs.existsSync(dataDir)) return [];
-  return fs.readdirSync(dataDir, { withFileTypes: true })
-    .filter(d => d.isDirectory() && (!only || d.name === only))
-    .map(d => ({ slug: d.name, dir: path.join(dataDir, d.name) }));
 }
 
 function chunk(arr, n) {
@@ -75,68 +72,80 @@ function chunk(arr, n) {
 }
 
 async function main() {
-  const args     = parseArgs(process.argv.slice(2));
-  const only     = args._[0] || null;
-  const batchSz  = Math.max(1, Number(args.batch) || 10);
-  const fnName   = args.function || process.env.CAPTURE_FUNCTION || 'prospector-capture';
-  const region   = args.region   || process.env.AWS_REGION       || 'ap-south-1';
-  const dryRun   = !!args.dryRun;
+  const args    = parseArgs(process.argv.slice(2));
+  const only    = args._[0] || null;
+  const batchSz = Math.max(1, Number(args.batch) || 10);
+  const fnName  = args.function || process.env.CAPTURE_FUNCTION || 'prospector-capture';
+  const region  = args.region   || process.env.AWS_REGION       || 'ap-south-1';
+  const dryRun  = !!args.dryRun;
 
   // The city is the top S3 prefix, so it is sent in the event rather than
   // defaulted inside the function. config/city.json is already the single source
   // of the bbox and the display name.
   const city = readCity(ROOT);
+  const conn = db();
 
-  const dirs = verticalDirs(path.join(ROOT, 'data'), only);
-  if (!dirs.length) {
-    console.error('No verticals under data/. Run qualify first.');
-    process.exit(1);
+  const statuses = args.retryFailed ? [0, -2] : [0];
+
+  // Per vertical, so one invoke's payload carries one `vertical` — the field the
+  // function logs against. A domain listed in two verticals is dispatched once:
+  // the S3 folder is keyed by domain alone, and the second capture would be paid
+  // for and thrown away.
+  const [rows] = await conn.query(
+    'SELECT v.slug, c.domain, MIN(c.final_url) AS final_url, MIN(c.company_id) AS ord' +
+    '  FROM companies c JOIN verticals v ON v.vertical_id = c.vertical_id' +
+    '  WHERE c.city = ? AND c.domain IS NOT NULL' +
+    `    AND c.status IN (${statuses.map(() => '?').join(',')})` +
+    (only ? ' AND v.slug = ?' : '') +
+    '  GROUP BY v.slug, c.domain ORDER BY v.priority, ord',
+    only ? [city.slug, ...statuses, only] : [city.slug, ...statuses]);
+
+  if (only) {
+    const [known] = await conn.query('SELECT slug FROM verticals WHERE slug = ?', [only]);
+    if (!known.length) {
+      console.error(`No such vertical: ${only}`);
+      process.exitCode = 1;
+      return;
+    }
+  }
+
+  const dispatched = new Set();
+  const perVertical = new Map();
+  for (const r of rows) {
+    let domain;
+    try { domain = canonicalDomain(r.domain); } catch { continue; }
+    if (dispatched.has(domain)) continue;
+    dispatched.add(domain);
+    if (!perVertical.has(r.slug)) perVertical.set(r.slug, []);
+    perVertical.get(r.slug).push({ domain, qualify: { final_url: r.final_url } });
   }
 
   let totalDomains = 0, totalBatches = 0;
   const plan = [];
-
-  // One S3 folder per domain, so one invoke per domain. A website listed in two
-  // verticals would otherwise be captured twice into the same prefix — the second
-  // capture paid for and thrown away. First vertical encountered wins.
-  const dispatched = new Set();
-
-  for (const { slug, dir } of dirs) {
-    const qualPath = path.join(dir, 'qualified.json');
-    if (!fs.existsSync(qualPath)) { console.warn(`  skip ${slug}: no qualified.json`); continue; }
-
-    const qualified = JSON.parse(fs.readFileSync(qualPath, 'utf8'));
-    const runId     = qualified.run || 'unknown-run';
-    const eligible  = [];
-    for (const b of (qualified.businesses || [])) {
-      if (!b.domain || !b.qualify || b.qualify.verdict !== 'audit') continue;
-      let domain;
-      try { domain = canonicalDomain(b.domain); } catch { continue; }
-      if (dispatched.has(domain)) continue;
-      dispatched.add(domain);
-      eligible.push(b);
-    }
-
-    if (!eligible.length) { console.warn(`  skip ${slug}: nothing new marked audit`); continue; }
-
-    const batches = chunk(eligible, batchSz);
-    plan.push({ slug, runId, batches });
-    totalDomains += eligible.length;
+  for (const [slug, businesses] of perVertical) {
+    const batches = chunk(businesses, batchSz);
+    plan.push({ slug, batches });
+    totalDomains += businesses.length;
     totalBatches += batches.length;
-    console.log(`  ${slug}: ${eligible.length} domains → ${batches.length} invokes`);
+    console.log(`  ${slug}: ${businesses.length} domains → ${batches.length} invokes`);
   }
 
+  if (!totalDomains) {
+    console.log('Nothing pending capture.');
+    return;
+  }
+
+  const runId = `dispatch-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}Z`;
   console.log(`\nTotal: ${totalDomains} domains, ${totalBatches} invokes ` +
               `(city=${city.slug}, batch=${batchSz}, fn=${fnName}, region=${region})`);
 
   if (dryRun) { console.log('\nDry run — nothing invoked.'); return; }
-  if (!totalBatches) return;
 
   const { LambdaClient, InvokeCommand } = require('@aws-sdk/client-lambda');
   const lambda = new LambdaClient({ region });
 
   let sent = 0, errors = 0;
-  for (const { slug, runId, batches } of plan) {
+  for (const { slug, batches } of plan) {
     for (const businesses of batches) {
       const payload = { runId, city: city.slug, vertical: slug, businesses };
       try {
@@ -155,8 +164,10 @@ async function main() {
   }
 
   console.log(`\nDispatched ${sent}/${totalBatches} invokes, ${errors} failed.`);
-  console.log('Async invoke reports nothing back — watch CloudWatch Logs, or re-run ' +
-              'this script once it settles to pick up anything missing.');
+  console.log('Async invoke reports nothing back — run `node src/cli ingest` (or wait for ' +
+              'its timer) to see what landed, and re-run this to pick up anything missing.');
 }
 
-main().catch(err => { console.error(err); process.exit(1); });
+main()
+  .catch(err => { console.error(err); process.exitCode = 1; })
+  .finally(() => close());

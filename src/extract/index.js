@@ -4,8 +4,8 @@
 
    Two callers, one function. `capture` runs `extractDir` in the same worker slot
    right after the capture, and the Lambda runs it in the same container; this
-   stage exists only to re-run extract over captures that are already on disk,
-   after a bug fix. Nothing here spends a request or re-fetches a page. */
+   stage exists only to re-run extract over captures that already exist, after a
+   bug fix. Nothing here loads a page or spends a request. */
 'use strict';
 
 const fs      = require('fs');
@@ -18,6 +18,10 @@ const { isComplete }   = require('../capture/capture-domain.js');
 const { companyDir, canonicalDomain, readCity } = require('../../lib-keys');
 
 const ROOT = path.join(__dirname, '..', '..');
+
+// `src/capture/lambda.js` requires this module for `extractDir` alone, inside a
+// container that has no database and no reason to pay for mysql2 at cold start.
+// The database is therefore required where the stage runs, not at load.
 
 /**
  * Read `<dir>/rendered.html`, write `<dir>/extract.json`. No network.
@@ -61,73 +65,103 @@ function extractDir({ dir, domain, finalUrl }) {
 }
 
 // ---------------------------------------------------------------------------
-// Stage entry point — re-run extract over captures already on disk
+// Stage entry point — re-run extract over captures that are already done
 // ---------------------------------------------------------------------------
 
 /**
- * node src/cli extract [<vertical>] [--resume] [--only <domain>] [--dry-run]
+ * node src/cli extract [<vertical>] [--only <domain>] [--dry-run]
  *
- * The CLI hands each stage a raw argv array, so flags are parsed here the same
- * way `capture` parses them. Reading `argv['--resume']` off an array, as this
- * used to, silently made every flag a no-op.
+ * The work list is `status = 1 AND extract_status = -2`: captured, and extract
+ * either never ran or produced something unusable. When `rendered.html` is not on
+ * this machine — the usual case, since the Lambda captured it — it is downloaded
+ * from S3 first, and the fresh `extract.json` is uploaded back so the next
+ * `ingest` sees it.
  */
 async function run(argv, ctx) {
+  const { db, tx } = require('../db/mysql');
+  const { recordDomain } = require('../db/record');
+
   const { root = ROOT, log = console } = ctx || {};
   const args       = _parseArgs(argv);
-  const resume     = !!args.resume;
   const onlyDomain = args.only || null;
   const dryRun     = !!args['dry-run'];
   const vertical   = args._[0] || null;
+  if (args.resume) log.warn('--resume is gone: the work list is extract_status = -2');
 
-  const city  = readCity(root).slug;
-  const slugs = vertical
-    ? [vertical]
-    : JSON.parse(fs.readFileSync(path.join(root, 'config', 'verticals.json'), 'utf8'))
-        .map(v => v.slug);
+  const city   = readCity(root).slug;
+  const bucket = process.env.CAPTURE_BUCKET || null;
+  const conn   = db();
 
-  // One domain, one folder — a domain listed in two verticals is extracted once.
-  const targets = new Map();
-  for (const slug of slugs) {
-    const qualPath = path.join(root, 'data', slug, 'qualified.json');
-    let qualified;
-    try { qualified = JSON.parse(fs.readFileSync(qualPath, 'utf8')); }
-    catch { continue; }
-
-    for (const biz of (qualified.businesses || [])) {
-      if (!biz.domain) continue;
-      if (!biz.qualify || biz.qualify.verdict !== 'audit') continue;
-      let domain;
-      try { domain = canonicalDomain(biz.domain); } catch { continue; }
-      if (onlyDomain && domain !== canonicalDomain(onlyDomain)) continue;
-      if (targets.has(domain)) continue;
-      targets.set(domain, biz.qualify.final_url || null);
-    }
+  let verticalId = null;
+  if (vertical) {
+    const [rows] = await conn.query('SELECT vertical_id FROM verticals WHERE slug = ?', [vertical]);
+    if (!rows.length) { log.error(`No such vertical: ${vertical}`); return { ok: 0, err: 1, skipped: 0 }; }
+    verticalId = rows[0].vertical_id;
   }
 
-  if (!targets.size) {
-    log.warn('extract: nothing marked for capture — run qualify first.');
+  const [work] = await conn.query(
+    'SELECT DISTINCT domain, MIN(final_url) AS final_url FROM companies' +
+    '  WHERE city = ? AND domain IS NOT NULL AND status = 1 AND extract_status = -2' +
+    (verticalId === null ? '' : ' AND vertical_id = ?') +
+    '  GROUP BY domain ORDER BY MIN(company_id)',
+    verticalId === null ? [city] : [city, verticalId]);
+
+  const targets = work.filter(r => {
+    if (!onlyDomain) return true;
+    try { return canonicalDomain(r.domain) === canonicalDomain(onlyDomain); } catch { return false; }
+  });
+
+  if (!targets.length) {
+    log.warn('extract: nothing to re-extract (no row is status 1 with extract_status -2).');
     return { ok: 0, err: 0, skipped: 0 };
+  }
+
+  let s3 = null;
+  if (bucket && !dryRun) {
+    const { S3Client } = require('@aws-sdk/client-s3');
+    s3 = new S3Client({ region: process.env.AWS_REGION || 'ap-south-1' });
   }
 
   let ok = 0, err = 0, skipped = 0;
 
-  for (const [domain, finalUrl] of targets) {
+  for (const row of targets) {
+    let domain;
+    try { domain = canonicalDomain(row.domain); } catch { skipped++; continue; }
     const dir = companyDir(root, city, domain);
-
-    // A capture that never completed has no DOM to read. That is not an extract
-    // failure; it is work for `capture`.
-    if (!isComplete(dir)) { skipped++; continue; }
-    if (resume && fs.existsSync(path.join(dir, 'extract.json'))) { skipped++; continue; }
 
     if (dryRun) { log.info(`[dry-run] extract ${domain}`); ok++; continue; }
 
     try {
-      extractDir({ dir, domain, finalUrl });
+      if (!fs.existsSync(path.join(dir, 'rendered.html'))) {
+        if (!s3) {
+          // Without the bucket there is no way to get the DOM; that is a missing
+          // environment variable, not a failed extract.
+          log.warn(`extract ${domain}: no rendered.html locally and CAPTURE_BUCKET is not set`);
+          skipped++;
+          continue;
+        }
+        await _downloadRendered(s3, bucket, city, domain, dir);
+      }
+
+      const doc = extractDir({ dir, domain, finalUrl: row.final_url });
+
+      if (s3) await _uploadExtract(s3, bucket, city, domain, dir);
+
+      await tx(conn2 => recordDomain(conn2, {
+        city, domain,
+        complete:    isComplete(dir),
+        errorKind:   null,
+        capturedAt:  _mtime(path.join(dir, 'rendered.html')),
+        extract:     doc,
+        extractedAt: new Date(),
+      }, log));
+
       ok++;
+      log.info(`extract ${domain}: email=${doc.email || 'none'} links=${doc.links.length}`);
     } catch (e) {
       // No error.json: that file belongs to capture and says the capture failed.
       // An extract failure over a good capture is a code bug — it is logged, the
-      // domain keeps whatever extract.json it had, and the next run retries it.
+      // row keeps `extract_status = -2`, and the next run retries it.
       err++;
       log.error(`extract error [${domain}]: ${e.message}`);
     }
@@ -135,6 +169,43 @@ async function run(argv, ctx) {
 
   log.info(`extract: ${ok} ok  ${err} errors  ${skipped} skipped`);
   return { ok, err, skipped };
+}
+
+async function _downloadRendered(s3, bucket, city, domain, dir) {
+  const { GetObjectCommand } = require('@aws-sdk/client-s3');
+  const { companyKey } = require('../capture/s3');
+  const res = await s3.send(new GetObjectCommand({
+    Bucket: bucket, Key: companyKey(city, domain, 'rendered.html') }));
+  const body = await _toBuffer(res.Body);
+  fs.mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, 'rendered.html');
+  fs.writeFileSync(dest + '.tmp', body);
+  fs.renameSync(dest + '.tmp', dest);
+}
+
+async function _uploadExtract(s3, bucket, city, domain, dir) {
+  const { PutObjectCommand } = require('@aws-sdk/client-s3');
+  const { companyKey } = require('../capture/s3');
+  await s3.send(new PutObjectCommand({
+    Bucket:      bucket,
+    Key:         companyKey(city, domain, 'extract.json'),
+    Body:        fs.readFileSync(path.join(dir, 'extract.json')),
+    ContentType: 'application/json',
+  }));
+}
+
+async function _toBuffer(stream) {
+  if (Buffer.isBuffer(stream)) return stream;
+  if (typeof stream.transformToByteArray === 'function') {
+    return Buffer.from(await stream.transformToByteArray());
+  }
+  const chunks = [];
+  for await (const c of stream) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+  return Buffer.concat(chunks);
+}
+
+function _mtime(p) {
+  try { return fs.statSync(p).mtime; } catch { return null; }
 }
 
 // ---------------------------------------------------------------------------
@@ -156,4 +227,10 @@ function _parseArgs(argv) {
   return out;
 }
 
-module.exports = { run, extractDir };
+/** The CLI closes nothing for us; a stage that leaves the pool open hangs. */
+async function runAndClose(argv, ctx) {
+  try { return await run(argv, ctx); }
+  finally { await require('../db/mysql').close(); }
+}
+
+module.exports = { run: runAndClose, _run: run, extractDir };

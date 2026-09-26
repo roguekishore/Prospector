@@ -8,7 +8,7 @@
    What it proves: every file lands under <city>/companies/<domain>/, extract
    ran inside the same container, the skip check is consulted, and /tmp is left
    clean. What it cannot prove is the IAM policy behind the real client — a stub
-   answers HeadObject however we tell it to. That is p4's first real batch.
+   answers HeadObject however we tell it to. That is spec C's first real batch.
 
    Run: npm run test:lambda */
 'use strict';
@@ -68,8 +68,12 @@ function stubS3() {
 async function main() {
   console.log('=== lambda batch test (stub S3, real captures) ===');
 
-  const seed = JSON.parse(fs.readFileSync(path.join(__dirname, 'smoke-seed.json'), 'utf8'));
-  const businesses = seed.businesses.slice(0, 2);
+  // The same five domains the smoke run uses, shaped the way dispatch builds an
+  // event business: `{ domain, qualify: { final_url } }` and nothing else, which
+  // is the whole contract between scripts/dispatch.js and the handler.
+  const seed = JSON.parse(fs.readFileSync(path.join(__dirname, 'smoke-companies.json'), 'utf8'));
+  const businesses = seed.slice(0, 2)
+    .map(b => ({ domain: b.domain, qualify: { final_url: b.final_url } }));
   console.log(`  domains: ${businesses.map(b => b.domain).join(', ')}`);
 
   const s3 = stubS3();

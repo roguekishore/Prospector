@@ -15,7 +15,7 @@
  *
  * Event shape, from `scripts/dispatch.js`:
  *
- *     { runId, city, vertical, businesses: [ <qualified.json businesses[] entry>, ... ] }
+ *     { runId, city, vertical, businesses: [ { domain, qualify: { final_url } }, ... ] }
  *
  * Four things this gets deliberately right:
  *

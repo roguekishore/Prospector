@@ -214,7 +214,7 @@ ul{list-style:none}
 .idblock .nm{font-size:11px;opacity:var(--o2);margin-top:2px}
 .idblock .rat{font-size:11px;opacity:var(--o2);margin-top:var(--u);font-variant-numeric:tabular-nums}
 
-/* signal table — the evidence the LLM reasoned over */
+/* fact table — what Places and qualify measured, for the operator to read */
 .sig{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .sig td{padding:3px 0;vertical-align:baseline;font-size:11px}
 .sig td:first-child{opacity:var(--o3);letter-spacing:.04em;width:88px}
@@ -249,16 +249,9 @@ ul{list-style:none}
 .viewtabs button[aria-pressed="true"]{background:#fff;color:#000;opacity:1}
 .viewtabs .dim{opacity:var(--o4);padding:5px 10px;font-size:10px;letter-spacing:.08em;pointer-events:none}
 
-/* verdict block */
+/* decision block */
 .verdict .tierline{display:flex;align-items:center;justify-content:space-between;
   padding-bottom:var(--u);border-bottom:1px solid var(--rule);margin-bottom:calc(var(--u)*1.5)}
-.verdict .score{font-size:26px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.reasons{display:flex;flex-direction:column;gap:6px}
-.reasons li{font-size:11px;opacity:var(--o2);padding-left:12px;position:relative;line-height:1.55}
-.reasons li::before{content:"–";position:absolute;left:0;opacity:.5}
-
-.angle{border:1px solid #fff;padding:calc(var(--u)*1.5);font-size:12px;line-height:1.55}
-.angle .lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:var(--o3);display:block;margin-bottom:6px}
 
 /* your call */
 .tierpick{display:flex;gap:1px;background:var(--rule)}
@@ -292,7 +285,7 @@ ul{list-style:none}
   font-size:10px;display:inline-block;min-width:16px;text-align:center;
 }
 
-/* ---------- tables (agencies / pitch queue) ---------- */
+/* ---------- tables (no-website list / pitch queue) ---------- */
 
 .tbl{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .tbl th{
@@ -336,15 +329,4 @@ ul{list-style:none}
 
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
-}
-
-/* ---------- synthetic fixture banner ----------
-   Inverted block in the topbar. Visible whenever index.json.synthetic === true
-   or data fell back to the data.js globals. Never remove or suppress it —
-   the fixture has invented phone numbers and invented agency prices.        */
-
-.synth-banner{
-  background:#fff;color:#000;
-  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
-  padding:3px 10px;white-space:nowrap;flex-shrink:0;
 }

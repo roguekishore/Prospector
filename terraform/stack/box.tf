@@ -1,8 +1,13 @@
 # ---------------------------------------------------------------------------
 # Role — SSM shell (no port 22), read-only on /prospector/*, read the deploy
-# bucket's releases, write the capture bucket's places prefixes (backup runs
-# under this role, no separate credentials on the box), and push to ECR (the
-# image is built on the box itself — see Dockerfile.capture and install.sh).
+# bucket's releases, read and list the capture bucket's company folders (that is
+# what `ingest` does), put back an `extract.json` a re-extract produced, and push
+# to ECR (the image is built on the box itself — see Dockerfile.capture and
+# install.sh).
+#
+# No write to `*/places*` any more: discover and qualify write rows to MySQL, the
+# backup that copied their JSON to S3 is gone, and leaving the permission behind
+# would be a grant for a thing that no longer exists (R11.2).
 # ---------------------------------------------------------------------------
 resource "aws_iam_role" "box" {
   name = "prospector-box"
@@ -42,10 +47,28 @@ resource "aws_iam_role_policy" "box" {
         Resource = "${data.terraform_remote_state.persist.outputs.deploy_bucket_arn}/releases/*"
       },
       {
-        Sid      = "WritePlacesBackup"
+        Sid      = "ReadCompanies"
         Effect   = "Allow"
-        Action   = ["s3:PutObject", "s3:HeadObject"]
-        Resource = "${data.terraform_remote_state.persist.outputs.capture_bucket_arn}/*/places/*"
+        Action   = ["s3:GetObject"]
+        Resource = "${data.terraform_remote_state.persist.outputs.capture_bucket_arn}/*/companies/*"
+      },
+      {
+        # `ingest` lists the whole prefix once per run rather than HEADing five
+        # keys per pending domain. ListBucket is a bucket-level action, so its
+        # resource is the bucket and not a key pattern.
+        Sid      = "ListCompanies"
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = data.terraform_remote_state.persist.outputs.capture_bucket_arn
+      },
+      {
+        # The standalone `extract` stage downloads a rendered.html, re-extracts
+        # it and puts the result back, so the next ingest and the Lambda's own
+        # skip check both see the fixed file. That one key, and nothing else.
+        Sid      = "PutExtract"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
+        Resource = "${data.terraform_remote_state.persist.outputs.capture_bucket_arn}/*/companies/*/extract.json"
       },
       {
         Sid      = "EcrAuth"
@@ -85,7 +108,7 @@ resource "aws_iam_instance_profile" "box" {
 resource "aws_instance" "box" {
   ami                    = data.aws_ami.ubuntu_noble_arm64.id
   instance_type          = "t4g.small"
-  subnet_id              = aws_subnet.public.id
+  subnet_id              = data.terraform_remote_state.persist.outputs.subnet_id
   vpc_security_group_ids = [aws_security_group.box.id]
   iam_instance_profile   = aws_iam_instance_profile.box.name
 

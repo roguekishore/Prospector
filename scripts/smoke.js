@@ -1,26 +1,31 @@
 /* scripts/smoke.js
-   Runs a real 5-domain pipeline against data/interior-design-smoke/.
-   Seeds from scripts/smoke-seed.json — no Places API call needed.
+   A real 5-domain capture, against five real websites.
 
-   Two stages, because capture runs extract itself: seed, capture, then assert
-   over what landed in data/<city>/companies/<domain>/.
+   Seeds `companies` at `status = 0` from scripts/smoke-companies.json — no
+   Places API call and no quota — then runs `capture`, which captures, extracts
+   and records each domain. The assertions are over both the folder on disk and
+   the rows in MySQL, because those are the two things the deck reads.
+
+   Needs DATABASE_URL pointing at a scratch database whose name ends in `_test`.
    Usage: npm run test:run */
 'use strict';
 
 const fs   = require('fs');
 const path = require('path');
 
-const ROOT    = path.join(__dirname, '..');
-const SEED    = path.join(__dirname, 'smoke-seed.json');
-const DATADIR = path.join(ROOT, 'data', 'interior-design-smoke');
+const ROOT = path.join(__dirname, '..');
+const SEED = path.join(__dirname, 'smoke-companies.json');
+const VERTICAL = 'interior-design-smoke';
 
 const { companyDir, readCity } = require('../lib-keys');
 const { registrable } = require('../src/extract/links.js');
 const { isComplete }  = require('../src/capture/capture-domain.js');
+const { db, close }   = require('../src/db/mysql');
+const { requireTestDatabase, resetTestDatabase, seedVerticals } = require('./test-db-helper');
 
 const CAPTURE_FILES = ['desktop.webp', 'mobile.webp', 'rendered.html', 'extract.json'];
 
-// Load .env same way the CLI does
+// Load .env the same way the CLI does
 try {
   const raw = fs.readFileSync(path.join(ROOT, '.env'));
   let text;
@@ -46,22 +51,32 @@ function assert(name, cond, detail = '') {
 }
 
 /**
- * What landed for one domain.
+ * What landed for one domain, on disk and in the database.
  *
  * A domain whose capture failed is reported, not asserted on: the smoke run
  * depends on five third-party websites being up, and a dead host is news about
  * the website rather than about this repo. Every domain that *did* capture must
- * hold exactly the four files and an extract.json with no self-links.
+ * hold exactly the four files, an extract.json with no self-links, and a row at
+ * `status = 1` with its links.
  */
-function checkDomain(city, domain) {
-  const dir = companyDir(ROOT, city, domain);
-  if (!fs.existsSync(dir)) { assert(`${domain}: folder exists`, false, dir); return; }
+async function checkDomain(city, domain) {
+  const dir  = companyDir(ROOT, city, domain);
+  const conn = db();
+  const [rows] = await conn.query(
+    'SELECT company_id, status, extract_status, capture_error, email, captured_at' +
+    '  FROM companies WHERE city = ? AND domain = ?', [city, domain]);
+  assert(`${domain}: has a row`, rows.length === 1, `${rows.length} rows`);
+  const row = rows[0] || {};
 
+  if (!fs.existsSync(dir)) { assert(`${domain}: folder exists`, false, dir); return; }
   const files = fs.readdirSync(dir).sort();
+
   if (!isComplete(dir)) {
     log.warn(`${domain}: capture incomplete — ${files.join(', ') || 'nothing'}`);
     assert(`${domain}: a failed capture wrote error.json`, files.includes('error.json'),
       files.join(', '));
+    assert(`${domain}: and the row says so`, row.status === -2,
+      `status ${row.status}, capture_error ${row.capture_error}`);
     return;
   }
 
@@ -79,22 +94,50 @@ function checkDomain(city, domain) {
     JSON.stringify(Object.keys(doc)) === '["domain","email","links"]',
     JSON.stringify(Object.keys(doc)));
 
-  const own = registrable(`https://${domain}/`);
+  const own  = registrable(`https://${domain}/`);
   const self = (doc.links || []).filter(l => l.target_domain === own);
   assert(`${domain}: no link points at its own registrable domain`,
     self.length === 0, JSON.stringify(self.slice(0, 3)));
+
+  // The row is the other half of the contract: a capture nothing recorded is a
+  // capture the deck cannot show.
+  assert(`${domain}: status 1`, row.status === 1, String(row.status));
+  assert(`${domain}: extract_status 1`, row.extract_status === 1, String(row.extract_status));
+  assert(`${domain}: captured_at is set`, !!row.captured_at);
+  assert(`${domain}: email matches extract.json`, (row.email || null) === (doc.email || null),
+    `row ${row.email}, file ${doc.email}`);
+
+  const [links] = await conn.query('SELECT COUNT(*) AS n FROM links WHERE company_id = ?',
+    [row.company_id]);
+  assert(`${domain}: ${doc.links.length} link row(s)`,
+    Number(links[0].n) === doc.links.length, `${links[0].n} in the table`);
 
   log(`${domain}: email=${doc.email || 'none'}  links=${(doc.links || []).length}`);
 }
 
 async function main() {
-  // 1. Seed
-  log('seeding data/interior-design-smoke/qualified.json');
-  fs.mkdirSync(DATADIR, { recursive: true });
-  fs.copyFileSync(SEED, path.join(DATADIR, 'qualified.json'));
+  requireTestDatabase();
+  await resetTestDatabase();
 
-  const seed    = JSON.parse(fs.readFileSync(SEED, 'utf8'));
-  const domains = seed.businesses.map(b => b.domain);
+  const city = readCity(ROOT).slug;
+  const seed = JSON.parse(fs.readFileSync(SEED, 'utf8'));
+  const domains = seed.map(b => b.domain);
+
+  log(`seeding ${seed.length} companies at status 0`);
+  const ids  = await seedVerticals();
+  const conn = db();
+  for (const b of seed) {
+    await conn.query(
+      'INSERT INTO companies (place_id, city, vertical_id, name, website_raw, domain,' +
+      '  rating, review_count, address, phone, lat, lng, business_status, primary_type,' +
+      '  discovered_run, discovered_at, status, final_url, http_status, https_status,' +
+      '  cert_expires, qualified_at)' +
+      " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'smoke', UTC_TIMESTAMP()," +
+      '  0, ?, 200, ?, ?, UTC_TIMESTAMP())',
+      [b.place_id, city, ids[VERTICAL], b.name, b.website_raw, b.domain,
+       b.rating, b.review_count, b.address, b.phone, b.lat, b.lng,
+       b.business_status, b.primary_type, b.final_url, b.https_status, b.cert_expires]);
+  }
   log(`domains: ${domains.join(', ')}`);
 
   const config = {
@@ -103,24 +146,22 @@ async function main() {
   };
   const ctx = { root: ROOT, config, log };
 
-  // 2. Capture — which runs extract per domain
   log('--- capture ---');
-  const capture = require('../src/capture/index.js');
-  const result  = await capture.run(['interior-design-smoke', '--concurrency', '2'], ctx);
+  const result = await require('../src/capture/index.js')._run([VERTICAL, '--concurrency', '2'], ctx);
   log(`capture returned ${JSON.stringify(result)}`);
 
-  // 3. Assert over the output tree
-  const city = readCity(ROOT).slug;
-  log(`--- checking data/${city}/companies/ ---`);
-  for (const domain of domains) checkDomain(city, domain);
+  log(`--- checking data/${city}/companies/ and the rows ---`);
+  for (const domain of domains) await checkDomain(city, domain);
 
   console.log(failed ? `\n[smoke] ${failed} assertion(s) failed` : '\n[smoke] all assertions passed');
   log(`results in data/${city}/companies/`);
   log('run `npm run test:clean` when finished');
+  await close();
   process.exit(failed ? 1 : 0);
 }
 
-main().catch(e => {
-  console.error('[smoke fatal]', e.message);
+main().catch(async (e) => {
+  console.error('[smoke fatal]', e.stack || e.message);
+  await close().catch(() => {});
   process.exit(1);
 });

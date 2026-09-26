@@ -28,13 +28,14 @@ modelled and says so.
 |---|---|
 | `discover`, `qualify` | Built. Run from the control panel on the box |
 | Box, Caddy, control panel | Live at <https://prospect.themaverick.tech> |
-| Capture Lambda, image, failure queue | Deployed, never invoked |
+| Capture Lambda, image, failure queue | Deployed, never invoked. The deployed image predates spec A; spec C rebuilds it |
 | `capture` stage (capture then extract) | Built. Same code on the box and in the Lambda |
 | Scoring removed | Done. `src/score/`, `lib-scoring.js`, `src/report/` and the signals are deleted |
 | Disk layout matching S3 | Done. `data/<city>/companies/<domain>/` on both sides |
-| MySQL, `ingest`, resume from `companies.status` | Spec B. Today state is files; `src/db/index.js` is retired with the old deck |
-| Dispatching captures, local capture on the box | Spec p4 |
-| Deck at `leads.themaverick.tech` | Spec B |
+| MySQL, `ingest`, resume from `companies.status` | Built. `docs/SCHEMA.md` is the contract; SQLite and the file artifacts are gone |
+| Peering to mavdb, the database and its grants | Written (`terraform/mavdb`, `terraform/db`), **not applied**. `./p peer` then `./p db`, on the operator's go |
+| The deck | Built. Serves on 127.0.0.1:7777; public at `leads.themaverick.tech` once the DNS record and `DECK_PASSWORD` exist |
+| Dispatching captures at scale, budget guard | Spec C |
 
 ## Where things run
 
@@ -45,7 +46,7 @@ modelled and says so.
  │      discover, qualify, ingest       ├──────────────►│ RDS MySQL, private  │
  └──────┬─────────────────────▲─────────┘               └─────────────────────┘
         │ async invoke        │
-        │                     │ places/ up, companies/ down
+        │                     │ companies/ down (ingest)
  ┌──────▼───────┐  put  ┌─────▼────────┐
  │ capture      ├──────►│ S3 bucket    │
  │ Lambda       │       │              │
@@ -54,11 +55,10 @@ modelled and says so.
 
 | Edge | State |
 |---|---|
-| Box → S3 `places/` | Built (`scripts/backup-places.js`) |
-| Box → Lambda invoke | Spec p4. The box role has no `lambda:InvokeFunction` yet |
+| Box → Lambda invoke | Spec C. The box role has no `lambda:InvokeFunction` yet |
 | Lambda → S3 `companies/` | Built; exercised only against a stub S3 client |
-| S3 → box (`ingest`) | Spec B. The box role cannot read `companies/` yet |
-| Box → mavdb | Spec B |
+| S3 → box (`ingest`) | Built. The box role now has `ReadCompanies`, `ListCompanies` and `PutExtract`; `terraform apply stack` still pending |
+| Box → mavdb | Code built and tested against a local MySQL. The peering and the database are written and **not applied** |
 
 **One handoff, forced by one constraint.** The Lambda runs outside any VPC, so
 it cannot reach mavdb. A VPC-attached Lambda needs a NAT gateway at ~$32/month,
@@ -84,36 +84,62 @@ truncates dense areas.
   (26.4%) capped, an estimated 2,000–3,000 leads never collected, and no error
   logged. Every run now logs its commit, per-query page counts and a summary of
   capped queries, and warns when nothing paginated.
-- **Dedup twice:** by Places ID (adjacent tiles), then by registrable domain (two
-  listings, one website; the higher review count wins). Portal profiles
-  (99acres, Practo, WedMeGood) are kept as `aggregator-profile-only` and left out
-  of the domain merge.
+- **No merging.** `place_id` is unique and that is the only identity rule: every
+  place ID a scan returns is its own `companies` row, in a run and across runs.
+  Two showrooms on one company website are two listings the operator may want to
+  call separately, and forty brokers listing the same 99acres profile are forty
+  businesses — the old domain merge collapsed both. Rows that share a website
+  share one capture instead. Portal profiles (99acres, Practo, WedMeGood) are
+  kept with `domain NULL` and `skip_reason = 'aggregator-profile-only'`: a
+  business paying a portal every month for leads it does not own is a
+  first-website pitch, not a redesign.
 - **Rate limit** 8 req/s in code (`src/discover/places.js:47`) against 600/min
   and 75,000/day.
 - **Only stage that spends Places quota.** It is left out of the
   `.claude/settings.json` allowlist so it always prompts, and the panel shows the
   request estimate before the button.
 
-Writes `data/<vertical>/discovered.json`. `scripts/backup-places.js` copies it
-and `qualified.json` to S3, at the end of every control pipeline and every 15
-minutes from `prospector-backup.timer`, skipping unchanged files by ETag. A
-failed backup never fails discover.
+**Writes rows, not a file.** The insert runs straight after each tile × keyword
+search, with `ON DUPLICATE KEY UPDATE company_id = company_id` — a deliberate
+no-op, so first write wins including the vertical, and unlike `INSERT IGNORE` it
+does not also swallow a truncation or a bad foreign key. Killing a run part-way
+keeps every row already written; re-running it inserts only place IDs that are
+new.
 
-Raw response bodies are no longer archived. `places-raw/` was provenance for a
-run whose truncation bug is now fixed and instrumented, and `discovered.json`
-carries every field the pipeline reads.
+That is also why the S3 backup is gone: there is no JSON on disk to copy up, and
+the rows are backed up with the database, which is the operator's concern. Raw
+response bodies are not archived either — `places-raw/` was provenance for a run
+whose truncation bug is now fixed and instrumented.
 
 ### qualify
 
 An eligibility gate: DNS, a HEAD request, `robots.txt`, certificate validity. No
-browser. Writes `data/<vertical>/qualified.json`, each business with
-`qualify.verdict` `audit` or `skip`. The verdict string stays `audit`; spec B
-replaces it with `companies.status`.
+browser, and no file — it writes `companies.status` (`0` eligible, `-1` skipped)
+with a `skip_reason`, plus `final_url`, `http_status`, `https_status`,
+`cert_expires` and `qualified_at`.
+
+**One probe per distinct domain**, not per row: the work list is
+`GROUP BY domain` and the `UPDATE` matches on the domain, so every listing that
+shares a website gets the same verdict from one request. There is no `--resume`
+any more either — the work list is `status IS NULL`, which a finished probe
+clears, so running qualify again probes exactly what is left.
+
+**Sibling inheritance.** A later discover can find a new place ID for a website
+that is already qualified and captured. Probing it again would be wasteful;
+leaving it at `status = 0` would be worse, because capture skips the domain as
+already done and the row would sit pending forever. So a new row whose domain
+already has a qualified sibling copies that row's qualify, capture and extract
+columns and its `links`, in one transaction, and is not probed.
+
+`https_status` is `ENUM('ok','expired','none')` and `cert_expires` is a `DATE`.
+The old free-text `"expired 2024-03"` carried the verdict and the month in one
+string, which made "every expired certificate" a `LIKE` query.
 
 In run 1 it removed 507 domains that did not resolve, 69 timeouts, plus 404s,
 403s and dropped connections. Those businesses are kept, not deleted: a Google
-listing that names a dead domain is a different pitch. `ingest` records them as
-status `-1` (spec 3).
+listing that names a dead domain is a different pitch. The Wayback lookup,
+`server`, `generator_hint` and `viewport_meta` are gone — nothing read them once
+the scoring did not exist.
 
 ### capture
 
@@ -166,31 +192,46 @@ same container in the Lambda. One page visit produces four files, flat in
 
 ### extract (standalone)
 
-Re-runs extract over captures already on disk, so a parsing change never costs a
-re-crawl. That is its only reason to exist; a normal run never invokes it.
-`--resume` skips domains that already have `extract.json`, so a fix is applied by
-deleting the files it should change and re-running.
+Re-extracts what failed, so a parsing change never costs a re-crawl. That is its
+only reason to exist; a normal run never invokes it.
 
-### ingest (spec 3)
+Its work list is `status = 1 AND extract_status = -2`: captured, and extract
+either never ran or produced something unusable. `--resume` is gone with the
+files — the rows say which domains need doing. When `rendered.html` is not on
+this machine, which is the usual case because the Lambda captured it, it is
+downloaded from S3 first and the new `extract.json` uploaded back, so the next
+`ingest` and the Lambda's own skip check both see the fix.
 
-An independent command, never part of `all`. Runs at the end of every Lambda
-dispatch and on a systemd timer. Per domain, in order:
+### ingest
 
-1. **Load business details** from each vertical's
-   `places/<vertical>/qualified.json` into `companies`, as status `0` or `-1`.
-   Existing statuses are never downgraded.
-2. **Copy to disk** from S3: the screenshots, `extract.json`, and `error.json`
+An independent command, never part of `all`: a local capture records itself, and
+ingest exists for the Lambda path, where the bytes land in S3 and nothing would
+otherwise tell the database they exist. It runs after every Lambda dispatch and
+on a 15-minute systemd timer (`prospector-ingest.timer`). It does not load
+business details — discover and qualify write those rows directly.
+
+It lists `<city>/companies/` **once** per run, paginated: about five keys per
+domain, so ~50 requests for 9,600 domains. The alternative, a HEAD per completion
+file per pending domain, is 30,000 requests to learn the same thing. Then, per
+domain in the work set, eight in flight:
+
+1. **Copy to disk** from S3: the screenshots, `extract.json`, and `error.json`
    if present. `rendered.html` only with `--with-html`, which keeps the box's
    data disk small.
-3. **Record in MySQL:** extract results, then the status (`1` or `-2`, by the
-   completion rule). The status is written last.
+2. **Record in MySQL**, one transaction for every row with that domain: the
+   email and the `links` rows, `extract_status`, then `status` (`1` or `-2`, by
+   the completion rule), written last.
 
-- **Copy first, mark second.** A domain is marked `1` only after its files are
-  on disk, so a killed run resumes cleanly.
-- **Idempotent.** Anything already copied and marked is skipped.
+- **Copy first, mark second.** Every file is renamed into place before the
+  transaction opens, and "complete" requires both screenshots to be on local disk
+  as well as in the listing. A crash before the commit leaves the row exactly as
+  it was and the next run redoes the domain; a crash after it leaves a row at
+  `status = 1` whose screenshots the deck can actually serve.
+- **Idempotent.** A second run over unchanged S3 downloads nothing (size and
+  `LastModified` are compared against the local copy) and writes nothing
+  (`recordDomain` compares the row it would write against the row that is there).
 - It never runs extract; the Lambda already did.
-- It doubles as the progress meter: once rows update, "how far along" is a count
-  by status.
+- It never writes the operator's decision columns, or a discover or qualify one.
 
 ## Storage
 
@@ -206,9 +247,10 @@ s3://prospector-captures-700897991126/
                             rendered.html     post-JS DOM; extract reads this
                             extract.json      first email + outside links
                             error.json        only when the capture failed
-  <city>/places/<vertical>/discovered.json
-                          /qualified.json
 ```
+
+That is the whole bucket. Discover and qualify write rows, so nothing is written
+under `<city>/places/` any more and the box's role no longer grants it.
 
 Keys are built in `src/capture/s3.js`, every segment lowercase and produced by
 `lib-keys.js`. One domain is one flat prefix: nothing nests under it, and
@@ -234,10 +276,12 @@ works from rows and the deck from MySQL. Extract's output does not depend on the
 vertical either, so it shares the folder.
 
 **The consequence is that a domain must be deduped before it is captured.** One
-website listed in two verticals is one folder, so the second capture would pay
-for bytes the first already wrote. Three places dedupe by `canonicalDomain`: the
-capture queue, `scripts/dispatch.js`, and `src/control/status.js`. Missing one
-gives a double capture or a double count, not data loss.
+website listed by two businesses is one folder, so the second capture would pay
+for bytes the first already wrote. That is now a property of the queries rather
+than of three hand-written passes: `capture`, `dispatch`, `extract` and `ingest`
+all take their work from `SELECT DISTINCT domain`, and `recordDomain` writes the
+result to every row with that domain. The control panel's counts are rows, and
+say so.
 
 **No date and no run id.** The key must be computable from columns that exist,
 because nothing stores a path. A 16-hour sweep also crosses midnight, so a date
@@ -263,7 +307,7 @@ time against the exact DOM the shots were taken from.
 ### One canonical spelling
 
 `lib-keys.js` owns `canonicalCity` and `canonicalDomain`. The S3 key, the local
-directory and `companies.domain` / `cities.slug` must agree byte for byte. If
+directory and `companies.domain` / `companies.city` must agree byte for byte. If
 they drift, resume stops recognising finished work and the next run re-captures
 everything at full cost, looking exactly like a first run.
 
@@ -280,42 +324,67 @@ The disk mirrors S3, so `ingest` is a prefix copy with nothing to translate:
 ```
 data/<city>/companies/<domain>/   desktop.webp  mobile.webp
                                   rendered.html  extract.json  [error.json]
-data/<vertical>/discovered.json   qualified.json
 ```
 
-`companyDir` in `lib-keys.js` builds the first path and `companyKey` in
+That is all of it. There are no per-vertical directories any more: the business
+list and every piece of pipeline state are rows, so nothing walks `data/`
+looking for a vertical and nothing can mistake the city directory for one.
+
+`companyDir` in `lib-keys.js` builds the path and `companyKey` in
 `src/capture/s3.js` the matching key; nothing else spells either.
 
-`data/<city>/` sits beside the `data/<vertical>/` directories. Every walker of
-`data/` — the capture queue, `dispatch.js`, `control/status.js` — skips a
-directory with no `qualified.json`, so the city directory is never mistaken for
-a vertical. Keep it that way.
+On the box, `data/` is a symlink to `/var/lib/prospector/data` on the data
+volume. In this checkout, `data/` is whatever `npm run test:run` last left
+behind, not a real run.
 
-The verticals keep their own `discovered.json` and `qualified.json` until spec B
-moves the business list into MySQL. On the box, `data/` is a symlink to
-`/var/lib/prospector/data` on the data volume. In this checkout, `data/` is
-whatever `npm run test:run` last left behind, not a real run.
+### MySQL
 
-### MySQL (spec 3)
+The schema is `docs/SCHEMA.md`: three tables, `verticals`, `companies`, `links`,
+plus `schema_migrations`. `db/migrations/0001_init.sql` creates them and
+`node src/cli migrate` applies them.
+
+`src/db/mysql.js` is the only module that opens a connection — one pool, at most
+four, because mavdb is a `db.t4g.micro` with 1 GiB shared by every app in
+clasher. Configuration is `DATABASE_URL` when set (the laptop and every test) and
+`DB_HOST` + `DB_PASSWORD` from `/run/prospector/env` otherwise (the box, with TLS
+verified). `DATABASE_URL` must never reach SSM: `load-env.sh` turns every
+parameter under `/prospector/` into an environment variable, so one there would
+silently replace the box's verified connection with whatever it pointed at.
+
+`tx()` runs at **READ COMMITTED**, not the default. `recordDomain` opens with
+`SELECT … WHERE city = ? AND domain = ? FOR UPDATE` over the non-unique
+`by_site` index; under REPEATABLE READ that takes next-key locks covering the
+gaps between index entries, so two of ingest's eight workers recording
+`alpha.com` and `beta.com` — adjacent in that index — lock each other's gaps and
+deadlock. It is not a rare race: it happened on the first run of the ingest test.
+READ COMMITTED takes no gap locks, and nothing here needs more, since every
+transaction reads and writes exactly one `(city, domain)` group. A bounded retry
+on `ER_LOCK_DEADLOCK` sits behind that for the foreign-key checks on `links`.
 
 **S3 holds bytes; MySQL holds state.** "What is left to capture" is one indexed
-query on `companies.status`. The bucket is never listed to answer it: that costs
-a request per pending domain and creates a second opinion that can disagree.
-`captureComplete()` (`src/capture/s3.js`) is for an `ingest --verify` repair
-mode only.
+query on `companies.status`. The bucket is never listed to answer it, except by
+`ingest`, once per run.
 
 - **Instance:** `mavdb` in clasher. RDS MySQL 8.4.8, `db.t4g.micro`, 20 GB,
   single-AZ, not publicly accessible, shared by every app, 1 GiB of memory.
-- **Network:** VPC peering from rogue `10.43.0.0/16` to clasher (presumed
-  `172.31.0.0/16`). The clasher side is three standalone resources (accepter, one
-  route, one SG ingress rule), so Terraform never owns clasher's route table or
-  security group. A relay on MaverickInstance was rejected: it would face the
-  internet, put clasher's production box in prospector's path, and add a process
-  to maintain.
-- **Isolation:** its own database `prospector` and its own users, never
-  `maverick`. The database name in a URL restricts nothing; grants do.
-  - `prospector`: DML only.
-  - `prospector_migrate`: DDL, used only by the migration runner.
+- **Network:** VPC peering from rogue `10.43.0.0/16` to clasher's
+  `vpc-0fb530a7a75f1cdb0` (CIDR read from a data source; a `precondition` fails
+  the plan if the two overlap), in its own Terraform root (`terraform/mavdb/`) so
+  `./p down` / `./p up` never touch clasher. The clasher side is standalone
+  resources only (accepter, routes, one SG ingress rule), so Terraform never owns
+  clasher's route tables or security group. mavdb has **two** security groups, so
+  the rule's target is a variable checked against the instance rather than
+  guessed. The rogue VPC, subnet, gateway and route table now live in `persist`
+  so the peering survives `./p down` — and that route table carries no inline
+  `route {}` block, because an inline route would make `persist` the owner of
+  every route in it and the next apply would delete the peering route. A relay on MaverickInstance was rejected: it
+  would face the internet, put clasher's production box in prospector's path,
+  and add a process to maintain.
+- **Isolation:** its own database `prospector` and its own user `prospector`,
+  never `maverick`. The database name in a URL restricts nothing; grants do.
+  One user for now, with DML and DDL on `prospector.*`; a separate migration
+  user is deferred (spec E). Database, user and grants are created by Terraform
+  (`terraform/db/`); its state holds the generated password, never `maverick`'s.
 - **Credentials:** SSM SecureString `/prospector/db-password`, read at service
   start by `deploy/load-env.sh` like every other secret. TLS verified against
   the pinned RDS CA bundle. Connection pool of at most 4.
@@ -323,52 +392,36 @@ mode only.
   memory on the instance
   ([AWS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)),
   and mavdb has 1 GiB for every app.
-- **Migrations:** numbered plain-SQL files plus a small runner, no ORM,
-  compatible with the laptop's MySQL 8.0 for offline runs.
+- **Migrations:** numbered plain-SQL files plus a small runner, no ORM, on the
+  laptop's MySQL 8.0.39 and on mavdb's 8.4. `./p up` runs `migrate` on the box
+  after `ship`; it is idempotent, so it runs every time rather than trying to
+  remember whether it has.
+- **The generated password is in `db.tfstate`** — `random_password` keeps its
+  result and `mysql_user` keeps the value it was given. That bucket is private,
+  public access blocked and SSE-S3 encrypted. `maverick`'s password is not:
+  provider configuration is never written to state.
 
 #### `companies.status`
 
-| Value | Meaning | Set by |
-|---|---|---|
-| `0` | Pending | ingest, from `qualified.json` |
-| `-1` | No usable website | ingest, from qualify's verdict |
-| `1` | Done: all three completion files present | ingest |
-| `-2` | Failed: `error.json` present, capture not complete | ingest |
+`NULL` discovered, `-1` no usable website, `0` pending capture, `1` captured,
+`-2` capture failed; plus `extract_status`. Who sets which is in
+`docs/SCHEMA.md`.
 
-A later re-capture that completes moves `-2` to `1`. The `-2` state exists
+A later capture that completes moves `-2` to `1`. The `-2` state exists
 because captures do fail (one run-1 capture took 677 s against a 12 s mean), and
 without it every resume retries the same broken sites and "never tried" is
 indistinguishable from "tried and failed". Retrying `-2` is an explicit action
-(spec 4's re-dispatch).
+(spec C's re-dispatch).
 
-#### Tables
+#### Deliberately absent
 
-The DDL is spec 3's to write. What is settled:
-
-- `cities`, keyed by `lib-keys.canonicalCity`.
-- `companies`, keyed by Places ID, because a no-website business has no domain.
-  Places fields verbatim, `domain` from `canonicalDomain`, and `status`.
-- Company ↔ vertical membership in its own table, since a vertical is a
-  correctable classification.
-- Extract results per `(city, domain)`, matching S3.
-- `decisions` per domain: the operator's own tier, pitch flag and note. Today
-  they live in browser localStorage plus a fire-and-forget `PUT`
-  (`preview/app.js:134`), and are at risk of being lost.
-
-Deliberately absent:
-
-- **No `runs` table.** A business is captured once; the capture date is S3's
-  `LastModified`.
-- **No scoring tables.** There is no scoring.
+- **No `cities`, `runs`, `scores`, `agencies` or `contacts` tables.** City is a
+  slug column; a business is captured once, so the capture date is a column;
+  there is no scoring; agencies are a query the operator runs over `links`; the
+  first email is a column.
 - **No S3 paths.** Every key is computable from city and domain.
-- **No `agencies` table yet.** Agency detection is meant to be a query: a domain
-  credited in the footer of many unrelated sites is an agency
-  (`GROUP BY target_domain HAVING COUNT(DISTINCT company) >= N`). Add a table
-  only when resolving names and prices. See *Open* for what this needs.
-
-**Known wrinkle.** `companies` will not hold every business Places returns:
-discover collapses listings that share a website, so two clinics on one group
-site become one row. Expect counts not to tie.
+- **No merging by website.** `place_id` is the only identity. Rows can share a
+  domain, and then share one capture, one extract and the same links.
 
 ## Capture on Lambda
 
@@ -413,11 +466,11 @@ billed waiting, so trim what is padding rather than measured need.
   recorded on the result row and in `ExtractFailed`, and never withholds the
   upload.
 
-**Dispatch today** reads `data/<vertical>/qualified.json`, takes every
-`verdict === 'audit'` business deduped by canonical domain, and sends one async
-invoke per 10. After spec B, pending work comes from `companies.status`. Async queued events expire after at
-most 6 hours; at concurrency 10 a large sweep's late batches can expire into the
-failure queue. That is safe, because re-dispatch is idempotent, but spec 4 makes
+**Dispatch** takes `SELECT DISTINCT domain … WHERE status = 0` (plus `-2` with
+`--retry-failed`), builds each event business as `{ domain, qualify: { final_url } }`
+— which is all the handler reads — and sends one async invoke per 10. Async
+queued events expire after at most 6 hours; at concurrency 10 a large sweep's
+late batches can expire into the failure queue. That is safe, because re-dispatch is idempotent, but spec C makes
 it visible in the panel.
 
 **Metrics.** The handler emits one EMF block per batch in
@@ -432,12 +485,15 @@ required and neither was there. `captureComplete` uses HeadObject, which is
 authorized as `s3:GetObject`, and without `s3:ListBucket` S3 answers a missing
 key with 403 rather than 404 — which `_exists` throws on, by design. Every
 domain in a real batch would have errored at the skip check before capturing
-anything. A stub-S3 test cannot catch this; only p4's first real batch can.
+anything. A stub-S3 test cannot catch this; only spec C's first real batch can.
 
-**Not wired yet (spec p4):**
+**Not wired yet (spec C):**
 
-- The box role has no `lambda:InvokeFunction`, no SQS read and no `s3:GetObject`
-  on `companies/`, so the panel's Lambda mode fails today.
+- The box role has no `lambda:InvokeFunction` or SQS read, so the panel's Lambda
+  mode still fails. Its `companies/` read and list are written but need
+  `terraform apply stack`.
+- The deployed image predates spec A: it writes the old `captures/` layout and
+  does not extract. `./p ship` rebuilds it (spec C task 1).
 - The box has no browser (`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` in
   `deploy/install.sh`), so local capture fails too.
 
@@ -451,7 +507,7 @@ anything. A stub-S3 test cannot catch this; only p4's first real batch can.
 - **Free tier** is 400,000 GB-s/month per account. Modelled: a typical capture is
   ~12 s × 2 GB ≈ 24 GB-s, so ~9,600 domains ≈ 230,000 GB-s. At the 60 s worst case
   it is ~1.15M GB-s, over the free tier. Measure the real figure, extract
-  included, from the first batch (spec 4).
+  included, from the first batch (spec C).
 
 ### Six-account fleet (not built)
 
@@ -506,15 +562,26 @@ in `docs/STATUS.md`.
 | Hostname | Serves | Upstream | State |
 |---|---|---|---|
 | `prospect.themaverick.tech` | control (`src/control/`) | `127.0.0.1:7778` | Live |
-| `leads.themaverick.tech` | the deck (`src/server/` + `preview/`) | `127.0.0.1:7777` | Spec 5 |
+| `leads.themaverick.tech` | the deck (`src/server/` + `preview/`) | `127.0.0.1:7777` | Built; live once the A record and `DECK_PASSWORD` exist |
 
 - **Names, not paths.** Both apps emit root-absolute URLs (control's `api()`
   helper in `src/control/ui.html`, the deck's `/data/*` and `/preview/*`).
   `handle_path` strips a prefix on the way in but cannot change what the browser
   asks for. One hostname split by path was also rejected: the first new endpoint
   on either side collides silently as a confusing 404.
-- **Separate names allow separate auth.** A prospect may one day be shown the
-  deck; never control.
+- **Separate names allow separate auth.** They have separate credentials:
+  `CONTROL_PASSWORD` and `DECK_PASSWORD` in `.env`, copied by `./p secrets` to
+  `/prospector/control-password` and `/prospector/deck-password`, hashed into
+  `/etc/caddy/auth.env` by `install.sh`. Control can spend Places quota and start
+  runs; the deck can be read. One credential for both would mean handing out the
+  second to give away the first. The deck's `basic_auth` is at the site level, so
+  it covers `/api/*` and the screenshots too.
+- **The Caddyfile is assembled, not installed whole.** `deploy/Caddyfile.global`
+  (the options block, which must come first and appear once), then
+  `Caddyfile.prospect` and `Caddyfile.leads`, each included only when its name
+  resolves — a block for a name that does not resolve puts Caddy in an ACME retry
+  loop it cannot get out of. The two names are polled independently, so a missing
+  deck record never keeps the control panel off the internet.
 - **Caddy, not nginx.** Automatic ACME, built-in `basic_auth` with bcrypt, no
   certbot or cron. Caddy flushes `text/event-stream` immediately and sets no read
   timeout on a stream, so control's SSE log works with no tuning.
@@ -523,7 +590,7 @@ in `docs/STATUS.md`.
   re-issuing into a Let's Encrypt rate limit.
 - **DNS is Netlify**, not Route53. Each hostname is a manual A record to the EIP,
   and it must resolve before Caddy enables the site, or HTTP-01 fails. `./p`
-  waits for DNS before enabling a block.
+  polls both names and enables whichever site block resolves.
 - **No CSP.** Copying warden's `script-src 'self'` blanks the control panel,
   because `ui.html` is one file with inline script and style. Add a CSP only
   after splitting it into three files.
@@ -534,16 +601,19 @@ A dashboard on port 7778 that shows progress and starts runs, built for a phone.
 `src/control/`.
 
 - **Progress:** captured / pending / failed per vertical and in total, with a
-  failure breakdown, pushed over SSE every 3 s. Today it is read from disk:
-  `qualified.json` says what should be captured, `isComplete()` what was,
-  `error.json` what failed. A Lambda capture only appears once `ingest` has
-  copied it (spec 3).
+  failure breakdown, pushed over SSE every 3 s. One `GROUP BY` over
+  `companies.status` replaces the filesystem walk this used to do — which could
+  only see what was on *this* box, and so went wrong the moment the Lambda
+  started capturing into S3. A Lambda capture appears once `ingest` has recorded
+  it. **The counts are rows, not domains**, since several listings can share one
+  website; the page says so.
 - **Run:** capture the remaining domains `local` (on the box) or `lambda`
-  (dispatch batches), with concurrency, deadline and batch size set from the
-  page. Both modes fail today (see *Not wired yet*).
-- **New vertical:** a name and keywords, then discover → qualify → capture back
-  to back, or discover → qualify → backup with `captureMode: 'none'`. The Places
-  request estimate (25 tiles × keywords, up to 3 pages) shows before the button.
+  (dispatch batches, then `ingest`), with concurrency, deadline and batch size
+  set from the page.
+- **New vertical:** a name and keywords, written to the `verticals` table, then
+  discover → qualify → capture back to back — or discover → qualify alone with
+  `captureMode: 'none'`. The Places request estimate (25 tiles × keywords, up to
+  3 pages) shows before the button.
 
 Constraints it enforces:
 
@@ -560,35 +630,54 @@ Constraints it enforces:
   string, where it lands in logs and phone history. The token stays for the case
   where nothing is in front.
 
-## The deck (spec B)
+## The deck: `node src/cli serve`
 
-`src/server/`, `src/db/` and `preview/` are the old deck. They depend on the
-removed `report` stage and on score fields, so they are retired, not deleted:
-`serve` is not a CLI stage and nothing loads them. Spec B rebuilds the deck on
-MySQL.
+What the operator reads to decide. A lead is a `companies` row at `status = 1`:
+the two screenshots, what Places knows, what qualify measured, the first email
+and the outside links grouped social / other — and the operator's own tier,
+pitch flag and note, which are the only things the deck writes.
 
-It will show business details from Places, the screenshots, the first email, the
-outside links, and the operator's own decisions. Nothing from a machine score.
-The notes below are what the old one taught us and still apply.
+**Nothing here computes a judgement.** No score, tier, gate, angle, flaw, signal
+or agency: not in a column, not in a filter, not in the export. Searching the
+served files for any of those words finds nothing, and that is a check, not a
+coincidence.
 
-- **Binds `127.0.0.1`**, hard-coded at `src/server/index.js:202`.
-- **Auth must cover `/data/*` too.** Gating only `/` leaves captures and
-  per-domain JSON public, and it looks correct when you test it.
-- **Sync captures to local disk; never FUSE-mount the bucket.** Mounted, every
-  request is an S3 GET, a 50-thumbnail grid is 50 round trips, and a stale mount
-  makes the server 500.
-- **The index is the first wall at real scale.** `src/server/index.js:73` reads
-  the whole `data/index.json` with `readFileSync` on every request, under
-  `Cache-Control: no-store`, at ~4.2 KB per lead:
+`src/server/index.js` (Fastify, ~7 routes) and `preview/` (one page, no
+framework, no build step). `preview/app.css` is unchanged — it was always the
+design contract, and the rewrite is `app.js` alone. `src/db/index.js`,
+`preview/data.js` and `preview/mocks.js` are deleted with the old deck.
 
-  | Leads | `index.json` |
-  |---|---|
-  | 3,906 | 16 MB |
-  | ~9,600 | 41 MB |
-  | 50,000 | 210 MB |
-
-  Spec 5 replaces the single file (a paginated MySQL query, or one file per
-  vertical).
+- **Binds `127.0.0.1`**, hard-coded. Caddy holds the certificate and the
+  password and is the only public listener; a deck on `0.0.0.0` would serve
+  every lead and every decision to anything that could reach port 7777.
+- **Auth covers the screenshots too.** `basic_auth` is at the site level in
+  `Caddyfile.leads`, so `/api/*` and `/shots/*` are behind it as well. Gating
+  only `/` leaves the captures public, and it looks correct when you test it.
+- **Screenshots are served from local disk**, never by proxying S3 and never
+  from a FUSE mount: mounted, every request is an S3 GET, a 60-card grid is 60
+  round trips, and a stale mount makes the server 500. That is also why `ingest`
+  requires both screenshots on disk before it will mark a row captured.
+  `/shots/:domain/:file` validates the domain against `lib-keys.DOMAIN_RE` and
+  the file against a two-name allow-list, and sets
+  `Cache-Control: private, max-age=604800` — a capture never changes.
+- **Everything pages.** `limit` defaults to 60 and is capped at 60; no endpoint
+  returns every lead. The old deck read the whole of `data/index.json` with
+  `readFileSync` on every request, under `Cache-Control: no-store`, at ~4.2 KB a
+  lead — 16 MB at run 1's 3,906, 41 MB at ~9,600. Offset paging is fine at ~530
+  leads a vertical; revisit only past ~5,000.
+- **Filters are a fixed map**, looked up by key and never interpolated. An
+  unknown key is a 400, so a typo in the UI fails loudly instead of quietly
+  widening the result set. It is the one place the deck builds SQL by
+  concatenation.
+- **Decisions are optimistic, and honest about it.** The control flips first so a
+  fast reviewer is not waiting on a round trip; if the `PUT` fails it reverts and
+  says "not saved". `localStorage` holds no decision — a decision that exists
+  only in one browser is a decision that is lost — and `reviewed_at` is set by
+  the server, not sent by the page.
+- **The pitch CSV is defused.** UTF-8 with a BOM, CRLF, every field quoted with
+  `"` doubled, and a leading `=`, `+`, `-` or `@` prefixed with an apostrophe: a
+  business called `=Zeta` is a name, not a formula.
+- **No CSP**, for the same reason control has none.
 
 ## Observability
 
@@ -598,10 +687,9 @@ line, not an API call, so it costs nothing and needs no extra permission.
 ```
 Namespace   Prospector/Capture
 Dimensions  [Vertical] and [] (aggregate)
-Metrics     CapturesOk, CapturesFailed, CapturesSkipped, BatchDurationMs
+Metrics     CapturesOk, CapturesFailed, CapturesSkipped, BatchDurationMs,
+            ExtractOk, ExtractFailed
 ```
-
-Spec 1 adds `ExtractOk` and `ExtractFailed`.
 
 **Lambda's own metrics cannot answer the question that matters.** `Invocations`
 and `Errors` count batches: a batch that captured 3 and failed 7 is a successful
@@ -610,7 +698,7 @@ invocation, so `Errors` reads zero through a total collapse.
 warden (`D:\PROJECTS\AWS-COMMAND-CENTER`) reads these as a `capture` tile
 (`warden/app/adapters/capture.py`), gated on a `prospector` capability tag so
 only the account running captures collects it. The backend emits the tile; the
-UI doesn't draw it yet, and rogue doesn't carry the tag yet (spec 6). Free-tier
+UI doesn't draw it yet, and rogue doesn't carry the tag yet (spec D). Free-tier
 use is derived from summed billed `Duration` × configured memory, because there
 is no "free tier used" metric and `freetier:GetFreeTierUsage` lags by hours.
 
@@ -642,16 +730,23 @@ Per 50,000 domains, beyond compute (*modelled*):
 
 ## Open
 
-- **Clasher network facts:** VPC CIDR (presumed `172.31.0.0/16`), the route
-  tables of mavdb's subnets, its security group, and whether its endpoint
-  resolves to a private IP from rogue (spec 3).
+- **Clasher network facts.** The instance is read: `mysql 8.4.8`,
+  `db.t4g.micro`, private, `mavdb.cv0wqe8og7uh.ap-south-1.rds.amazonaws.com`, in
+  `vpc-0fb530a7a75f1cdb0`, two subnets, and **two** security groups — so
+  `terraform/mavdb` takes `-var mavdb_security_group_id` rather than assuming
+  one. Still unread: that VPC's CIDR, and each subnet's route-table association.
+  Neither is now guessed — a `precondition` computes the CIDR overlap at plan
+  time and fails with both values named, and one `data "aws_route_table"` per
+  subnet resolves the main table when a subnet has no explicit association. What
+  is still unverified is whether mavdb's endpoint resolves to a private IP from
+  rogue, which is a check on the box after `./p peer`.
 - **mavdb's existing users and grants** have never been inspected. The MySQL MCP
-  tool connects to a local 8.0.39 on the laptop, not RDS (spec 7).
+  tool connects to a local 8.0.39 on the laptop, not RDS (spec E).
 - **Lambda cold start** (`Init Duration`) for the ~1.05 GB image, and whether
-  2,048 MB survives image-heavy pages. Measured in p4's first batch.
+  2,048 MB survives image-heavy pages. Measured in spec C's first batch.
 - **Places cost per request.** Billing showed ~Rs 171 for run 1's 3,600
   requests, far below the documented rate. Settle it from Billing → Reports,
   18–19 Sep, grouped by SKU, gross and net.
 - **Extract time per domain** is not measured. It is cheerio over one file with
   no network, so it is expected to be milliseconds, but the Lambda's batch
-  arithmetic assumes that rather than knowing it. Measured in p4's first batch.
+  arithmetic assumes that rather than knowing it. Measured in spec C's first batch.

@@ -44,12 +44,11 @@ COPY package.json package-lock.json ./
 # `npm ci` against the committed lock, not `npm install` — the lock is the one
 # that gets tested, and `ci` fails loudly if it and package.json ever disagree.
 #
-# `--ignore-scripts` is what drops better-sqlite3's native build: it is only
-# used by src/db, which nothing in the capture path touches, and it is the one
-# dependency here that needs node-gyp. sharp needs no lifecycle script — its
-# platform binary is a regular optionalDependency — so `--ignore-scripts` costs
-# nothing for the package this image actually uses. Verified locally: `npm ci
-# --ignore-scripts` leaves `require('sharp')` working.
+# `--ignore-scripts` stays, now as insurance rather than as a fix: nothing left
+# in the dependency tree needs node-gyp (better-sqlite3 is gone, and mysql2 is
+# pure JS), and sharp's platform binary is a regular optionalDependency with no
+# lifecycle script. So the flag costs this image nothing and keeps a future
+# dependency's install hook from running inside the build.
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 # `aws-lambda-ric` is what makes a plain container image speak Lambda's runtime

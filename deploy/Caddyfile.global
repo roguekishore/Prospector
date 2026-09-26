@@ -1,0 +1,9 @@
+# The global options block. Must come first and appear exactly once, so it is its
+# own file and install.sh always concatenates it ahead of the site blocks.
+#
+# Certificates live on the persistent data volume rather than in Caddy's default
+# /var/lib/caddy, so a `./p down` and `./p up` re-uses them instead of asking
+# Let's Encrypt for new ones and walking into a rate limit.
+{
+    storage file_system /var/lib/prospector/caddy
+}

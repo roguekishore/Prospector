@@ -33,3 +33,22 @@ output "data_volume_id" {
 output "capture_image_tag_param_name" {
   value = aws_ssm_parameter.capture_image_tag.name
 }
+
+# The network. stack/ reads vpc_id and subnet_id; terraform/mavdb reads vpc_id,
+# vpc_cidr and route_table_id (the peering, the route back, and the CIDR the
+# mavdb security group allows).
+output "vpc_id" {
+  value = aws_vpc.main.id
+}
+
+output "vpc_cidr" {
+  value = aws_vpc.main.cidr_block
+}
+
+output "subnet_id" {
+  value = aws_subnet.public.id
+}
+
+output "route_table_id" {
+  value = aws_route_table.public.id
+}

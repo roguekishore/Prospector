@@ -83,8 +83,20 @@ function loadStage(name) {
     qualify:  'qualify',
     capture:  'capture',
     extract:  'extract',
+    ingest:   'ingest',
     control:  'control',
+    serve:    'server',
   };
+
+  // `migrate` is a file, not a directory: it is one script with no stage of its
+  // own, and giving it a folder would suggest there is more of it than there is.
+  if (name === 'migrate') {
+    try { return require(path.join(ROOT, 'src', 'db', 'migrate.js')); }
+    catch (e) {
+      log.error(`Failed to load stage 'migrate': ${e.message}`);
+      process.exit(2);
+    }
+  }
 
   const dir = dirMap[name] || name;
   const candidate = path.join(ROOT, 'src', dir, 'index.js');
@@ -117,22 +129,27 @@ PROSPECTOR pipeline runner
   node src/cli <stage> [<vertical>] [options]
 
 Stages:
-  discover   <vertical>   Grid-tile the city, keyword variants, dedupe
-  qualify                 HEAD + cert + viewport probe + wayback CDX
+  migrate                 Apply db/migrations/ to MySQL (--import-verticals <file>)
+  discover   <vertical>   Grid-tile the city, keyword variants, insert companies
+  qualify                 HEAD + cert + parked-page probe per domain
   capture                 Playwright shots + rendered.html, then extract
-  extract                 Re-run extract over captures already on disk
+  extract                 Re-run extract over captures that need it
+  ingest                  Pull Lambda captures out of S3 and record them
   control                 Progress dashboard + run control (--port 7778)
+  serve                   The review deck (--port 7777)
   all                     discover → qualify → capture
 
 Common options:
-  --resume                Skip domains whose output already exists
   --concurrency N         Parallel workers (default: 4)
   --only <domain>         Process one domain only
   --dry-run               Print what would happen, touch nothing
   --verbose               More output
 
 Stage-specific:
-  capture:  --headful  --timeout 30000  --deadline 60000
+  capture:  --headful  --timeout 30000  --deadline 60000  --retry-failed
+  ingest:   --with-html
+
+Every stage but migrate reads MySQL. DATABASE_URL overrides DB_HOST/DB_PASSWORD.
 `.trim());
     process.exit(0);
   }
@@ -141,7 +158,10 @@ Stage-specific:
   const config = loadConfig();
   const ctx    = { root: ROOT, config, log };
 
-  const STAGES = ['discover','qualify','capture','extract','control'];
+  // `ingest` is deliberately not in `all`: `all` ends in a local capture, which
+  // records itself, and ingest is for the Lambda path where the bytes land in S3
+  // (R7.1).
+  const STAGES = ['migrate','discover','qualify','capture','extract','ingest','control','serve'];
 
   if (stageArg === 'all') {
     for (const stage of ['discover','qualify','capture']) {

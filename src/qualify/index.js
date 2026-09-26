@@ -3,19 +3,43 @@
 /**
  * qualify/index.js — Stage 2
  *
- * Runs cheap probes (HEAD, TLS, parked-page, Wayback CDX) over every domain
- * in discovered.json, producing qualified.json. No browser.
+ * Cheap probes (robots, HEAD/GET, TLS, parked-page) over every domain that
+ * discover left at `status IS NULL`, writing the verdict back onto every row
+ * that shares the domain. No browser, no file.
+ *
+ * ## One probe per domain, not per row
+ *
+ * Several `companies` rows can share one website — two showrooms, a company and
+ * its brand. Capture already runs once per `(city, domain)`, so qualify does
+ * too: the work list is `GROUP BY domain` and the `UPDATE` matches on the
+ * domain, not on a company id.
+ *
+ * ## Re-running replaces --resume
+ *
+ * The work list is `status IS NULL`, which a finished probe clears. Running
+ * qualify twice therefore probes only what is still unqualified, which is what
+ * `--resume` used to approximate by reading back its own output file.
+ *
+ * ## Sibling inheritance
+ *
+ * A later discover can find a new place ID for a website that is already
+ * captured. Probing it again would be harmless; *capturing* it again would not,
+ * and the row would sit at `status = 0` forever if capture skipped the domain as
+ * already done. So a new row whose domain already has a qualified sibling copies
+ * that sibling's qualify, capture and extract columns and its links, and is not
+ * probed at all.
  *
  * CLI contract: module.exports = { run: async (argv, ctx) => {} }
  * where ctx = { root, config, log }
  */
 
-const fs      = require('fs');
-const path    = require('path');
 const http    = require('http');
 const https   = require('https');
 const { URL } = require('url');
+
 const { registrable } = require('../discover/provider');
+const { readCity }    = require('../../lib-keys');
+const { db, tx, close } = require('../db/mysql');
 
 // ---------------------------------------------------------------------------
 // Domains that are never leads (§2.6 of W1 spec) — also checked after redirect
@@ -28,22 +52,6 @@ const REJECT_DOMAINS = new Set([
   'business.site', 'wixsite.com', 'weebly.com', 'blogspot.com',
   'wordpress.com', 'jimdosite.com',
 ]);
-const REJECT_PATTERNS = [/^webnode\./];
-
-function isDomainRejected(urlOrHost) {
-  let host;
-  try {
-    host = new URL(urlOrHost).hostname.toLowerCase();
-  } catch {
-    host = urlOrHost.toLowerCase();
-  }
-  const reg = registrable('https://' + host);
-  if (reg && REJECT_DOMAINS.has(reg)) return true;
-  for (const pat of REJECT_PATTERNS) {
-    if (pat.test(host)) return true;
-  }
-  return false;
-}
 
 // ---------------------------------------------------------------------------
 // Parked-page detection patterns
@@ -229,7 +237,8 @@ function fetchSmall(url, timeoutMs = 8000, maxBytes = 8192) {
 }
 
 /**
- * HTTP HEAD (or GET range on 405) returning { status, finalUrl, redirectChain, headers, body8k, certExpires, certValid }
+ * HTTP HEAD (or GET range on 405) returning
+ * { status, finalUrl, redirectChain, headers, body8k, certExpires, certValid }
  *
  * @param {string} startUrl
  * @returns {Promise<object>}
@@ -311,8 +320,7 @@ async function probe(startUrl) {
           return finish();
         }
 
-        // Success — we need body for parked-page check and viewport probe.
-        // Re-fetch with GET Range (HEAD gave us headers/status already).
+        // Success — we need the body for the parked-page check.
         return doGetRange(currentUrl);
       });
 
@@ -375,89 +383,40 @@ async function probe(startUrl) {
 }
 
 // ---------------------------------------------------------------------------
-// Wayback CDX
+// TLS status → the enum docs/SCHEMA.md stores
 // ---------------------------------------------------------------------------
 /**
- * Fetch first (and optionally last) snapshot year for a domain from Wayback CDX.
- * Returns { first: "YYYY" | "none", last: "YYYY" | "none" }
- * Never throws — Wayback being down must not fail a run.
- *
- * @param {string} domain
- * @returns {Promise<{first: string, last: string}>}
- */
-async function waybackYears(domain) {
-  const base = `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(domain)}&output=json&fl=timestamp&filter=statuscode:200`;
-
-  async function fetch1(url) {
-    try {
-      const ac = new AbortController();
-      const tid = setTimeout(() => ac.abort(), 8000);
-      const res = await fetch(url, {
-        headers: { 'User-Agent': USER_AGENT },
-        signal:  ac.signal,
-      }).finally(() => clearTimeout(tid));
-      if (!res.ok) return null;
-      const json = await res.json();
-      // First row is the header ["timestamp"], skip it
-      if (!Array.isArray(json) || json.length < 2) return null;
-      return json[1][0]; // timestamp string e.g. "20150312143000"
-    } catch {
-      return null;
-    }
-  }
-
-  const firstTs = await fetch1(`${base}&limit=1`);
-  const first   = firstTs ? firstTs.slice(0, 4) : 'none';
-
-  let last = 'none';
-  if (firstTs) {
-    const lastTs = await fetch1(`${base}&limit=-1`);
-    last = lastTs ? lastTs.slice(0, 4) : 'none';
-  }
-
-  return { first, last };
-}
-
-// ---------------------------------------------------------------------------
-// Format cert expiry → the string the spec wants
-// ---------------------------------------------------------------------------
-/**
- * Given `certExpires` (the TLS cert's valid_to string) and `certValid` boolean,
- * return the `https` field value:
- *   "ok"              — valid cert
- *   "expired YYYY-MM" — expired cert (high-value finding, NOT a skip)
- *   "none — http only" — no https at all (never called for non-https)
+ * `https_status` is an ENUM('ok','expired','none') and `cert_expires` is a DATE.
+ * The old free-text `"expired 2024-03"` carried the month in the same string as
+ * the verdict, which made "every expired certificate" a `LIKE` query.
  *
  * @param {boolean} certValid
- * @param {string|null} certExpires  e.g. "Jan 14 12:00:00 2027 GMT"
- * @returns {string}
+ * @param {?string} certExpires  the certificate's `valid_to`
+ * @returns {'ok'|'expired'|'none'}
  */
 function certStatus(certValid, certExpires) {
-  if (!certExpires) return 'none — http only';
-  if (certValid) return 'ok';
-  // Format expiry as "YYYY-MM"
-  try {
-    const d = new Date(certExpires);
-    const yr  = d.getUTCFullYear();
-    const mo  = String(d.getUTCMonth() + 1).padStart(2, '0');
-    return `expired ${yr}-${mo}`;
-  } catch {
-    return 'expired';
-  }
+  if (!certExpires) return 'none';
+  return certValid ? 'ok' : 'expired';
 }
 
-// ---------------------------------------------------------------------------
-// Atomic write helper
-// ---------------------------------------------------------------------------
-function writeAtomic(filepath, data) {
-  const dir = path.dirname(filepath);
-  fs.mkdirSync(dir, { recursive: true });
-  const tmp = filepath + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
-  fs.renameSync(tmp, filepath);
+/** A certificate's `valid_to` → `YYYY-MM-DD`, or null when it cannot be read. */
+function certDate(certExpires) {
+  if (!certExpires) return null;
+  const d = new Date(certExpires);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ---------------------------------------------------------------------------
+// The columns a sibling row hands down
+// ---------------------------------------------------------------------------
+const INHERITED = [
+  'status', 'skip_reason', 'final_url', 'http_status', 'https_status',
+  'cert_expires', 'qualified_at', 'capture_error', 'captured_at',
+  'extract_status', 'extracted_at', 'email',
+];
 
 // ---------------------------------------------------------------------------
 // Main run
@@ -469,155 +428,156 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function run(argv, ctx) {
   const { root, log } = ctx;
 
-  const verticalSlug  = argv[0] || null;
-  const resume        = argv.includes('--resume');
+  const verticalSlug   = argv.find(a => !a.startsWith('--')) || null;
   const concurrencyArg = getFlag(argv, '--concurrency');
-  const CONCURRENCY   = concurrencyArg ? parseInt(concurrencyArg, 10) : 8;
-
-  // Load configs to find vertical slugs
-  const verticalsConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'verticals.json'), 'utf8'));
-
-  const verticals = verticalSlug
-    ? [verticalsConfig.find(v => v.slug === verticalSlug)].filter(Boolean)
-    : verticalsConfig.filter(v => v.enabled);
-
-  if (verticals.length === 0) throw new Error(`No vertical found: ${verticalSlug || '(enabled)'}`);
-
-  for (const vertical of verticals) {
-    await qualifyVertical(vertical.slug, root, { resume, concurrency: CONCURRENCY, log });
-  }
-}
-
-async function qualifyVertical(verticalSlug, root, { resume, concurrency, log }) {
-  const discoveredPath = path.join(root, 'data', verticalSlug, 'discovered.json');
-  if (!fs.existsSync(discoveredPath)) {
-    log(`[qualify] ERROR: ${discoveredPath} not found. Run discover first.`);
-    return;
+  const concurrency    = concurrencyArg ? parseInt(concurrencyArg, 10) : 8;
+  if (argv.includes('--resume')) {
+    log('[qualify] --resume is implied now: the work list is every row still unqualified');
   }
 
-  const discovered = JSON.parse(fs.readFileSync(discoveredPath, 'utf8'));
-  const runId      = discovered.run;
+  const city = readCity(root).slug;
+  const conn = db();
 
-  const outPath = path.join(root, 'data', verticalSlug, 'qualified.json');
-
-  // --resume: load existing qualified output so we can skip already-done domains
-  let existingByDomain = {};
-  if (resume && fs.existsSync(outPath)) {
-    const existing = JSON.parse(fs.readFileSync(outPath, 'utf8'));
-    for (const b of (existing.businesses || [])) {
-      if (b.domain && b.qualify) existingByDomain[b.domain] = b.qualify;
-    }
-    log(`[qualify] resume: ${Object.keys(existingByDomain).length} domains already qualified`);
+  let verticalId = null;
+  if (verticalSlug) {
+    const [rows] = await conn.query('SELECT vertical_id FROM verticals WHERE slug = ?', [verticalSlug]);
+    if (!rows.length) throw new Error(`No vertical found: ${verticalSlug}`);
+    verticalId = rows[0].vertical_id;
   }
 
-  const businesses = discovered.businesses || [];
-  const toQualify  = businesses.filter(b => b.domain && !b.skip_reason);
+  const [work] = await conn.query(
+    'SELECT domain, MIN(website_raw) AS website_raw FROM companies' +
+    '  WHERE city = ? AND status IS NULL AND domain IS NOT NULL' +
+    (verticalId === null ? '' : ' AND vertical_id = ?') +
+    '  GROUP BY domain',
+    verticalId === null ? [city] : [city, verticalId]);
 
-  log(`[qualify] vertical=${verticalSlug} total=${businesses.length} to_probe=${toQualify.length} concurrency=${concurrency}`);
+  log(`[qualify] vertical=${verticalSlug || 'all'} to_probe=${work.length} concurrency=${concurrency}`);
 
-  // Process with global concurrency cap
-  const results = new Array(businesses.length).fill(null);
-  const nonDomainIdxs = [];
-  const workQueue     = [];
-
-  for (let i = 0; i < businesses.length; i++) {
-    const b = businesses[i];
-    if (!b.domain || b.skip_reason) {
-      nonDomainIdxs.push(i);
-      results[i] = b; // pass through as-is
-    } else {
-      workQueue.push({ i, b });
-    }
-  }
-
-  // Run workQueue with concurrency limit
+  let probed = 0, inherited = 0, errors = 0;
   let qi = 0;
+
   async function worker() {
-    while (true) {
-      let item;
-      // Grab next item atomically
-      if (qi >= workQueue.length) break;
-      item = workQueue[qi++];
+    while (qi < work.length) {
+      const item = work[qi++];
+      try {
+        const copied = await inheritFromSibling(city, item.domain, log);
+        if (copied) { inherited++; continue; }
 
-      const { i, b } = item;
-
-      // --resume short-circuit
-      if (existingByDomain[b.domain]) {
-        results[i] = { ...b, qualify: existingByDomain[b.domain] };
-        continue;
+        // Through the exports object, not directly: `scripts/test-db.js` swaps
+        // this out to test the column mapping without making a network request.
+        const verdict = await module.exports.qualifyOne(item, log);
+        await writeVerdict(city, item.domain, verdict);
+        probed++;
+      } catch (e) {
+        // A probe that throws leaves the row unqualified; the next run retries it.
+        errors++;
+        log(`[qualify] ERROR ${item.domain}: ${e.message}`);
       }
-
-      const qResult = await qualifyOne(b, root, log);
-      results[i] = { ...b, qualify: qResult };
     }
   }
 
-  const workers = [];
-  for (let w = 0; w < concurrency; w++) workers.push(worker());
-  await Promise.all(workers);
+  await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker));
 
-  // Build output businesses array (preserving original order)
-  const outputBusinesses = results.map(r => r);
+  log(`[qualify] probed ${probed}, inherited ${inherited}, errors ${errors}`);
+  await printSummary(conn, city, verticalId, log);
 
-  // Summary stats
-  const total       = outputBusinesses.length;
-  const withDomain  = outputBusinesses.filter(b => b.domain).length;
-  const qualified   = outputBusinesses.filter(b => b.qualify && b.qualify.verdict === 'audit').length;
-  const skipped     = outputBusinesses.filter(b => b.qualify && b.qualify.verdict === 'skip').length;
+  return { ok: probed + inherited, err: errors };
+}
 
-  const skipReasons = {};
-  for (const b of outputBusinesses) {
-    if (b.qualify?.verdict === 'skip') {
-      const r = b.qualify.reason || 'unknown';
-      skipReasons[r] = (skipReasons[r] || 0) + 1;
+/**
+ * Copy a qualified sibling's columns and links onto every still-unqualified row
+ * with this domain. Returns true when it did.
+ */
+async function inheritFromSibling(city, domain, log) {
+  return tx(async (conn) => {
+    const [siblings] = await conn.query(
+      `SELECT company_id, ${INHERITED.join(', ')} FROM companies` +
+      '  WHERE city = ? AND domain = ? AND status IS NOT NULL' +
+      '  ORDER BY company_id LIMIT 1',
+      [city, domain]);
+    if (!siblings.length) return false;
+    const src = siblings[0];
+
+    const [targets] = await conn.query(
+      'SELECT company_id FROM companies WHERE city = ? AND domain = ? AND status IS NULL FOR UPDATE',
+      [city, domain]);
+    if (!targets.length) return true;   // another worker got there first
+
+    await conn.query(
+      `UPDATE companies SET ${INHERITED.filter(c => c !== 'status').map(c => c + ' = ?').join(', ')},` +
+      '  status = ? WHERE city = ? AND domain = ? AND status IS NULL',
+      [...INHERITED.filter(c => c !== 'status').map(c => src[c]), src.status, city, domain]);
+
+    const [srcLinks] = await conn.query(
+      'SELECT url, target_domain, kind, region, text FROM links WHERE company_id = ? ORDER BY link_id',
+      [src.company_id]);
+    if (srcLinks.length) {
+      const ids = targets.map(t => t.company_id);
+      await conn.query(
+        `DELETE FROM links WHERE company_id IN (${ids.map(() => '?').join(',')})`, ids);
+      const values = [];
+      const params = [];
+      for (const id of ids) {
+        for (const l of srcLinks) {
+          values.push('(?, ?, ?, ?, ?, ?)');
+          params.push(id, l.url, l.target_domain, l.kind, l.region, l.text);
+        }
+      }
+      await conn.query(
+        'INSERT INTO links (company_id, url, target_domain, kind, region, text) VALUES ' +
+        values.join(', '), params);
     }
-    if (b.skip_reason) {
-      const r = b.skip_reason;
-      skipReasons[r] = (skipReasons[r] || 0) + 1;
-    }
-  }
 
-  const mobileBroken  = outputBusinesses.filter(b => b.qualify?.viewport_meta === false).length;
-  const expiredCerts  = outputBusinesses.filter(b => b.qualify?.https?.startsWith('expired')).length;
+    log(`[qualify]   ${domain}: inherited from a sibling (status ${src.status})`);
+    return true;
+  });
+}
 
-  // Print summary table
+/** Write one probe's verdict onto every row with this domain that is still open. */
+async function writeVerdict(city, domain, v) {
+  const conn = db();
+  await conn.query(
+    'UPDATE companies SET skip_reason = ?, final_url = ?, http_status = ?,' +
+    '  https_status = ?, cert_expires = ?, qualified_at = UTC_TIMESTAMP(), status = ?' +
+    '  WHERE city = ? AND domain = ? AND status IS NULL',
+    [v.reason, v.final_url, v.http_status, v.https_status, v.cert_expires,
+     v.eligible ? 0 : -1, city, domain]);
+}
+
+async function printSummary(conn, city, verticalId, log) {
+  const [rows] = await conn.query(
+    'SELECT status, skip_reason, COUNT(*) AS n FROM companies WHERE city = ?' +
+    (verticalId === null ? '' : ' AND vertical_id = ?') +
+    '  GROUP BY status, skip_reason ORDER BY n DESC',
+    verticalId === null ? [city] : [city, verticalId]);
+
+  const total   = rows.reduce((a, r) => a + Number(r.n), 0);
+  const pending = rows.filter(r => r.status === 0).reduce((a, r) => a + Number(r.n), 0);
+  const skipped = rows.filter(r => r.status === -1).reduce((a, r) => a + Number(r.n), 0);
+
   log('');
-  log(`discovered      ${total}`);
-  log(`with domain     ${withDomain}   (${pct(withDomain, total)}%)`);
-  log(`qualified       ${qualified}`);
-  log(`  skipped       ${skipped}`);
-  for (const [reason, count] of Object.entries(skipReasons).sort((a, b) => b[1] - a[1])) {
-    log(`    ${reason.padEnd(20)} ${count}`);
+  log(`rows            ${total}`);
+  log(`pending capture ${pending}`);
+  log(`skipped         ${skipped}`);
+  for (const r of rows) {
+    if (r.status !== -1) continue;
+    log(`    ${String(r.skip_reason || 'unknown').padEnd(26)} ${r.n}`);
   }
-  log(`mobile-broken   ${mobileBroken}   (${pct(mobileBroken, qualified)}% of qualified)`);
-  log(`expired certs   ${expiredCerts}   <- highest-value leads`);
   log('');
-
-  const output = {
-    run:      runId,
-    vertical: verticalSlug,
-    source:   discovered.source,
-    queried_at: discovered.queried_at,
-    qualified_at: new Date().toISOString(),
-    tiles:    discovered.tiles,
-    keywords: discovered.keywords,
-    raw_results: discovered.raw_results,
-    businesses: outputBusinesses,
-  };
-
-  writeAtomic(outPath, output);
-  log(`[qualify] wrote ${outPath}`);
 }
 
 // ---------------------------------------------------------------------------
-// Qualify a single business
+// Qualify a single domain
 // ---------------------------------------------------------------------------
-async function qualifyOne(b, root, log) {
-  const domain = b.domain;
+/**
+ * @param {{domain: string, website_raw: ?string}} b
+ * @returns {Promise<{eligible, reason, http_status, final_url, https_status, cert_expires}>}
+ */
+async function qualifyOne(b, log = () => {}) {
+  const domain   = b.domain;
   const startUrl = b.website_raw || `https://${domain}/`;
-
-  // Normalise start URL — try https first, fall back later if needed
-  const tryUrl = startUrl.startsWith('http') ? startUrl : `https://${domain}/`;
+  const tryUrl   = startUrl.startsWith('http') ? startUrl : `https://${domain}/`;
 
   // --- Probe 1: robots.txt ---
   let scheme = 'https';
@@ -631,29 +591,18 @@ async function qualifyOne(b, root, log) {
   const robotRules = await withHostQueue(host, () => getRobotRules(host, scheme));
 
   if (isRobotsDisallowed(robotRules, '/')) {
-    return {
-      verdict:        'skip',
-      reason:         'robots-disallow',
-      http_status:    null,
-      final_url:      tryUrl,
-      https:          'none — http only',
-      cert_expires:   null,
-      viewport_meta:  null,
-      wayback_first:  'none',
-      server:         null,
-      generator_hint: null,
-    };
+    return skip('robots-disallow', tryUrl);
   }
 
   // --- Probe 2: HTTP reachability ---
   let probeResult;
   try {
     probeResult = await withHostQueue(host, () => probe(tryUrl));
-  } catch (e) {
+  } catch {
     return skip('probe-error', tryUrl);
   }
 
-  const { status, finalUrl, redirectChain, headers, body8k, certExpires, certValid, error } = probeResult;
+  const { status, finalUrl, body8k, certExpires, certValid, error } = probeResult;
 
   // DNS failure / connection refused / timeout
   if (error && !status) {
@@ -661,10 +610,9 @@ async function qualifyOne(b, root, log) {
     return skip('dead-host', tryUrl);
   }
 
-  // status >= 400
   if (status !== null && status >= 400) {
     log(`[qualify]   skip ${domain}: HTTP ${status}`);
-    return skip('http-error', finalUrl || tryUrl);
+    return { ...skip('http-error', finalUrl || tryUrl), http_status: status };
   }
 
   // Redirect to a rejected domain
@@ -672,69 +620,40 @@ async function qualifyOne(b, root, log) {
   if (finalReg && REJECT_DOMAINS.has(finalReg)) {
     log(`[qualify]   skip ${domain}: redirected to ${finalReg}`);
     return {
-      verdict:        'skip',
-      reason:         `redirected-to-${finalReg}`,
-      http_status:    status,
-      final_url:      finalUrl,
-      https:          finalUrl?.startsWith('https') ? certStatus(certValid, certExpires) : 'none — http only',
-      cert_expires:   certExpires || null,
-      viewport_meta:  null,
-      wayback_first:  'none',
-      server:         headers['server'] || null,
-      generator_hint: null,
+      eligible:     false,
+      reason:       `redirected-to-${finalReg}`.slice(0, 64),
+      http_status:  status,
+      final_url:    finalUrl,
+      https_status: (finalUrl || '').startsWith('https') ? certStatus(certValid, certExpires) : 'none',
+      cert_expires: certDate(certExpires),
     };
   }
 
-  // --- TLS ---
-  const usesHttps   = finalUrl?.startsWith('https') || tryUrl.startsWith('https');
-  const httpsField  = usesHttps ? certStatus(certValid, certExpires) : 'none — http only';
-  // Expired cert is NOT a skip — it is a high-value finding. Continue.
+  // --- TLS. An expired certificate is NOT a skip — it is a high-value finding.
+  const usesHttps = (finalUrl || '').startsWith('https') || tryUrl.startsWith('https');
+  const httpsStatus = usesHttps ? certStatus(certValid, certExpires) : 'none';
 
-  // --- Probe 3: Parked-page detection ---
+  // --- Probe 3: parked pages ---
   const bodyLen = body8k ? body8k.length : 0;
   if (body8k && isParked(body8k, bodyLen)) {
     log(`[qualify]   skip ${domain}: parked`);
     return {
-      verdict:        'skip',
-      reason:         'parked',
-      http_status:    status,
-      final_url:      finalUrl,
-      https:          httpsField,
-      cert_expires:   certExpires || null,
-      viewport_meta:  null,
-      wayback_first:  'none',
-      server:         headers['server'] || null,
-      generator_hint: null,
+      eligible:     false,
+      reason:       'parked',
+      http_status:  status,
+      final_url:    finalUrl,
+      https_status: httpsStatus,
+      cert_expires: certDate(certExpires),
     };
   }
 
-  // --- Probe 4 (in parallel with viewport): Wayback CDX ---
-  // --- Viewport meta (from body already in hand) ---
-  const viewportMeta = body8k
-    ? /<meta[^>]+name\s*=\s*["']?viewport["']?/i.test(body8k)
-    : null;
-
-  const wayback = await waybackYears(domain);
-
-  // Generator hint from meta tag in body8k
-  let generatorHint = null;
-  if (body8k) {
-    const gm = body8k.match(/<meta[^>]+name\s*=\s*["']?generator["']?[^>]+content\s*=\s*["']([^"']+)["']/i)
-            || body8k.match(/<meta[^>]+content\s*=\s*["']([^"']+)["'][^>]+name\s*=\s*["']?generator["']?/i);
-    if (gm) generatorHint = gm[1];
-  }
-
   return {
-    verdict:        'audit',
-    reason:         null,
-    http_status:    status,
-    final_url:      finalUrl,
-    https:          httpsField,
-    cert_expires:   certExpires || null,
-    viewport_meta:  viewportMeta,
-    wayback_first:  wayback.first,
-    server:         headers['server'] || null,
-    generator_hint: generatorHint,
+    eligible:     true,
+    reason:       null,
+    http_status:  status,
+    final_url:    finalUrl,
+    https_status: httpsStatus,
+    cert_expires: certDate(certExpires),
   };
 }
 
@@ -743,22 +662,13 @@ async function qualifyOne(b, root, log) {
 // ---------------------------------------------------------------------------
 function skip(reason, url) {
   return {
-    verdict:        'skip',
+    eligible:     false,
     reason,
-    http_status:    null,
-    final_url:      url,
-    https:          'none — http only',
-    cert_expires:   null,
-    viewport_meta:  null,
-    wayback_first:  'none',
-    server:         null,
-    generator_hint: null,
+    http_status:  null,
+    final_url:    url,
+    https_status: 'none',
+    cert_expires: null,
   };
-}
-
-function pct(num, den) {
-  if (!den) return 0;
-  return Math.round((num / den) * 100);
 }
 
 function getFlag(argv, flag) {
@@ -767,4 +677,13 @@ function getFlag(argv, flag) {
   return argv[idx + 1];
 }
 
-module.exports = { run };
+/** The CLI closes nothing for us; a stage that leaves the pool open hangs. */
+async function runAndClose(argv, ctx) {
+  try { return await run(argv, ctx); }
+  finally { await close(); }
+}
+
+module.exports = {
+  run: runAndClose,
+  _run: run, qualifyOne, certStatus, certDate, isParked,
+};

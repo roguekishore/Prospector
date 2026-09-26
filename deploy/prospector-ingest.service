@@ -1,5 +1,5 @@
 [Unit]
-Description=Prospector places backup (discovered/qualified/places-raw -> S3)
+Description=Prospector ingest (S3 captures -> MySQL and disk)
 
 [Service]
 Type=oneshot
@@ -12,4 +12,4 @@ ExecStartPre=+/opt/prospector/load-env.sh
 # any command in the unit.
 EnvironmentFile=-/run/prospector/env
 Environment=CAPTURE_BUCKET=prospector-captures-700897991126
-ExecStart=/usr/local/bin/node scripts/backup-places.js
+ExecStart=/usr/local/bin/node src/cli/index.js ingest

@@ -1,133 +1,78 @@
 'use strict';
 
 /**
- * Capture progress, computed from disk.
+ * Capture progress, computed from MySQL.
  *
- * No database and no AWS call. The filesystem already holds every fact this
- * needs: `qualified.json` says what should be captured, `isComplete()` says what
- * was, and `error.json` says what failed and why. That is the same triple
- * `--resume` has always used, read for display instead of for skipping.
+ * One `GROUP BY` replaces the filesystem walk this used to do. The walk could
+ * only see what was on *this* box, which was honest when the deck served the
+ * same disk and wrong the moment the Lambda started capturing into S3: a run
+ * could be half done and the dashboard would show nothing until someone synced.
+ * `companies.status` is the same fact for every capture path.
  *
- * Deliberately not cached. A vertical is a few hundred `statSync` calls and the
- * page polls every two seconds; caching would buy microseconds and introduce the
- * one bug this view cannot afford — showing a number that is no longer true while
- * a run is in flight.
+ * Counts are **rows**, not domains. Several `companies` rows can share one
+ * website, and capture runs once per domain — so "captured 400 of 530" is 530
+ * listings, not 530 page loads. The UI says so.
+ *
+ * Deliberately not cached. It is one indexed aggregate and the page polls every
+ * three seconds; caching would buy microseconds and introduce the one bug this
+ * view cannot afford — showing a number that is no longer true while a run is in
+ * flight.
  */
 
-const fs   = require('fs');
-const path = require('path');
-
-const { isComplete } = require('../capture/capture-domain');
-const { companyDir, canonicalDomain, readCity } = require('../../lib-keys');
-
-/** Verdicts other than this never reach capture, so they are not "pending". */
-const AUDIT_VERDICT = 'audit';
-
-function _readJson(p) {
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; }
-}
-
-/**
- * One vertical's counts.
- *
- * `failed` is only counted for a domain that is *not* complete: `error.json` is
- * written only by capture and never deleted, so a capture that errored, was
- * retried and succeeded leaves one behind. Counting that as a failure would
- * permanently overstate the damage — a complete domain is captured, whatever
- * error.json still says.
- */
-function verticalStatus(root, slug, city) {
-  const dir       = path.join(root, 'data', slug);
-  const qualified = _readJson(path.join(dir, 'qualified.json'));
-  if (!qualified) return null;
-
-  // Deduped by domain: one website listed twice in a vertical is one folder and
-  // so one unit of work, not two. Across verticals the folder is shared too, so
-  // each vertical counts the same domain once — matching what `capture` does.
-  const eligible = [];
-  const seen     = new Set();
-  const businesses = qualified.businesses || [];
-  for (const b of businesses) {
-    if (!b.domain || !b.qualify || b.qualify.verdict !== AUDIT_VERDICT) continue;
-    let domain;
-    try { domain = canonicalDomain(b.domain); } catch { continue; }
-    if (seen.has(domain)) continue;
-    seen.add(domain);
-    eligible.push({ ...b, domain });
-  }
-
-  let captured = 0, failed = 0;
-  const failureKinds = {};
-  const pendingDomains = [];
-
-  for (const biz of eligible) {
-    const outDir = companyDir(root, city, biz.domain);
-    if (isComplete(outDir)) { captured++; continue; }
-
-    const err = _readJson(path.join(outDir, 'error.json'));
-    if (err) {
-      failed++;
-      const kind = err.kind || 'unknown';
-      failureKinds[kind] = (failureKinds[kind] || 0) + 1;
-    } else {
-      pendingDomains.push(biz.domain);
-    }
-  }
-
-  const discovered = businesses.length;
-  const noWebsite  = businesses.filter(b => !b.domain).length;
-  const dead       = businesses.filter(
-    b => b.domain && b.qualify && b.qualify.verdict !== AUDIT_VERDICT).length;
-
-  return {
-    slug,
-    label:      qualified.vertical || slug,
-    discovered,
-    eligible:   eligible.length,
-    captured,
-    failed,
-    pending:    pendingDomains.length,
-    noWebsite,
-    dead,
-    failureKinds,
-    pendingDomains,
-    pct: eligible.length ? Math.round(1000 * captured / eligible.length) / 10 : 0,
-  };
-}
+const { readCity } = require('../../lib-keys');
+const { db } = require('../db/mysql');
 
 /**
  * Every vertical, plus a rolled-up total.
  *
- * `pendingDomains` is dropped from the wire payload — at ~9,600 domains that is
- * a megabyte of strings the dashboard never renders. The count is what it shows;
- * the list stays server-side for the runner to slice a `--limit` from.
+ * `LEFT JOIN` so a vertical that has been added but never discovered still
+ * appears, at zero, rather than vanishing from the list the operator picks from.
  */
-function allStatus(root) {
-  const dataDir = path.join(root, 'data');
-  if (!fs.existsSync(dataDir)) return { verticals: [], total: _emptyTotal() };
+async function allStatus(root) {
+  const city = readCity(root).slug;
+  const conn = db();
 
-  const city  = readCity(root).slug;
-  const slugs = fs.readdirSync(dataDir, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name)
-    .sort();
+  const [rows] = await conn.query(
+    'SELECT v.slug, v.label, c.status, c.extract_status, c.capture_error,' +
+    '       (c.domain IS NULL) AS no_domain, COUNT(c.company_id) AS n' +
+    '  FROM verticals v' +
+    '  LEFT JOIN companies c ON c.vertical_id = v.vertical_id AND c.city = ?' +
+    '  GROUP BY v.slug, v.label, c.status, c.extract_status, c.capture_error, no_domain' +
+    '  ORDER BY v.priority, v.slug',
+    [city]);
 
-  // `data/<city>/` holds capture output and no qualified.json, so
-  // `verticalStatus` returns null for it and it never shows as a vertical.
-  const verticals = [];
-  for (const slug of slugs) {
-    const st = verticalStatus(root, slug, city);
-    if (st) verticals.push(st);
+  const byVertical = new Map();
+  for (const r of rows) {
+    if (!byVertical.has(r.slug)) byVertical.set(r.slug, _empty(r.slug, r.label));
+    const v = byVertical.get(r.slug);
+    const n = Number(r.n);
+    if (!n) continue;                     // the LEFT JOIN's empty row
+
+    v.discovered += n;
+    if (Number(r.no_domain) === 1)               v.noWebsite += n;
+    if (r.status === null)                       v.unqualified += n;
+    else if (r.status === -1 && !Number(r.no_domain)) v.dead += n;
+    else if (r.status === 0)                     v.pending += n;
+    else if (r.status === 1)                     v.captured += n;
+    else if (r.status === -2) {
+      v.failed += n;
+      const kind = r.capture_error || 'unknown';
+      v.failureKinds[kind] = (v.failureKinds[kind] || 0) + n;
+    }
+    if (r.status === 1 && r.extract_status === 1) v.extracted += n;
+  }
+
+  const verticals = [...byVertical.values()];
+  for (const v of verticals) {
+    v.eligible = v.pending + v.captured + v.failed;
+    v.pct = v.eligible ? Math.round(1000 * v.captured / v.eligible) / 10 : 0;
   }
 
   const total = verticals.reduce((acc, v) => {
-    acc.discovered += v.discovered;
-    acc.eligible   += v.eligible;
-    acc.captured   += v.captured;
-    acc.failed     += v.failed;
-    acc.pending    += v.pending;
-    acc.noWebsite  += v.noWebsite;
-    acc.dead       += v.dead;
+    for (const k of ['discovered', 'eligible', 'captured', 'failed', 'pending',
+                     'noWebsite', 'dead', 'unqualified', 'extracted']) {
+      acc[k] += v[k];
+    }
     for (const [k, n] of Object.entries(v.failureKinds)) {
       acc.failureKinds[k] = (acc.failureKinds[k] || 0) + n;
     }
@@ -136,24 +81,30 @@ function allStatus(root) {
 
   total.pct = total.eligible ? Math.round(1000 * total.captured / total.eligible) / 10 : 0;
 
+  return { verticals, total, at: new Date().toISOString(), unit: 'rows' };
+}
+
+/** One vertical's counts, for a caller that wants just the one. */
+async function verticalStatus(root, slug) {
+  const all = await allStatus(root);
+  return all.verticals.find(v => v.slug === slug) || null;
+}
+
+function _empty(slug, label) {
   return {
-    verticals: verticals.map(({ pendingDomains, ...rest }) => rest),
-    total,
-    at: new Date().toISOString(),
+    slug, label: label || slug,
+    discovered: 0, eligible: 0, captured: 0, failed: 0, pending: 0,
+    noWebsite: 0, dead: 0, unqualified: 0, extracted: 0,
+    failureKinds: {}, pct: 0,
   };
 }
 
 function _emptyTotal() {
   return {
-    discovered: 0, eligible: 0, captured: 0, failed: 0,
-    pending: 0, noWebsite: 0, dead: 0, failureKinds: {}, pct: 0,
+    discovered: 0, eligible: 0, captured: 0, failed: 0, pending: 0,
+    noWebsite: 0, dead: 0, unqualified: 0, extracted: 0,
+    failureKinds: {}, pct: 0,
   };
 }
 
-/** Domains still awaiting capture, for slicing a bounded run out of. */
-function pendingFor(root, slug) {
-  const st = verticalStatus(root, slug, readCity(root).slug);
-  return st ? st.pendingDomains : [];
-}
-
-module.exports = { allStatus, verticalStatus, pendingFor };
+module.exports = { allStatus, verticalStatus };

@@ -1,39 +1,57 @@
 'use strict';
 
 /**
- * Acceptance test runner for W1 (discover + qualify).
+ * Acceptance tests for W1 (discover + qualify), AC1–AC10 of W1-discovery.md §7.
  *
- * Tests AC1–AC10 from W1-discovery.md §7.
- * Run: npm run test:w1
+ *     DATABASE_URL=mysql://root:pw@127.0.0.1:3306/prospector_test npm run test:w1
+ *
+ * Discover runs `--source fixture`, so no Places key and no quota. Qualify still
+ * makes **real DNS and HTTP requests** — that is the point of AC4–AC9, which are
+ * about how real hosts behave — so this one is not offline.
+ *
+ * The assertions moved from the two JSON artifacts discover and qualify used
+ * to write to SQL when those files stopped existing; the acceptance criteria did
+ * not change, only where the answer is read from.
  *
  * No external test framework — plain assertions logged to stdout.
  * Exit code 0 = all pass, 1 = at least one failure.
  */
 
-const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+
+const { db, close } = require('../src/db/mysql');
+const { requireTestDatabase, resetTestDatabase, truncate, seedVerticals, quietLog } =
+  require('./test-db-helper');
+
+const VERTICAL = 'interior-design';
+const CITY     = 'coimbatore';
 
 let passed = 0;
 let failed = 0;
 const failures = [];
 
 function assert(name, cond, detail = '') {
-  if (cond) {
-    console.log(`  PASS  ${name}`);
-    passed++;
-  } else {
-    console.log(`  FAIL  ${name}${detail ? ': ' + detail : ''}`);
-    failed++;
-    failures.push(name);
-  }
+  if (cond) { console.log(`  PASS  ${name}`); passed++; }
+  else { console.log(`  FAIL  ${name}${detail ? ': ' + detail : ''}`); failed++; failures.push(name); }
+}
+
+function eq(name, got, want) {
+  assert(name, got === want, `got ${JSON.stringify(got)}, want ${JSON.stringify(want)}`);
+}
+
+/** Every row of the test vertical, keyed by place id. */
+async function rowsByPlaceId() {
+  const [rows] = await db().query(
+    'SELECT * FROM companies WHERE city = ? ORDER BY place_id', [CITY]);
+  return Object.fromEntries(rows.map(r => [r.place_id, r]));
 }
 
 // ---------------------------------------------------------------------------
 // AC3 — registrable() handles co.in and co.uk correctly (pure unit test)
 // ---------------------------------------------------------------------------
-async function testRegistrable() {
+function testRegistrable() {
   console.log('\n--- AC3: registrable domain splitting ---');
   const { registrable } = require('../src/discover/provider');
 
@@ -49,352 +67,194 @@ async function testRegistrable() {
   assert('www stripped: www.srivarudhiniinteriors.com → srivarudhiniinteriors.com',
     registrable('https://www.srivarudhiniinteriors.com/') === 'srivarudhiniinteriors.com');
 
-  assert('null input → null',
-    registrable(null) === null);
-
-  assert('invalid url → null',
-    registrable('not-a-url') === null);
-
+  assert('null input → null', registrable(null) === null);
+  assert('invalid url → null', registrable('not-a-url') === null);
   assert('thehomestudio.co.in → thehomestudio.co.in',
     registrable('https://thehomestudio.co.in/') === 'thehomestudio.co.in');
 }
 
 // ---------------------------------------------------------------------------
-// AC1 — discover --source fixture produces valid discovered.json
-// AC2 — two results sharing a domain collapse to one, keeping higher review_count
+// AC1 — discover --source fixture fills `companies`
+// AC2 — two results sharing a domain are two rows now, each keeping its own
+//       review_count. The old criterion was "collapse to one, keeping the higher
+//       count"; the operator's 2026-09-26 decision replaced merging with one row
+//       per place id (docs/SCHEMA.md), so the criterion is restated, not dropped.
 // ---------------------------------------------------------------------------
 async function testDiscover() {
   console.log('\n--- AC1+AC2: discover --source fixture ---');
 
-  // Clean up any previous output
-  const outFile = path.join(ROOT, 'data', 'interior-design', 'discovered.json');
-  if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
-
   const discover = require('../src/discover/index');
-  const log = (msg) => {}; // suppress output in tests
+  await discover._run([VERTICAL, '--source', 'fixture'],
+    { root: ROOT, config: {}, log: quietLog() });
 
-  await discover.run(
-    ['interior-design', '--source', 'fixture'],
-    { root: ROOT, config: {}, log }
-  );
+  const conn = db();
+  const [[n]] = await conn.query('SELECT COUNT(*) AS n FROM companies WHERE city = ?', [CITY]);
+  assert('AC1: rows were written', Number(n.n) > 0, String(n.n));
 
-  assert('AC1: discovered.json was written', fs.existsSync(outFile));
+  const by = await rowsByPlaceId();
+  const rows = Object.values(by);
 
-  const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+  assert('AC1: every row has a name', rows.every(r => typeof r.name === 'string' && r.name));
+  assert('AC1: every row has a discovered_run',
+    rows.every(r => typeof r.discovered_run === 'string' && r.discovered_run.startsWith('run-')));
+  assert('AC1: every row has a discovered_at', rows.every(r => !!r.discovered_at));
+  assert('AC1: every domain is either NULL or a string',
+    rows.every(r => r.domain === null || typeof r.domain === 'string'));
+  assert('AC1: every row is in the configured city', rows.every(r => r.city === CITY));
 
-  // Schema checks per MASTER.md §4.0
-  assert('AC1: has run field',       typeof data.run === 'string' && data.run.startsWith('run-'));
-  assert('AC1: has vertical field',  data.vertical === 'interior-design');
-  assert('AC1: has source field',    data.source === 'fixture');
-  assert('AC1: has queried_at',      typeof data.queried_at === 'string');
-  assert('AC1: has tiles',           typeof data.tiles === 'number');
-  assert('AC1: has keywords',        typeof data.keywords === 'number');
-  assert('AC1: has raw_results',     typeof data.raw_results === 'number');
-  assert('AC1: businesses is array', Array.isArray(data.businesses));
+  // AC2 — blitzglobe.com appears twice in tile0 (review_count 87 and 60).
+  const blitz = rows.filter(r => r.domain === 'blitzglobe.com');
+  eq('AC2: two listings on one website are two rows', blitz.length, 2);
+  eq('AC2: and each keeps its own review_count',
+    blitz.map(r => Number(r.review_count)).sort((a, b) => a - b).join(','), '60,87');
+  assert('AC2: neither was given a merge trace',
+    !('also_seen_as' in blitz[0]), Object.keys(blitz[0]).join(', '));
 
-  // Each business must have required fields
-  let allHaveRequiredFields = true;
-  for (const b of data.businesses) {
-    if (b.domain !== null && typeof b.domain !== 'string') { allHaveRequiredFields = false; break; }
-    if (typeof b.name !== 'string') { allHaveRequiredFields = false; break; }
-  }
-  assert('AC1: all businesses have required fields', allHaveRequiredFields);
+  // AC6-neighbour: aggregator/social stripped.
+  eq('aggregator facebook.com entry has domain NULL', by.ChIJsocial001.domain, null);
+  eq('and skip_reason', by.ChIJsocial001.skip_reason, 'aggregator-or-social-only');
+  eq('and status -1', by.ChIJsocial001.status, -1);
+  eq('wixsite.com entry has domain NULL', by.ChIJwixsite001.domain, null);
+  eq('no-website entry has domain NULL', by.ChIJnowebsite001.domain, null);
+  eq('and says why', by.ChIJnowebsite001.skip_reason, 'no-website');
 
-  // AC2 — blitzglobe.com appears twice in tile0 (review_count 87 and 60);
-  //        after dedup the surviving entry must have review_count = 87
-  const blitz = data.businesses.filter(b => b.domain === 'blitzglobe.com');
-  assert('AC2: blitzglobe.com deduplicated to exactly one entry', blitz.length === 1);
-  assert('AC2: surviving entry has higher review_count (87)',
-    blitz.length === 1 && blitz[0].review_count === 87);
+  assert('review_count present on businesses with data',
+    rows.some(r => r.review_count !== null));
 
-  // AC6-neighbour: aggregator/social stripped (facebook entry → domain null)
-  const fbBiz = data.businesses.find(b => b.website_raw && b.website_raw.includes('facebook.com'));
-  assert('aggregator facebook.com entry has domain null',
-    fbBiz && fbBiz.domain === null);
-  assert('aggregator has skip_reason',
-    fbBiz && fbBiz.skip_reason === 'aggregator-or-social-only');
-
-  // wixsite.com stripped
-  const wix = data.businesses.find(b => b.website_raw && b.website_raw.includes('wixsite.com'));
-  assert('wixsite.com entry has domain null', wix && wix.domain === null);
-
-  // No-website entry has domain null
-  const noWeb = data.businesses.find(b => b.website_raw === null);
-  assert('No-website entry has domain null', noWeb && noWeb.domain === null);
-
-  // rating and review_count present on all entries that have them in fixture
-  const withCounts = data.businesses.filter(b => b.review_count !== null);
-  assert('review_count present on businesses with data', withCounts.length > 0);
-
-  return data;
+  return by;
 }
 
 // ---------------------------------------------------------------------------
-// AC10 — key never in output files or stdout
+// AC10 — the Places key never reaches a stored row
 // ---------------------------------------------------------------------------
-function testKeyNotLeaked() {
-  console.log('\n--- AC10: key never in output ---');
+async function testKeyNotLeaked() {
+  console.log('\n--- AC10: the key is never stored ---');
+  const [rows] = await db().query('SELECT * FROM companies WHERE city = ?', [CITY]);
+  const dump = JSON.stringify(rows);
 
-  // Simulate discover with a fake key in env
-  const fakeKey = 'FAKE_API_KEY_XYZ_12345_TEST';
-  const oldKey  = process.env.GOOGLE_PLACES_KEY;
-  process.env.GOOGLE_PLACES_KEY = fakeKey;
+  const fake = 'FAKE_API_KEY_XYZ_12345_TEST';
+  assert('AC10: no row holds a key-shaped string', !dump.includes(fake));
 
-  // Check discovered.json does not contain the key
-  const outFile = path.join(ROOT, 'data', 'interior-design', 'discovered.json');
-  if (fs.existsSync(outFile)) {
-    const content = fs.readFileSync(outFile, 'utf8');
-    assert('AC10: discovered.json does not contain a Places key',
-      !content.includes(fakeKey));
-  } else {
-    assert('AC10: discovered.json not found — skip key check', true);
-  }
-
-  // Restore
-  if (oldKey === undefined) delete process.env.GOOGLE_PLACES_KEY;
-  else process.env.GOOGLE_PLACES_KEY = oldKey;
+  const real = process.env.GOOGLE_PLACES_KEY;
+  if (real) assert('AC10: no row holds GOOGLE_PLACES_KEY', !dump.includes(real));
+  else assert('AC10: no key in the environment to check for', true);
 }
 
 // ---------------------------------------------------------------------------
-// AC3 (domain) — co.in handled correctly in discover output
+// AC3 (stored) — co.in survives into the column
 // ---------------------------------------------------------------------------
-function testCoinInDiscover() {
-  console.log('\n--- AC3 (discover output): co.in domain in discovered.json ---');
-  const outFile = path.join(ROOT, 'data', 'interior-design', 'discovered.json');
-  if (!fs.existsSync(outFile)) {
-    assert('AC3: discovered.json exists for co.in check', false, 'run discover first');
-    return;
-  }
-  const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
-  const lakshmiBiz = data.businesses.find(b => b.domain === 'lakshmifalseceiling.co.in');
-  assert('AC3: lakshmifalseceiling.co.in domain stored correctly (not co.in)',
-    lakshmiBiz !== undefined);
+async function testCoinStored() {
+  console.log('\n--- AC3 (stored): co.in in companies.domain ---');
+  const by = await rowsByPlaceId();
+  eq('AC3: lakshmifalseceiling.co.in stored whole',
+    by.ChIJlakshmifalseceiling001.domain, 'lakshmifalseceiling.co.in');
+  eq('AC3: thehomestudio.co.in too',
+    by['ChIJthehomestudio-coin-001'].domain, 'thehomestudio.co.in');
 }
 
 // ---------------------------------------------------------------------------
-// AC4, AC5, AC6, AC7, AC8, AC9 — qualify stage
-// These require real network access. We run qualify over the fixture-produced
-// discovered.json and verify the output shape.
-// AC5, AC6, AC7, AC9 require specific domain behaviors that may not be
-// reproducible in a unit test — each is noted if it cannot be verified.
+// AC4, AC5, AC6, AC7, AC8, AC9 — qualify, over real DNS and HTTP
 // ---------------------------------------------------------------------------
 async function testQualify() {
-  console.log('\n--- qualify stage (AC4, AC7, AC8) ---');
-
-  const outFile = path.join(ROOT, 'data', 'interior-design', 'qualified.json');
-  if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
+  console.log('\n--- qualify (real network) ---');
 
   const qualify = require('../src/qualify/index');
-  const log     = (msg) => console.log('  [log]', msg);
-
-  let qualifyError = null;
+  let error = null;
   try {
-    await qualify.run(
-      ['interior-design', '--concurrency', '4'],
-      { root: ROOT, config: {}, log }
-    );
-  } catch (e) {
-    qualifyError = e;
-  }
+    await qualify._run([VERTICAL, '--concurrency', '4'],
+      { root: ROOT, config: {}, log: quietLog() });
+  } catch (e) { error = e; }
 
-  if (qualifyError) {
-    assert('qualify.run() completed without error', false, qualifyError.message);
-    return;
-  }
-
+  if (error) { assert('qualify.run() completed without error', false, error.message); return; }
   assert('qualify.run() completed without error', true);
-  assert('AC4: qualified.json was written', fs.existsSync(outFile));
 
-  if (!fs.existsSync(outFile)) return;
+  const by = await rowsByPlaceId();
+  const rows = Object.values(by);
 
-  const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+  // AC4 — the Places columns survive qualify untouched.
+  assert('AC4: rating survives qualify',
+    rows.filter(r => r.domain).every(r => r.rating !== undefined));
+  assert('AC4: review_count survives qualify',
+    rows.filter(r => r.domain).every(r => r.review_count !== undefined));
+  eq('AC4: a known review_count is unchanged', Number(by.ChIJblitzglobe001.review_count), 87);
 
-  assert('AC4: businesses array present', Array.isArray(data.businesses));
+  // Every row with a domain now has a verdict; nothing is left unqualified.
+  const unresolved = rows.filter(r => r.domain && r.status === null);
+  eq('every row with a domain was qualified', unresolved.length, 0);
 
-  // AC4: rating and review_count must survive for every entry that had them
-  let ratingOk = true;
-  let reviewOk = true;
-  for (const b of data.businesses) {
-    // Only check entries that had them in discovered
-    if (b.places_id && b.qualify) {
-      if (b.rating === undefined) ratingOk = false;
-      if (b.review_count === undefined) reviewOk = false;
-    }
-  }
-  assert('AC4: rating survives into qualified.json', ratingOk);
-  assert('AC4: review_count survives into qualified.json', reviewOk);
+  // AC5 — the aggregator rows were never probed, and are still marked as such.
+  eq('AC5: the facebook row still says aggregator-or-social-only',
+    by.ChIJsocial001.skip_reason, 'aggregator-or-social-only');
+  eq('AC5: and was not given a qualified_at', by.ChIJsocial001.qualified_at, null);
 
-  // Every entry has a qualify block or a skip_reason
-  let allHaveQualify = true;
-  for (const b of data.businesses) {
-    if (b.domain && !b.skip_reason && !b.qualify) {
-      allHaveQualify = false;
-      break;
-    }
-  }
-  assert('all domain-having businesses have qualify block', allHaveQualify);
+  // AC6 — an expired certificate is a finding, not a skip. Recorded in the enum,
+  // and the row stays eligible.
+  const expired = rows.filter(r => r.https_status === 'expired');
+  assert('AC6: an expired certificate never causes a skip',
+    expired.every(r => r.status === 0), JSON.stringify(expired.map(r => [r.domain, r.status])));
 
-  // AC7: Wayback failing → "none", not an error/throw
-  // We can verify this indirectly: if any entry has wayback_first = "none"
-  // and the run completed, AC7 is satisfied structurally.
-  const someNoneWayback = data.businesses.some(b => b.qualify?.wayback_first === 'none');
-  assert('AC7: wayback_first = "none" is a valid output (run completed)', true,
-    '(Wayback unreachable cannot be forced in live run; completion proves AC7)');
+  // The enum is the whole vocabulary; a free-text "expired 2024-03" no longer
+  // exists, which is what makes "every expired certificate" an indexed query.
+  assert('https_status is only ok, expired, none or NULL',
+    rows.every(r => [null, 'ok', 'expired', 'none'].includes(r.https_status)),
+    [...new Set(rows.map(r => r.https_status))].join(', '));
 
-  // Check verdict is "audit" or "skip", never missing
-  let allHaveVerdict = true;
-  for (const b of data.businesses) {
-    if (b.qualify && b.qualify.verdict !== 'audit' && b.qualify.verdict !== 'skip') {
-      allHaveVerdict = false;
-      break;
-    }
-  }
-  assert('all qualify.verdict values are "audit" or "skip"', allHaveVerdict);
+  // AC7 — the Wayback lookup is gone, with its column.
+  assert('AC7: no wayback column survives', !('wayback_first' in rows[0]),
+    Object.keys(rows[0]).join(', '));
 
-  return data;
-}
-
-async function testResume() {
-  console.log('\n--- AC8: qualify --resume under 2s ---');
-
-  const outFile = path.join(ROOT, 'data', 'interior-design', 'qualified.json');
-  if (!fs.existsSync(outFile)) {
-    assert('AC8: qualified.json must exist from previous run', false,
-      'run qualify first');
-    return;
-  }
-
-  const qualify = require('../src/qualify/index');
-  const log = (_msg) => {};  // suppress
-
+  // AC8 — `--resume` is replaced by the work list being `status IS NULL`, so a
+  // second run has nothing to do and returns immediately.
   const t0 = Date.now();
-  await qualify.run(
-    ['interior-design', '--resume', '--concurrency', '4'],
-    { root: ROOT, config: {}, log }
-  );
+  await qualify._run([VERTICAL, '--concurrency', '4'],
+    { root: ROOT, config: {}, log: quietLog() });
   const elapsed = Date.now() - t0;
+  assert(`AC8: a second qualify completes in under 2s (actual: ${elapsed}ms)`, elapsed < 2000);
 
-  assert(`AC8: --resume completes in under 2s (actual: ${elapsed}ms)`, elapsed < 2000);
+  // AC9 — the skip vocabulary is the one docs/SCHEMA.md lists, and 'audit' is
+  // not in it: the verdict string is gone (R11.3).
+  const reasons = [...new Set(rows.map(r => r.skip_reason).filter(Boolean))];
+  const known = new Set([
+    'no-website', 'unusable-website', 'aggregator-profile-only', 'aggregator-or-social-only',
+    'dead-host', 'http-error', 'parked', 'robots-disallow', 'probe-error',
+  ]);
+  assert('AC9: every skip_reason is a known one or a redirect',
+    reasons.every(r => known.has(r) || r.startsWith('redirected-to-')), reasons.join(', '));
+  assert("AC9: 'audit' is not a stored value anywhere", !reasons.includes('audit'));
+
+  // One probe per website, however many listings share it: both blitzglobe rows
+  // must have come out identical.
+  const blitz = rows.filter(r => r.domain === 'blitzglobe.com');
+  eq('one verdict for a website listed twice',
+    new Set(blitz.map(r => `${r.status}|${r.skip_reason}|${r.https_status}`)).size, 1);
 }
 
-function testKeyNotInQualified() {
-  console.log('\n--- AC10: key not in qualified.json ---');
-  const outFile = path.join(ROOT, 'data', 'interior-design', 'qualified.json');
-  if (!fs.existsSync(outFile)) {
-    assert('AC10: qualified.json not found — skip', true);
-    return;
-  }
-  const content = fs.readFileSync(outFile, 'utf8');
-  // Look for anything that looks like a 39-char API key pattern
-  const key = process.env.GOOGLE_PLACES_KEY || '';
-  if (key) {
-    assert('AC10: qualified.json does not contain GOOGLE_PLACES_KEY', !content.includes(key));
-  } else {
-    assert('AC10: No key in env to check; file passes trivially', true);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Unit tests for qualify logic (AC5, AC6, AC9) — isolated
-// ---------------------------------------------------------------------------
-async function testQualifyLogic() {
-  console.log('\n--- Unit: qualify parked/redirect/cert/robots logic ---');
-
-  // We test the internal functions by requiring and exercising them.
-  // These are pure or near-pure functions.
-
-  // AC5: isRejectedDomain — facebook redirect detection
-  // We test the REJECT_DOMAINS set logic by checking the domain set in qualify/index
-  // Since it's not exported, we verify via a discovered entry with skip_reason
-  const discoveredFile = path.join(ROOT, 'data', 'interior-design', 'discovered.json');
-  if (fs.existsSync(discoveredFile)) {
-    const disc = JSON.parse(fs.readFileSync(discoveredFile, 'utf8'));
-    const fbEntry = disc.businesses.find(b =>
-      b.website_raw && b.website_raw.includes('facebook.com'));
-    assert('AC5 (pre-qualify): facebook.com website → skip_reason aggregator-or-social-only in discovered',
-      fbEntry && fbEntry.skip_reason === 'aggregator-or-social-only');
-  }
-
-  // For live-qualify AC5 check: if qualified.json exists, check facebook entry is still skipped
-  const qualifiedFile = path.join(ROOT, 'data', 'interior-design', 'qualified.json');
-  if (fs.existsSync(qualifiedFile)) {
-    const qual = JSON.parse(fs.readFileSync(qualifiedFile, 'utf8'));
-    const fbEntry = qual.businesses.find(b =>
-      b.website_raw && b.website_raw.includes('facebook.com'));
-    assert('AC5: facebook entry in qualified.json has skip_reason',
-      fbEntry && (fbEntry.skip_reason === 'aggregator-or-social-only' || fbEntry.qualify?.reason?.includes('facebook')));
-
-    // AC6: expired cert → verdict "audit" (not skip)
-    // Check for any entry where https starts with "expired" AND verdict is "audit"
-    const expiredAndAudit = qual.businesses.filter(b =>
-      b.qualify?.https?.startsWith('expired') && b.qualify?.verdict === 'audit');
-    // If none expired in this run, the logic is still correct — we verify the code path
-    // by checking that no expired-cert entry has verdict "skip" for cert reason
-    const expiredAndSkippedForCert = qual.businesses.filter(b =>
-      b.qualify?.https?.startsWith('expired') && b.qualify?.verdict === 'skip'
-      && b.qualify?.reason === 'tls-expired');
-    assert('AC6: expired cert does NOT cause verdict=skip (cert errors are high-value findings)',
-      expiredAndSkippedForCert.length === 0);
-
-    // AC9: robots-disallow entries have verdict "skip" and reason "robots-disallow"
-    const robotsSkips = qual.businesses.filter(b =>
-      b.qualify?.verdict === 'skip' && b.qualify?.reason === 'robots-disallow');
-    // Can't force this in live run without a known disallowing domain, but verify format
-    assert('AC9: robots-disallow reason format correct (structural check)', true,
-      '(Cannot force robots.txt disallow without a known-disallowing domain in fixtures)');
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Main
 // ---------------------------------------------------------------------------
 async function main() {
   console.log('=== W1 Acceptance Tests ===\n');
-
-  // Load .env if it exists
-  const envPath = path.join(ROOT, '.env');
-  if (fs.existsSync(envPath)) {
-    const lines = fs.readFileSync(envPath, 'utf8').split('\n');
-    for (const line of lines) {
-      const m = line.match(/^([A-Z_]+)=(.+)$/);
-      if (m && !process.env[m[1]]) {
-        process.env[m[1]] = m[2].trim();
-      }
-    }
-  }
+  requireTestDatabase();
+  await resetTestDatabase();
+  await seedVerticals();
 
   try {
-    await testRegistrable();
-    const discData = await testDiscover();
-    testCoinInDiscover();
-    testKeyNotLeaked();
-
-    if (discData) {
-      await testQualify();
-      await testResume();
-      testKeyNotInQualified();
-      await testQualifyLogic();
-    }
+    testRegistrable();
+    const discovered = await testDiscover();
+    await testCoinStored();
+    await testKeyNotLeaked();
+    if (discovered) await testQualify();
   } catch (e) {
-    console.error('\nUnexpected error during tests:', e);
+    console.error('\nUnexpected error during tests:', e.stack || e.message);
     failed++;
   } finally {
-    // This run writes a real vertical from the fixture provider. Left behind it
-    // becomes a phantom vertical in the control panel and in every `data/` walk,
-    // and the next `capture` would try to capture it. In a finally, so an
-    // assertion failure still cleans up.
-    const artifacts = path.join(ROOT, 'data', 'interior-design');
-    if (fs.existsSync(artifacts)) {
-      fs.rmSync(artifacts, { recursive: true, force: true });
-      console.log('\nRemoved data/interior-design/ (test artifacts)');
-    }
+    // In a finally, so an assertion failure still leaves the database empty
+    // (R13.1). The rows are this test's own; nothing else wrote them.
+    await truncate().catch(() => {});
+    await close().catch(() => {});
+    console.log('\nEmptied the test tables');
   }
 
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
-  if (failures.length) {
-    console.log('Failed:', failures.join(', '));
-  }
-
+  if (failures.length) console.log('Failed:', failures.join(', '));
   process.exit(failed > 0 ? 1 : 0);
 }
 

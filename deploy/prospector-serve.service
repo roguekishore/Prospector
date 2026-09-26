@@ -1,0 +1,23 @@
+[Unit]
+Description=Prospector review deck
+After=network.target
+
+[Service]
+Type=simple
+User=prospector
+Group=prospector
+WorkingDirectory=/opt/prospector/current
+ExecStartPre=+/opt/prospector/load-env.sh
+# The `-` is load-bearing. /run/prospector/env is on tmpfs and is created by the
+# ExecStartPre above, so on a fresh boot it does not exist yet — and systemd
+# resolves environment files before it will spawn *any* of the unit's commands,
+# ExecStartPre included. Without the `-` the unit fails at 'resources' and never
+# runs the script that would have created the file, which crash-loops forever.
+EnvironmentFile=-/run/prospector/env
+Environment=CAPTURE_BUCKET=prospector-captures-700897991126
+ExecStart=/usr/local/bin/node src/cli/index.js serve --port 7777
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

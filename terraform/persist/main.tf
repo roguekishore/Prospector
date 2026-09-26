@@ -1,5 +1,9 @@
 # persist — the things ./p down must never touch: state key persist.tfstate.
 #
+# The buckets, ECR, the data volume, the image-tag parameter, and — since the
+# database — the network (see network.tf: the VPC peering to mavdb references
+# the VPC by id, so the VPC has to outlive the box).
+#
 # Two roots instead of `prevent_destroy` (design.md "Layout"): prevent_destroy
 # makes `./p down` error out rather than skip, which is the wrong failure mode
 # for a command whose whole point is to tear the stack down cleanly. Putting
@@ -40,10 +44,10 @@ resource "aws_s3_bucket_public_access_block" "captures" {
   restrict_public_buckets = true
 }
 
-# SSE-S3, not SSE-KMS. scripts/backup-places.js relies on a single-part PUT's
-# ETag equalling the hex MD5 of the body to skip unchanged uploads — SSE-KMS
-# breaks that equality, and there is no reason to pay for a CMK on a bucket
-# with no cross-account access story.
+# SSE-S3, not SSE-KMS: there is no reason to pay for a CMK on a bucket with no
+# cross-account access story, and `ingest` compares a listed object's Size and
+# LastModified against the local copy to skip a download, which SSE-KMS would
+# not change but a CMK's per-request cost would make expensive.
 resource "aws_s3_bucket_server_side_encryption_configuration" "captures" {
   bucket = aws_s3_bucket.captures.id
   rule {

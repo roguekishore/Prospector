@@ -24,7 +24,7 @@ const { isAllowed } = require('./robots');
  *
  * @param {object} opts
  * @param {import('playwright').Browser} opts.browser
- * @param {object}  opts.business   entry from qualified.json businesses[]
+ * @param {object}  opts.business   { domain, qualify: { final_url } }
  * @param {string}  opts.outDir     absolute path to data/<city>/companies/<domain>/
  * @param {boolean} [opts.headful]  override: launch headful context
  * @param {number}  [opts.timeout]  nav timeout ms (default 30000)

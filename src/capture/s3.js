@@ -10,8 +10,9 @@
  *                               rendered.html   <- post-JS DOM; extract reads this
  *                               extract.json    <- first email + outside links
  *                               error.json      <- present only when the capture failed
- *     <city>/places/<vertical>/discovered.json
- *                             /qualified.json
+ *
+ * That is the whole bucket. Discover and qualify write rows, not files, so there
+ * is nothing under `<city>/places/` any more and nothing writes there.
  *
  * Flat: one domain is one prefix and nothing nests under it. `src/capture/s3.js`
  * and `companyDir` in `lib-keys.js` are the only two places that spell it, and
@@ -101,11 +102,6 @@ function companyKey(city, domain, name) {
   return `${companyPrefix(city, domain)}/${name}`;
 }
 
-/** Key for a discover/qualify artifact. */
-function placesKey(city, vertical, filename) {
-  return `${canonicalCity(city)}/places/${vertical}/${filename}`;
-}
-
 function contentTypeFor(filePath) {
   return CONTENT_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
 }
@@ -154,18 +150,6 @@ async function uploadCompanyDir(s3, { bucket, city, domain, dir }) {
   return written;
 }
 
-/** Upload one JSON document to an explicit key. */
-async function putJson(s3, { bucket, key, body }) {
-  const { PutObjectCommand } = require('@aws-sdk/client-s3');
-  await s3.send(new PutObjectCommand({
-    Bucket:      bucket,
-    Key:         key,
-    Body:        typeof body === 'string' ? body : JSON.stringify(body),
-    ContentType: 'application/json',
-  }));
-  return key;
-}
-
 async function _exists(s3, bucket, key) {
   const { HeadObjectCommand } = require('@aws-sdk/client-s3');
   try {
@@ -197,7 +181,7 @@ async function captureComplete(s3, { bucket, city, domain }) {
 }
 
 module.exports = {
-  companyKey, companyPrefix, placesKey,
-  contentTypeFor, uploadCompanyDir, putJson, captureComplete,
+  companyKey, companyPrefix,
+  contentTypeFor, uploadCompanyDir, captureComplete,
   COMPLETION,
 };

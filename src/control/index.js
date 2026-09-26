@@ -12,10 +12,11 @@
  * * **lambda** — `scripts/dispatch.js` fans batches out. Fast, bounded by the
  *   account's concurrency limit, and costs free-tier GB-s.
  *
- * Progress comes from disk in both modes, not from the runner: a Lambda capture
- * lands in S3 and only appears locally once synced, so the dashboard reports what
- * is actually on this box either way. That is the honest number for the deck,
- * which serves from the same disk.
+ * Progress comes from MySQL in both modes, not from the runner: a local capture
+ * records itself and a Lambda capture is recorded by `ingest`, so one `GROUP BY`
+ * over `companies.status` is the same fact whichever way the bytes were made.
+ * Counts are rows — several listings can share one website, and capture runs once
+ * per website.
  *
  * Live updates are Server-Sent Events, not websockets. The traffic is one-way
  * (server to page), SSE needs no dependency and reconnects by itself, and Fastify
@@ -111,15 +112,20 @@ async function run(argv, ctx) {
   runner.on('start', state => broadcast('run', { running: true, state }));
   runner.on('exit',  exit  => {
     broadcast('run', { running: false, lastExit: exit });
-    // Disk has just changed; do not make the page wait for its next tick.
-    broadcast('status', allStatus(root));
+    // The rows have just changed; do not make the page wait for its next tick.
+    pushStatus();
   });
 
-  // Status is pushed on a timer rather than computed per client: one filesystem
-  // walk serves every open tab, and an idle dashboard costs one walk every 3s.
-  const timer = setInterval(() => {
-    if (clients.size) broadcast('status', allStatus(root));
-  }, STATUS_PUSH_MS);
+  // One aggregate serves every open tab. `allStatus` is async now that it is a
+  // query, so a slow database delays the next push rather than stacking pushes
+  // on top of each other; a failure is logged and the tab keeps its last numbers
+  // instead of the stream dying.
+  async function pushStatus() {
+    try { broadcast('status', await allStatus(root)); }
+    catch (e) { log.warn(`status query failed: ${e.message}`); }
+  }
+
+  const timer = setInterval(() => { if (clients.size) pushStatus(); }, STATUS_PUSH_MS);
   timer.unref();
 
   // ---- UI ----
@@ -132,13 +138,18 @@ async function run(argv, ctx) {
   // ---- status ----
   app.get('/api/status', async (req, reply) => {
     reply.header('Cache-Control', 'no-store');
-    return reply.send(allStatus(root));
+    try {
+      return reply.send(await allStatus(root));
+    } catch (e) {
+      log.warn(`status query failed: ${e.message}`);
+      return reply.code(503).send({ error: 'the database is not reachable' });
+    }
   });
 
   app.get('/api/run', async (req, reply) => reply.send(runner.snapshot()));
 
   // ---- live stream ----
-  app.get('/api/events', (req, reply) => {
+  app.get('/api/events', async (req, reply) => {
     const res = reply.raw;
     res.writeHead(200, {
       'Content-Type':  'text/event-stream',
@@ -150,8 +161,15 @@ async function run(argv, ctx) {
     });
     clients.add(res);
 
-    res.write(`event: status\ndata: ${JSON.stringify(allStatus(root))}\n\n`);
     res.write(`event: snapshot\ndata: ${JSON.stringify(runner.snapshot())}\n\n`);
+    // After the snapshot, and awaited: a database that is slow to answer must
+    // not hold the stream open with no headers flushed, which reads in the
+    // browser as a connection that never opened.
+    try {
+      res.write(`event: status\ndata: ${JSON.stringify(await allStatus(root))}\n\n`);
+    } catch (e) {
+      log.warn(`status query failed: ${e.message}`);
+    }
 
     const ping = setInterval(() => {
       try { res.write(': ping\n\n'); } catch { /* closed */ }
@@ -168,8 +186,11 @@ async function run(argv, ctx) {
 
     let slug = body.vertical || null;
     if (slug !== null) {
+      // Against the table, not against a data/<slug> directory: a vertical that
+      // has been added but never run has no directory, and after MySQL there is
+      // no reason for one to exist before capture writes something (R8.3).
       if (!SLUG_RE.test(slug)) return reply.code(400).send({ error: 'Invalid vertical' });
-      if (!fs.existsSync(path.join(root, 'data', slug))) {
+      if (!await verticals.bySlug(slug)) {
         return reply.code(404).send({ error: `No such vertical: ${slug}` });
       }
     }
@@ -182,7 +203,6 @@ async function run(argv, ctx) {
         const argv = [
           'capture',
           ...(slug ? [slug] : []),
-          '--resume',
           '--concurrency', String(concurrency),
           '--deadline', String(deadline),
         ];
@@ -197,11 +217,20 @@ async function run(argv, ctx) {
           '--batch', String(batch),
           ...(body.dryRun ? ['--dry-run'] : []),
         ];
-        started = runner.start({
-          mode, argv, script: path.join('scripts', 'dispatch.js'),
-          label: `lambda dispatch · ${slug || 'all verticals'} · batch ${batch}` +
-                 (body.dryRun ? ' · dry run' : ''),
-        });
+        // Dispatch returns as soon as the invokes are queued, so on its own it
+        // would leave the dashboard at zero until the 15-minute timer fired.
+        // Ingest right behind it picks up whatever has already landed; the timer
+        // catches the rest.
+        const steps = [
+          { script: path.join('scripts', 'dispatch.js'), argv, label: 'dispatch to lambda' },
+        ];
+        if (!body.dryRun) {
+          steps.push({ script: path.join('src', 'cli', 'index.js'),
+                       argv: ['ingest', ...(slug ? [slug] : [])], label: 'ingest' });
+        }
+        started = runner.startSequence(steps,
+          `lambda dispatch · ${slug || 'all verticals'} · batch ${batch}` +
+          (body.dryRun ? ' · dry run' : ''));
       }
       return reply.send({ ok: true, state: started });
     } catch (err) {
@@ -211,7 +240,7 @@ async function run(argv, ctx) {
 
   // ---- verticals ----
   app.get('/api/verticals', async (req, reply) => {
-    const list = verticals.readAll(root).map(v => ({
+    const list = (await verticals.readAll()).map(v => ({
       slug: v.slug, label: v.label, enabled: v.enabled !== false,
       priority: v.priority, keywords: v.keywords || [],
       estimate: verticals.estimateRequests((v.keywords || []).length),
@@ -221,7 +250,7 @@ async function run(argv, ctx) {
 
   app.post('/api/verticals', async (req, reply) => {
     try {
-      const entry = verticals.add(root, req.body || {});
+      const entry = await verticals.add(req.body || {});
       broadcast('verticals', { added: entry.slug });
       return reply.send({
         ok: true, vertical: entry,
@@ -242,7 +271,7 @@ async function run(argv, ctx) {
       return reply.code(400).send({ error: 'A valid vertical is required' });
     }
 
-    const known = verticals.readAll(root).find(v => v.slug === slug);
+    const known = await verticals.bySlug(slug);
     if (!known) return reply.code(404).send({ error: `No such vertical: ${slug}` });
 
     const cli    = path.join('src', 'cli', 'index.js');
@@ -255,16 +284,18 @@ async function run(argv, ctx) {
     const steps = [
       { script: cli, label: 'discover', argv: ['discover', slug, '--source', 'places-new'] },
       { script: cli, label: 'qualify',  argv: ['qualify', slug] },
-      // 'none' skips capture entirely — box-discover-qualify R6.1, for running
-      // discover + qualify alone while the capture Lambda is still just staged.
-      mode === 'none'
-        ? { script: path.join('scripts', 'backup-places.js'), label: 'backup', argv: [slug] }
-        : mode === 'lambda'
-        ? { script: path.join('scripts', 'dispatch.js'), label: 'dispatch to lambda',
-            argv: [slug, '--batch', String(batch)] }
-        : { script: cli, label: 'capture',
-            argv: ['capture', slug, '--resume', '--concurrency', String(conc)] },
     ];
+    // 'none' stops after qualify — box-discover-qualify R6.1, for filling the
+    // database while the capture Lambda is still just staged. There is nothing
+    // to back up any more: the rows are the Places data.
+    if (mode === 'lambda') {
+      steps.push({ script: path.join('scripts', 'dispatch.js'), label: 'dispatch to lambda',
+                   argv: [slug, '--batch', String(batch)] });
+      steps.push({ script: cli, label: 'ingest', argv: ['ingest', slug] });
+    } else if (mode === 'local') {
+      steps.push({ script: cli, label: 'capture',
+                   argv: ['capture', slug, '--concurrency', String(conc)] });
+    }
 
     try {
       const started = runner.startSequence(steps,

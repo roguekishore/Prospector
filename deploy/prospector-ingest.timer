@@ -1,0 +1,11 @@
+[Unit]
+Description=Run prospector-ingest.service every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+Unit=prospector-ingest.service
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

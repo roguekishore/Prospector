@@ -8,12 +8,25 @@
  * whole estate — buys nothing and leaves a window where `rendered.html` exists
  * with no `extract.json`. The Lambda does the same thing in one container.
  *
+ * ## The work list is a query, not a file
+ *
+ * `SELECT DISTINCT domain … WHERE status = 0` — one row per domain, whatever
+ * vertical it came from, because the output folder is keyed by domain alone.
+ * `--resume` is gone with it: a captured domain is `status = 1` and is simply
+ * not in the next work list.
+ *
+ * ## A local capture is recorded here, not by ingest
+ *
+ * Local captures are never uploaded, so ingest — which lists S3 — would never
+ * see them. `recordDomain` is the same function ingest uses, so a row written
+ * here is indistinguishable from a row written by a Lambda capture.
+ *
  * Implements the frozen stage interface:
  *   module.exports = { run: async (argv, ctx) => {} }
  *   ctx = { root, config, log }
  *
  * CLI:
- *   node src/cli capture [<vertical>] [--resume] [--concurrency 4]
+ *   node src/cli capture [<vertical>] [--concurrency 4] [--retry-failed]
  *                        [--only <domain>] [--headful] [--timeout 30000]
  *                        [--deadline 60000]
  */
@@ -24,6 +37,8 @@ const { chromium } = require('playwright');
 const { captureDomain, isComplete } = require('./capture-domain');
 const { extractDir } = require('../extract');
 const { companyDir, canonicalDomain, readCity } = require('../../lib-keys');
+const { db, tx, close } = require('../db/mysql');
+const { recordDomain }  = require('../db/record');
 
 // ---------------------------------------------------------------------------
 // Per-host throttle: enforce 1500ms minimum spacing between requests to the
@@ -49,63 +64,57 @@ async function run(argv, ctx) {
 
   // ── Parse argv ────────────────────────────────────────────────────────────
   const args        = _parseArgs(argv);
-  const resume      = !!args.resume;
   const concurrency = Math.max(1, Number(args.concurrency) || 4);
   const onlyDomain  = args.only || null;
   const headful     = !!args.headful;
   const navTimeout  = Number(args.timeout) || 30_000;
   const deadline    = Number(args.deadline) || 60_000;
+  const retryFailed = !!args['retry-failed'];
   const vertical    = args._[0] || null;   // optional filter
 
+  // The control panel still passes --resume on an older release; accept it and
+  // say why it does nothing rather than failing a run that was fine.
+  if (args.resume) log.warn('--resume is implied now (the work list is status = 0) — ignoring it');
+
   const city = readCity(root).slug;
+  const conn = db();
 
-  // ── Find qualified.json files ────────────────────────────────────────────
-  const dataDir  = path.join(root, 'data');
-  const vertDirs = _verticalDirs(dataDir, vertical);
-
-  if (vertDirs.length === 0) {
-    log.warn('No verticals found under data/. Run `qualify` first.');
-    return { ok: 0, err: 0, skipped: 0 };
+  let verticalId = null;
+  if (vertical) {
+    const [rows] = await conn.query('SELECT vertical_id FROM verticals WHERE slug = ?', [vertical]);
+    if (!rows.length) { log.error(`No such vertical: ${vertical}`); return { ok: 0, err: 1, skipped: 0 }; }
+    verticalId = rows[0].vertical_id;
   }
 
-  // Build the work queue: one entry per *domain* marked for capture.
-  //
-  // Deduped by canonical domain across every vertical, first occurrence wins.
-  // The output folder is keyed by domain alone, so two verticals listing one
-  // website would otherwise capture it twice into the same folder — paying for
-  // the second capture and racing the first.
+  const statuses = retryFailed ? [0, -2] : [0];
+  const [work] = await conn.query(
+    'SELECT domain, MIN(final_url) AS final_url FROM companies' +
+    `  WHERE city = ? AND domain IS NOT NULL AND status IN (${statuses.map(() => '?').join(',')})` +
+    (verticalId === null ? '' : ' AND vertical_id = ?') +
+    '  GROUP BY domain ORDER BY MIN(company_id)',
+    verticalId === null ? [city, ...statuses] : [city, ...statuses, verticalId]);
+
   const queue = [];
-  const seen  = new Set();
-  for (const { vertDir } of vertDirs) {
-    const qualPath = path.join(vertDir, 'qualified.json');
-    if (!fs.existsSync(qualPath)) continue;   // not a vertical dir, or qualify hasn't run
-
-    const qualified = JSON.parse(fs.readFileSync(qualPath, 'utf8'));
-    const runId     = qualified.run || 'unknown-run';
-
-    for (const biz of (qualified.businesses || [])) {
-      if (!biz.domain) continue;
-      if (!biz.qualify || biz.qualify.verdict !== 'audit') continue;
-
-      let domain;
-      try { domain = canonicalDomain(biz.domain); }
-      catch (e) { log.warn(`skipping ${biz.domain}: ${e.message}`); continue; }
-
-      if (onlyDomain && domain !== canonicalDomain(onlyDomain)) continue;
-      if (seen.has(domain)) continue;
-      seen.add(domain);
-
-      queue.push({ biz, domain, outDir: companyDir(root, city, domain), runId });
-    }
+  for (const row of work) {
+    let domain;
+    try { domain = canonicalDomain(row.domain); }
+    catch (e) { log.warn(`skipping ${row.domain}: ${e.message}`); continue; }
+    if (onlyDomain && domain !== canonicalDomain(onlyDomain)) continue;
+    queue.push({
+      biz:    { domain, qualify: { final_url: row.final_url }, run: ctx.config?.runId },
+      domain,
+      outDir: companyDir(root, city, domain),
+    });
   }
 
   if (queue.length === 0) {
-    log.warn('No domains marked for capture.');
+    log.warn('No domains pending capture.');
     return { ok: 0, err: 0, skipped: 0 };
   }
 
   const total = queue.length;
-  log.info(`Capture: ${total} domain(s)  concurrency=${concurrency}  resume=${resume}`);
+  log.info(`Capture: ${total} domain(s)  concurrency=${concurrency}` +
+           (retryFailed ? '  (including previously failed)' : ''));
 
   // ── Launch browser ────────────────────────────────────────────────────────
   let browser = await _launchBrowser(headful);
@@ -123,21 +132,18 @@ async function run(argv, ctx) {
       const { biz, domain, outDir } = queue[i];
       const pos = i + 1;
 
-      // Resume has three answers, not two. A complete capture with no
-      // extract.json is a bug fix or an interrupted run, and re-capturing it
-      // would spend a page load to produce bytes that are already on disk.
+      // Disk first. A domain that is already complete on disk but still at
+      // `status = 0` is a run that was killed between the capture and the
+      // record — re-capturing it would spend a page load to produce bytes that
+      // are already there.
       const complete   = isComplete(outDir);
       const hasExtract = fs.existsSync(path.join(outDir, 'extract.json'));
 
-      if (resume && complete && hasExtract) {
-        skipped++;
-        log.info(`[${_pad(pos, total)}]  -  ${domain}  (skipped — complete)`);
-        continue;
-      }
-
-      if (resume && complete && !hasExtract) {
+      if (complete) {
         const t0 = Date.now();
-        const extracted = _extract(outDir, domain, biz.qualify.final_url, log);
+        let extracted = hasExtract;
+        if (!hasExtract) extracted = _extract(outDir, domain, biz.qualify.final_url, log);
+        await _record(city, domain, outDir, log);
         ok++;
         if (!extracted) extractFailed++;
         log.info(`[${_pad(pos, total)}]  A  ${domain}  (capture kept)  ` +
@@ -178,10 +184,12 @@ async function run(argv, ctx) {
         // is nothing to read, and a failure here never marks the capture failed.
         const extracted = _extract(outDir, domain, result.finalUrl, log);
         if (!extracted) extractFailed++;
+        await _record(city, domain, outDir, log);
         log.info(`[${_pad(pos, total)}]  A  ${domain}  2 shots  ` +
                  `extract ${extracted ? 'ok' : 'failed'}  ${elapsed}s`);
       } else {
         err++;
+        await _record(city, domain, outDir, log);
         log.info(`[${_pad(pos, total)}]  ×  ${domain}  ${result.kind}: ${result.message || ''}`);
       }
     }
@@ -202,6 +210,40 @@ async function run(argv, ctx) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Write this domain's outcome to MySQL, reading it off the folder that was just
+ * written. The same `recordDomain` ingest uses, so a locally captured row and a
+ * Lambda-captured row are identical.
+ *
+ * A database failure here must not abandon a capture that is already on disk and
+ * already paid for: it is logged, and the next run — or `ingest`, if the folder
+ * was ever uploaded — records it.
+ */
+async function _record(city, domain, outDir, log) {
+  const state = { city, domain, complete: false, errorKind: null, capturedAt: null, extract: null };
+  try {
+    state.complete = isComplete(outDir);
+    if (state.complete) {
+      state.capturedAt = fs.statSync(path.join(outDir, 'rendered.html')).mtime;
+    } else {
+      const err = _readJson(path.join(outDir, 'error.json'));
+      state.errorKind = err && err.kind ? err.kind : null;
+    }
+    const doc = _readJson(path.join(outDir, 'extract.json'));
+    if (doc) {
+      state.extract = doc;
+      try { state.extractedAt = fs.statSync(path.join(outDir, 'extract.json')).mtime; } catch { /* now */ }
+    }
+    await tx(conn => recordDomain(conn, state, log));
+  } catch (e) {
+    log.warn(`could not record ${domain} in MySQL: ${e.message}`);
+  }
+}
+
+function _readJson(p) {
+  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; }
+}
 
 /**
  * Extract one domain's folder. Returns true on success.
@@ -248,24 +290,6 @@ async function _launchBrowser(headful) {
       '--disable-features=IsolateOrigins,site-per-process',
     ],
   });
-}
-
-/**
- * Directories under `data/` that could hold a `qualified.json`.
- *
- * `data/<city>/` — the capture output — has none, so it is filtered out by the
- * caller's `existsSync` check and never treated as a vertical.
- */
-function _verticalDirs(dataDir, filterSlug) {
-  let entries;
-  try {
-    entries = fs.readdirSync(dataDir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  return entries
-    .filter(e => e.isDirectory() && (!filterSlug || e.name === filterSlug))
-    .map(e => ({ vertSlug: e.name, vertDir: path.join(dataDir, e.name) }));
 }
 
 function _hostOf(url) {
@@ -332,4 +356,10 @@ function _parseArgs(argv) {
   return out;
 }
 
-module.exports = { run };
+/** The CLI closes nothing for us; a stage that leaves the pool open hangs. */
+async function runAndClose(argv, ctx) {
+  try { return await run(argv, ctx); }
+  finally { await close(); }
+}
+
+module.exports = { run: runAndClose, _run: run };

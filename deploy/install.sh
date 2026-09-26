@@ -71,7 +71,10 @@ if [ ! -f "$DATA_ROOT/.bootstrapped" ]; then
   # is what fetched this script. Fail loudly rather than discover it missing in
   # step 2's release download or step 6's ECR push.
   command -v aws >/dev/null 2>&1 || { log "FATAL: aws CLI missing (user-data should have installed v2)"; exit 1; }
-  apt-get install -y docker.io build-essential python3 unzip curl gnupg
+  # mysql-client is for the operator, not for the app: `Done when 1` is a
+  # `mysql --ssl-mode=VERIFY_IDENTITY` from an SSM shell, and there is no way
+  # to check a grant without a client on the box.
+  apt-get install -y docker.io build-essential python3 unzip curl gnupg mysql-client
 
   if ! id prospector >/dev/null 2>&1; then
     useradd --system --create-home --shell /usr/sbin/nologin prospector
@@ -144,6 +147,37 @@ if [ ! -f "$DEST/package.json" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Step 2b — the RDS trust store. After step 2, because the pinned hash comes
+# from this release's deploy/versions.env. Not inside the bootstrap guard: Amazon rotates
+# the bundle, and a release that bumps RDS_CA_SHA256 has to be able to replace a
+# file the box already has. src/db/mysql.js reads it with
+# `rejectUnauthorized: true`, so an unreadable or wrong bundle is a refused
+# connection, not a silently unverified one.
+#
+# Read by the `prospector` user at connection time; world-readable because a
+# public trust store is not a secret and 600-root would just break the service.
+# ---------------------------------------------------------------------------
+# Not `2>/dev/null || true`: this file is part of the release that step 2 just
+# unpacked, so a missing one is a broken release, and swallowing that would leave
+# the box with no trust store and no explanation.
+# shellcheck disable=SC1091
+. "$DEST/deploy/versions.env"
+[ -n "${RDS_CA_SHA256:-}" ] || { log "FATAL: RDS_CA_SHA256 is not set in deploy/versions.env"; exit 1; }
+
+RDS_CA="/opt/prospector/rds-global-bundle.pem"
+# The hash check *is* the "do I need to download this" check: a bundle that is
+# already the pinned one passes, and anything else — absent, truncated, or the
+# previous release's — does not.
+if ! echo "$RDS_CA_SHA256  $RDS_CA" | sha256sum -c - >/dev/null 2>&1; then
+  log "fetching the RDS CA bundle"
+  mkdir -p /opt/prospector
+  curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o "$RDS_CA.tmp"
+  echo "$RDS_CA_SHA256  $RDS_CA.tmp" | sha256sum -c -
+  mv "$RDS_CA.tmp" "$RDS_CA"
+  chmod 644 "$RDS_CA"
+fi
+
+# ---------------------------------------------------------------------------
 # Step 3 — production deps. PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: this box runs
 # discover + qualify only in this spec, never a local capture.
 # ---------------------------------------------------------------------------
@@ -151,21 +185,18 @@ export PATH="/usr/local/bin:$PATH"
 (cd "$DEST" && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --omit=dev --no-audit --no-fund)
 
 # ---------------------------------------------------------------------------
-# Step 4 — persistent paths. config/verticals.json is seeded from the release
-# only if the persistent copy is absent — a later repo change to it does not
-# propagate to a box that already has one (R5.2's trade).
+# Step 4 — persistent paths.
+#
+# Only `data/` now. The verticals used to be a JSON file copied here on first
+# install and symlinked back, so that a box kept its own list: that list is a
+# MySQL table now, and `migrate --import-verticals` seeded it once. Anything left
+# in $DATA_ROOT/config from before is harmless and nothing reads it.
 # ---------------------------------------------------------------------------
-mkdir -p "$DATA_ROOT/data" "$DATA_ROOT/config"
+mkdir -p "$DATA_ROOT/data"
 rm -rf "$DEST/data"
 ln -s "$DATA_ROOT/data" "$DEST/data"
 
-if [ ! -f "$DATA_ROOT/config/verticals.json" ]; then
-  cp "$DEST/config/verticals.json" "$DATA_ROOT/config/verticals.json"
-fi
-rm -f "$DEST/config/verticals.json"
-ln -s "$DATA_ROOT/config/verticals.json" "$DEST/config/verticals.json"
-
-chown -R prospector:prospector "$DEST" "$DATA_ROOT/data" "$DATA_ROOT/config"
+chown -R prospector:prospector "$DEST" "$DATA_ROOT/data"
 
 # ---------------------------------------------------------------------------
 # Step 5 — flip `current`, restart, health-check. Roll back on failure.
@@ -174,22 +205,44 @@ PREVIOUS="$(readlink -f /opt/prospector/current 2>/dev/null || true)"
 ln -sfn "$DEST" /opt/prospector/current
 
 install -m 644 "$DEST/deploy/prospector-control.service" /etc/systemd/system/prospector-control.service
-install -m 644 "$DEST/deploy/prospector-backup.service"  /etc/systemd/system/prospector-backup.service
-install -m 644 "$DEST/deploy/prospector-backup.timer"    /etc/systemd/system/prospector-backup.timer
+install -m 644 "$DEST/deploy/prospector-serve.service"   /etc/systemd/system/prospector-serve.service
+install -m 644 "$DEST/deploy/prospector-ingest.service"  /etc/systemd/system/prospector-ingest.service
+install -m 644 "$DEST/deploy/prospector-ingest.timer"    /etc/systemd/system/prospector-ingest.timer
 install -m 755 "$DEST/deploy/load-env.sh"                /opt/prospector/load-env.sh
+
+# The places backup is gone: discover and qualify write rows, so there is no
+# JSON on disk left to copy into S3. Removed rather than left disabled, or a
+# box that has been shipped to for a year keeps a unit nothing understands.
+for unit in prospector-backup.timer prospector-backup.service; do
+  if [ -f "/etc/systemd/system/$unit" ]; then
+    log "removing $unit"
+    systemctl disable --now "$unit" || true
+    rm -f "/etc/systemd/system/$unit"
+  fi
+done
 
 systemctl daemon-reload
 systemctl enable --now prospector-control.service
-systemctl enable --now prospector-backup.timer
+systemctl enable --now prospector-serve.service
+systemctl enable --now prospector-ingest.timer
 systemctl restart prospector-control.service
+systemctl restart prospector-serve.service
 
 sleep 3
-if ! curl -fsS "http://127.0.0.1:7778/" >/dev/null 2>&1; then
-  log "FATAL: health check failed after switching to $SHA"
+# Both services, because both are what `./p ship` just replaced. The deck answers
+# its own root with the page even before MySQL is reachable, so this checks that
+# the process is up and serving, not that the database is healthy — `./p status`
+# is what asks that.
+HEALTH_FAILED=""
+curl -fsS "http://127.0.0.1:7778/" >/dev/null 2>&1 || HEALTH_FAILED="control"
+curl -fsS "http://127.0.0.1:7777/" >/dev/null 2>&1 || HEALTH_FAILED="${HEALTH_FAILED:+$HEALTH_FAILED }deck"
+if [ -n "$HEALTH_FAILED" ]; then
+  log "FATAL: health check failed after switching to $SHA ($HEALTH_FAILED)"
   if [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$DEST" ]; then
     log "rolling back to $PREVIOUS"
     ln -sfn "$PREVIOUS" /opt/prospector/current
     systemctl restart prospector-control.service
+    systemctl restart prospector-serve.service
   fi
   exit 1
 fi
@@ -217,28 +270,69 @@ fi
 # ---------------------------------------------------------------------------
 # Step 7 — Caddy, once DNS actually points here (or forced).
 # ---------------------------------------------------------------------------
-DNS_UP=false
-if getent hosts prospect.themaverick.tech >/dev/null 2>&1; then
-  DNS_UP=true
-fi
+# Two names now, and they arrive independently: the operator adds each A record
+# at Netlify by hand. `prospect` is the one that has always gated this step;
+# `leads` is included whenever it resolves and simply left out until it does, so
+# a box with only the first record still gets a working control panel.
+PROSPECT_UP=false
+LEADS_UP=false
+# `if`, not `getent … && VAR=true`: under `set -e` that form exits the script
+# when the name does not resolve, because the list's status is getent's and the
+# list is the whole command. Which is precisely the case this is testing for.
+if getent hosts prospect.themaverick.tech >/dev/null 2>&1; then PROSPECT_UP=true; fi
+if getent hosts leads.themaverick.tech    >/dev/null 2>&1; then LEADS_UP=true;    fi
 
-if [ "$ENABLE_CADDY" = true ] || [ "$DNS_UP" = true ]; then
-  log "configuring Caddy"
-  PASSWORD="$(aws ssm get-parameter --name /prospector/control-password --with-decryption \
+if [ "$ENABLE_CADDY" = true ] || [ "$PROSPECT_UP" = true ] || [ "$LEADS_UP" = true ]; then
+  log "configuring Caddy (prospect=$PROSPECT_UP leads=$LEADS_UP)"
+  CONTROL_PASSWORD="$(aws ssm get-parameter --name /prospector/control-password --with-decryption \
     --region "$REGION" --query 'Parameter.Value' --output text)"
-  HASH="$(caddy hash-password --plaintext "$PASSWORD")"
+  CONTROL_HASH="$(caddy hash-password --plaintext "$CONTROL_PASSWORD")"
+
+  # The deck's own credential. Absent means the operator has not put
+  # DECK_PASSWORD in .env and run `./p secrets` yet — in which case the leads
+  # block is left out rather than written with an empty hash, which Caddy would
+  # reject and which would take the control panel down with it. This is the one
+  # place a `|| true` is right: the parameter's absence is a state this handles,
+  # not a failure it is about to act on as though it were a value.
+  DECK_PASSWORD="$(aws ssm get-parameter --name /prospector/deck-password --with-decryption \
+    --region "$REGION" --query 'Parameter.Value' --output text 2>/dev/null || true)"
+  DECK_HASH=""
+  if [ -n "$DECK_PASSWORD" ] && [ "$DECK_PASSWORD" != "None" ]; then
+    DECK_HASH="$(caddy hash-password --plaintext "$DECK_PASSWORD")"
+  else
+    log "WARN: /prospector/deck-password is unset — the leads site block is skipped"
+  fi
+
   # 755, not 700: caddy.service runs as the unprivileged `caddy` user and has to
   # read /etc/caddy/Caddyfile itself — 700 root-owned made it exit with
-  # "reading config from file: permission denied". The hash stays protected by
+  # "reading config from file: permission denied". The hashes stay protected by
   # auth.env's own 600 below, which costs nothing, because systemd reads
   # EnvironmentFile as root before dropping to the service user.
   install -d -m 755 /etc/caddy
-  printf 'CONTROL_AUTH_HASH=%s\n' "$HASH" > /etc/caddy/auth.env
+  {
+    printf 'CONTROL_AUTH_HASH=%s\n' "$CONTROL_HASH"
+    printf 'DECK_AUTH_HASH=%s\n'    "$DECK_HASH"
+  } > /etc/caddy/auth.env
   chmod 600 /etc/caddy/auth.env
 
   mkdir -p /etc/systemd/system/caddy.service.d
   install -m 644 "$DEST/deploy/caddy-override.conf" /etc/systemd/system/caddy.service.d/override.conf
-  install -m 644 "$DEST/deploy/Caddyfile" /etc/caddy/Caddyfile
+
+  # Assembled, not installed whole: the global options block must come first and
+  # appear exactly once, and each site block is included only when its name
+  # resolves. A block for a name that does not resolve would make Caddy retry an
+  # ACME challenge it cannot pass, on a loop, for that certificate.
+  CADDYFILE="$(mktemp)"
+  cat "$DEST/deploy/Caddyfile.global" > "$CADDYFILE"
+  if [ "$ENABLE_CADDY" = true ] || [ "$PROSPECT_UP" = true ]; then
+    cat "$DEST/deploy/Caddyfile.prospect" >> "$CADDYFILE"
+  fi
+  if [ "$LEADS_UP" = true ] && [ -n "$DECK_HASH" ]; then
+    cat "$DEST/deploy/Caddyfile.leads" >> "$CADDYFILE"
+  fi
+  install -m 644 "$CADDYFILE" /etc/caddy/Caddyfile
+  rm -f "$CADDYFILE"
+
   # The Caddyfile points `storage file_system` here so certificates survive on
   # the persistent volume rather than being re-issued from Let's Encrypt on every
   # box rebuild. Caddy writes them as its own user, so this has to be owned by
@@ -247,17 +341,19 @@ if [ "$ENABLE_CADDY" = true ] || [ "$DNS_UP" = true ]; then
   chown -R caddy:caddy "$DATA_ROOT/caddy"
 
   systemctl daemon-reload
-  # CONTROL_AUTH_HASH has to be in *this* process's environment: the Caddyfile
-  # reads it as {$CONTROL_AUTH_HASH}, and /etc/caddy/auth.env is only loaded by
-  # the caddy *service* via its systemd drop-in, not by a bare validate. Without
-  # it the placeholder expands to nothing and validate rejects the config with
-  # "username and password cannot be empty or missing". HOME so caddy stops
-  # warning that it cannot find a config dir and writing into the cwd.
-  HOME=/root CONTROL_AUTH_HASH="$HASH" caddy validate --config /etc/caddy/Caddyfile
+  # Both hashes have to be in *this* process's environment: the Caddyfile reads
+  # them as {$CONTROL_AUTH_HASH} / {$DECK_AUTH_HASH}, and /etc/caddy/auth.env is
+  # only loaded by the caddy *service* via its systemd drop-in, not by a bare
+  # validate. Without them the placeholders expand to nothing and validate
+  # rejects the config with "username and password cannot be empty or missing".
+  # HOME so caddy stops warning that it cannot find a config dir and writing into
+  # the cwd.
+  HOME=/root CONTROL_AUTH_HASH="$CONTROL_HASH" DECK_AUTH_HASH="$DECK_HASH" \
+    caddy validate --config /etc/caddy/Caddyfile
   systemctl enable --now caddy.service
   systemctl reload caddy.service || systemctl restart caddy.service
 else
-  log "DNS not up yet and --enable-caddy not given — skipping Caddy this run"
+  log "neither name resolves yet and --enable-caddy not given — skipping Caddy this run"
 fi
 
 log "done: $SHA is live"

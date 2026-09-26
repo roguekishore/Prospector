@@ -1,19 +1,18 @@
 'use strict';
 
 /**
- * Read and add verticals in `config/verticals.json`.
+ * Read and add verticals in the `verticals` table.
  *
- * That file stays the source of truth rather than a database table. Keywords are
- * an input to code, they live in git, and when a vertical's yield changes you
- * need to see what you changed — which a table does not give you.
+ * The table replaced the JSON file in `config/` because discover now reads keywords
+ * inside a SQL statement it is already running, and because the control panel
+ * could add a vertical to a file on the box that the repo would overwrite on the
+ * next ship. Keywords are still versioned in a sense — `created_at` and the
+ * first `discovered_run` that used them are both in the database.
  *
- * Writes are atomic (`.tmp` + rename), the same contract every stage on disk
- * follows: a phone losing signal mid-request must not leave a truncated config
- * that breaks every future run.
+ * The slug rule and the "slug derived from the label, never renamed" behaviour
+ * are unchanged: `companies.vertical_id` points at a row, so renaming a label is
+ * free and changing a slug is not something this offers.
  */
-
-const fs   = require('fs');
-const path = require('path');
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
@@ -21,20 +20,38 @@ const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const TILES = 25;
 const MAX_PAGES = 3;
 
-function configPath(root) {
-  return path.join(root, 'config', 'verticals.json');
+const { db } = require('../db/mysql');
+
+/** Every vertical, in the order the control panel shows them. */
+async function readAll() {
+  const [rows] = await db().query(
+    'SELECT vertical_id, slug, label, enabled, priority, keywords FROM verticals' +
+    '  ORDER BY priority, slug');
+  return rows.map(r => ({
+    vertical_id: r.vertical_id,
+    slug:     r.slug,
+    label:    r.label,
+    enabled:  !!r.enabled,
+    priority: r.priority,
+    // mysql2 parses a JSON column; a driver that hands back the string would
+    // otherwise give the UI a keyword list of single characters.
+    keywords: typeof r.keywords === 'string' ? JSON.parse(r.keywords) : (r.keywords || []),
+  }));
 }
 
-function readAll(root) {
-  const raw = JSON.parse(fs.readFileSync(configPath(root), 'utf8'));
-  return Array.isArray(raw) ? raw : Object.values(raw);
-}
-
-function writeAll(root, list) {
-  const file = configPath(root);
-  const tmp  = file + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(list, null, 2) + '\n', 'utf8');
-  fs.renameSync(tmp, file);
+/** One by slug, or null. Used to validate a slug before starting a run. */
+async function bySlug(slug) {
+  if (!SLUG_RE.test(String(slug || ''))) return null;
+  const [rows] = await db().query(
+    'SELECT vertical_id, slug, label, enabled, priority, keywords FROM verticals WHERE slug = ?',
+    [slug]);
+  if (!rows.length) return null;
+  const r = rows[0];
+  return {
+    vertical_id: r.vertical_id,
+    slug: r.slug, label: r.label, enabled: !!r.enabled, priority: r.priority,
+    keywords: typeof r.keywords === 'string' ? JSON.parse(r.keywords) : (r.keywords || []),
+  };
 }
 
 /** Slugify a label the way the existing slugs were built. */
@@ -63,10 +80,10 @@ function estimateRequests(keywordCount) {
  * Add a vertical. Returns the created entry.
  *
  * Refuses a duplicate slug rather than merging: a silent merge would change an
- * existing vertical's keywords and invalidate what has already been captured
- * under it, with no record of what it used to be.
+ * existing vertical's keywords, and every row already discovered under it would
+ * then claim to have come from a keyword set that never ran.
  */
-function add(root, { label, keywords, priority }) {
+async function add({ label, keywords, priority }) {
   if (!label || !String(label).trim()) throw new Error('label is required');
 
   const cleanKeywords = (Array.isArray(keywords) ? keywords : String(keywords || '').split(','))
@@ -79,31 +96,31 @@ function add(root, { label, keywords, priority }) {
   const slug = slugify(label);
   if (!SLUG_RE.test(slug)) throw new Error(`label does not produce a usable slug: ${slug}`);
 
-  const list = readAll(root);
-  if (list.some(v => v.slug === slug)) throw new Error(`vertical already exists: ${slug}`);
+  const conn = db();
+  const [existing] = await conn.query('SELECT vertical_id FROM verticals WHERE slug = ?', [slug]);
+  if (existing.length) throw new Error(`vertical already exists: ${slug}`);
 
-  const maxPriority = list.reduce((m, v) => Math.max(m, Number(v.priority) || 0), 0);
-  const entry = {
-    slug,
-    label:    String(label).trim(),
-    enabled:  true,
-    priority: Number.isFinite(Number(priority)) ? Number(priority) : maxPriority + 1,
-    keywords: cleanKeywords,
+  const [[max]] = await conn.query('SELECT COALESCE(MAX(priority), 0) AS p FROM verticals');
+  const prio = Number.isFinite(Number(priority)) ? Number(priority) : Number(max.p) + 1;
+
+  const [res] = await conn.query(
+    'INSERT INTO verticals (slug, label, enabled, priority, keywords)' +
+    '  VALUES (?, ?, TRUE, ?, CAST(? AS JSON))',
+    [slug, String(label).trim(), prio, JSON.stringify(cleanKeywords)]);
+
+  return {
+    vertical_id: res.insertId,
+    slug, label: String(label).trim(), enabled: true,
+    priority: prio, keywords: cleanKeywords,
   };
-
-  list.push(entry);
-  writeAll(root, list);
-  return entry;
 }
 
-/** Enable or disable one, without deleting it or its data. */
-function setEnabled(root, slug, enabled) {
-  const list = readAll(root);
-  const entry = list.find(v => v.slug === slug);
-  if (!entry) throw new Error(`no such vertical: ${slug}`);
-  entry.enabled = !!enabled;
-  writeAll(root, list);
-  return entry;
+/** Enable or disable one, without deleting it or its rows. */
+async function setEnabled(slug, enabled) {
+  const [res] = await db().query(
+    'UPDATE verticals SET enabled = ? WHERE slug = ?', [!!enabled, slug]);
+  if (!res.affectedRows) throw new Error(`no such vertical: ${slug}`);
+  return bySlug(slug);
 }
 
-module.exports = { readAll, add, setEnabled, slugify, estimateRequests, SLUG_RE };
+module.exports = { readAll, bySlug, add, setEnabled, slugify, estimateRequests, SLUG_RE };

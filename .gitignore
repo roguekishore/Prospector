@@ -3,9 +3,6 @@
 # per-machine Claude overrides; .claude/settings.json is shared
 .claude/settings.local.json
 node_modules/
-index.db
-index.db-wal
-index.db-shm
 data/
 fixtures/places/
 *.tmp

@@ -1,0 +1,15 @@
+# The deck. Its own hostname and its own password, separate from control's: the
+# deck is read by whoever is reviewing, control can spend Places quota and start
+# runs, and one credential for both would mean handing out the second to give
+# away the first.
+#
+# basic_auth is at the site level, so it covers every path — /api/* and the
+# screenshots included (R10.2). The deck itself binds 127.0.0.1 and has no auth
+# of its own; this is the only gate there is.
+leads.themaverick.tech {
+    encode zstd gzip
+    basic_auth {
+        operator {$DECK_AUTH_HASH}
+    }
+    reverse_proxy 127.0.0.1:7777
+}

@@ -304,7 +304,11 @@ function renderStatus(s){
     stat(t.pending,  'pending', '') +
     stat(t.failed,   'failed', t.failed ? 'bad' : '') +
     stat(t.eligible, 'eligible', '') +
-    stat(t.noWebsite,'no website', 'warn');
+    stat(t.noWebsite,'no website', 'warn') +
+    // Rows, not domains: several Places listings can share one website, and
+    // capture runs once per website. Saying so here stops "400 captured of 530"
+    // reading as 530 page loads.
+    '<div class="note" style="flex-basis:100%">counts are listings, not websites — several can share one site</div>';
 
   var tot = Math.max(1, t.eligible);
   $('totalBar').innerHTML =
@@ -321,7 +325,7 @@ function renderStatus(s){
 
   $('verticals').innerHTML = s.verticals.length
     ? s.verticals.map(vRow).join('')
-    : '<div class="note">No verticals on disk yet. Run discover and qualify first.</div>';
+    : '<div class="note">No verticals yet. Add one below, then run discover.</div>';
 
   var sel = $('runVertical'), keep = sel.value;
   sel.innerHTML = '<option value="">All verticals</option>' + s.verticals.map(function(v){
