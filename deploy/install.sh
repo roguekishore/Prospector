@@ -237,7 +237,13 @@ if [ "$ENABLE_CADDY" = true ] || [ "$DNS_UP" = true ]; then
   mkdir -p "$DATA_ROOT/caddy"
 
   systemctl daemon-reload
-  caddy validate --config /etc/caddy/Caddyfile
+  # CONTROL_AUTH_HASH has to be in *this* process's environment: the Caddyfile
+  # reads it as {$CONTROL_AUTH_HASH}, and /etc/caddy/auth.env is only loaded by
+  # the caddy *service* via its systemd drop-in, not by a bare validate. Without
+  # it the placeholder expands to nothing and validate rejects the config with
+  # "username and password cannot be empty or missing". HOME so caddy stops
+  # warning that it cannot find a config dir and writing into the cwd.
+  HOME=/root CONTROL_AUTH_HASH="$HASH" caddy validate --config /etc/caddy/Caddyfile
   systemctl enable --now caddy.service
   systemctl reload caddy.service || systemctl restart caddy.service
 else
