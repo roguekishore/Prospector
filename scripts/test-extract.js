@@ -9,8 +9,8 @@ const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
 
-const { extractDir }  = require('../src/extract/index.js');
-const { registrable } = require('../src/extract/links.js');
+const { extractDir }  = require('../src/capture/extract/index.js');
+const { registrable } = require('../src/capture/extract/links.js');
 
 let passed = 0, failed = 0;
 const failures = [];

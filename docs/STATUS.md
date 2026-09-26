@@ -33,11 +33,11 @@ and extract share one folder per domain.
 - [x] **`registrable()` fixed.** It returned `antaryaconcepts.com.com` — domain
       plus the suffix a second time — so own-domain links never matched and every
       one of them was classified `external`. This is the "link classification
-      looks wrong" item below. — `src/extract/links.js`
+      looks wrong" item below. — `src/capture/extract/links.js`
 - [x] **Email text scan no longer glues blocks.** `$('body').text()` concatenates
       text nodes with nothing between them, so a minified
       `<p>info@foo.com</p><p>Call us</p>` scanned as `info@foo.comCall` — a
-      plausible, valid-looking, wrong address. — `src/extract/email.js`
+      plausible, valid-looking, wrong address. — `src/capture/extract/email.js`
 - [x] **`error.json` survives.** Written only by capture, never deleted; the
       score stage that deleted it is gone. A complete domain counts as captured
       even if a stale `error.json` remains.

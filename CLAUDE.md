@@ -3,10 +3,13 @@
 Lead-generation pipeline. Finds Coimbatore businesses, captures what their
 websites look like, and presents the evidence for a human operator to judge.
 
-`discover → qualify → capture`, one directory each under `src/`. Capture runs
-extract per domain, in the same worker slot; `extract` is also a standalone
-stage, for re-extracting what failed. `migrate`, `ingest`, `control` and `serve`
-are commands, not stages.
+`discover → qualify → capture`, one directory each under `src/`. A directory
+under `src/` is a stage if and only if `all` runs it; `cli/`, `db/`, `ingest/`,
+`control/` and `server/` are not stages. **Stage** means one of those three and
+nothing else. **Command** is anything else you type: `migrate`, `ingest`,
+`control`, `serve`. **Extract** is neither: it is what capture does to each
+domain after the shots land, in the same worker slot, and it lives in
+`src/capture/extract/`. Re-extracting what failed is `capture --extract-only`.
 
 **MySQL is the state store.** Every business and every piece of pipeline state
 is a row in `companies` (`docs/SCHEMA.md`); S3 and `data/` hold bytes and nothing

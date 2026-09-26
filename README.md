@@ -37,7 +37,7 @@ A full vertical, stage by stage:
     npm run capture -- dental
 
 `npm run pipeline -- dental` chains those three. `capture` runs extract itself,
-per domain; `npm run extract` exists only to re-extract what failed. When capture
+per domain; `npm run capture -- --extract-only` exists only to re-extract what failed. When capture
 runs on the Lambda instead, `npm run ingest` is what brings the results back into
 MySQL and onto disk.
 

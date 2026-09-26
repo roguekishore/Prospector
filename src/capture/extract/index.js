@@ -1,10 +1,10 @@
-/* src/extract/index.js
-   Stage: extract
+/* src/capture/extract/index.js
+   Part of the capture stage, not a stage of its own.
    Reads <company>/rendered.html → writes <company>/extract.json.
 
-   Two callers, one function. `capture` runs `extractDir` in the same worker slot
-   right after the capture, and the Lambda runs it in the same container; this
-   stage exists only to re-run extract over captures that already exist, after a
+   `capture` runs `extractDir` in the same worker slot right after the shots land,
+   and the Lambda runs it in the same container. `capture --extract-only` calls
+   `reextract` to re-read rendered.html for domains whose extract failed, after a
    bug fix. Nothing here loads a page or spends a request. */
 'use strict';
 
@@ -14,14 +14,14 @@ const cheerio = require('cheerio');
 
 const { extractLinks } = require('./links.js');
 const { firstEmail }   = require('./email.js');
-const { isComplete }   = require('../capture/capture-domain.js');
-const { companyDir, canonicalDomain, readCity } = require('../../lib-keys');
+const { isComplete }   = require('../capture-domain.js');
+const { companyDir, canonicalDomain, readCity } = require('../../../lib-keys');
 
-const ROOT = path.join(__dirname, '..', '..');
+const ROOT = path.join(__dirname, '..', '..', '..');
 
 // `src/capture/lambda.js` requires this module for `extractDir` alone, inside a
 // container that has no database and no reason to pay for mysql2 at cold start.
-// The database is therefore required where the stage runs, not at load.
+// The database is therefore required where `reextract` runs, not at load.
 
 /**
  * Read `<dir>/rendered.html`, write `<dir>/extract.json`. No network.
@@ -65,11 +65,13 @@ function extractDir({ dir, domain, finalUrl }) {
 }
 
 // ---------------------------------------------------------------------------
-// Stage entry point — re-run extract over captures that are already done
+// capture --extract-only — re-run extract over captures that are already done
 // ---------------------------------------------------------------------------
 
 /**
- * node src/cli extract [<vertical>] [--only <domain>] [--dry-run]
+ * node src/cli capture --extract-only [<vertical>] [--only <domain>] [--dry-run]
+ *
+ * `args` is capture's already-parsed argv; capture closes the pool.
  *
  * The work list is `status = 1 AND extract_status = -2`: captured, and extract
  * either never ran or produced something unusable. When `rendered.html` is not on
@@ -77,12 +79,11 @@ function extractDir({ dir, domain, finalUrl }) {
  * from S3 first, and the fresh `extract.json` is uploaded back so the next
  * `ingest` sees it.
  */
-async function run(argv, ctx) {
-  const { db, tx } = require('../db/mysql');
-  const { recordDomain } = require('../db/record');
+async function reextract(args, ctx) {
+  const { db, tx } = require('../../db/mysql');
+  const { recordDomain } = require('../../db/record');
 
   const { root = ROOT, log = console } = ctx || {};
-  const args       = _parseArgs(argv);
   const onlyDomain = args.only || null;
   const dryRun     = !!args['dry-run'];
   const vertical   = args._[0] || null;
@@ -112,7 +113,7 @@ async function run(argv, ctx) {
   });
 
   if (!targets.length) {
-    log.warn('extract: nothing to re-extract (no row is status 1 with extract_status -2).');
+    log.warn('capture --extract-only: nothing to re-extract (no row is status 1 with extract_status -2).');
     return { ok: 0, err: 0, skipped: 0 };
   }
 
@@ -167,13 +168,13 @@ async function run(argv, ctx) {
     }
   }
 
-  log.info(`extract: ${ok} ok  ${err} errors  ${skipped} skipped`);
+  log.info(`capture --extract-only: ${ok} ok  ${err} errors  ${skipped} skipped`);
   return { ok, err, skipped };
 }
 
 async function _downloadRendered(s3, bucket, city, domain, dir) {
   const { GetObjectCommand } = require('@aws-sdk/client-s3');
-  const { companyKey } = require('../capture/s3');
+  const { companyKey } = require('../s3');
   const res = await s3.send(new GetObjectCommand({
     Bucket: bucket, Key: companyKey(city, domain, 'rendered.html') }));
   const body = await _toBuffer(res.Body);
@@ -185,7 +186,7 @@ async function _downloadRendered(s3, bucket, city, domain, dir) {
 
 async function _uploadExtract(s3, bucket, city, domain, dir) {
   const { PutObjectCommand } = require('@aws-sdk/client-s3');
-  const { companyKey } = require('../capture/s3');
+  const { companyKey } = require('../s3');
   await s3.send(new PutObjectCommand({
     Bucket:      bucket,
     Key:         companyKey(city, domain, 'extract.json'),
@@ -208,29 +209,4 @@ function _mtime(p) {
   try { return fs.statSync(p).mtime; } catch { return null; }
 }
 
-// ---------------------------------------------------------------------------
-// Minimal argv parser (no external dep) — same shape as src/capture/index.js
-// ---------------------------------------------------------------------------
-function _parseArgs(argv) {
-  const out = { _: [] };
-  const arr = (argv || []).slice();
-  while (arr.length) {
-    const a = arr.shift();
-    if (a.startsWith('--')) {
-      const key  = a.slice(2);
-      const next = arr[0];
-      out[key] = (!next || next.startsWith('--')) ? true : arr.shift();
-    } else {
-      out._.push(a);
-    }
-  }
-  return out;
-}
-
-/** The CLI closes nothing for us; a stage that leaves the pool open hangs. */
-async function runAndClose(argv, ctx) {
-  try { return await run(argv, ctx); }
-  finally { await require('../db/mysql').close(); }
-}
-
-module.exports = { run: runAndClose, _run: run, extractDir };
+module.exports = { extractDir, reextract };

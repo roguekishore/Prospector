@@ -11,7 +11,7 @@ Every stage reads and writes MySQL. `DATABASE_URL` points it at one; on the box
 | `npm run discover -- <vertical>` | Search Google Places for businesses in a vertical, insert one `companies` row per place ID |
 | `npm run qualify -- [vertical]` | Probe each distinct domain — HTTP, TLS, parked page — and write the verdict onto every row with that domain |
 | `npm run capture -- [vertical]` | Open each pending domain in a real browser, write the shots and `rendered.html`, extract, and record the result |
-| `npm run extract -- [vertical]` | Re-extract the domains whose extract failed. Not part of a normal run |
+| `npm run capture -- --extract-only [vertical]` | No browser: re-extract the domains whose extract failed. Not part of a normal run |
 | `npm run ingest -- [vertical]` | Pull the Lambda's captures out of S3, onto disk, and into MySQL |
 | `npm run control` | Progress dashboard + run control on :7778. Set `CONTROL_TOKEN` for network access |
 | `npm run serve` | The review deck on 127.0.0.1:7777 (`npm start` is the same thing) |
@@ -19,8 +19,8 @@ Every stage reads and writes MySQL. `DATABASE_URL` points it at one; on the box
 | `npm run dispatch -- [vertical]` | Send capture batches to the Lambda instead of running them here |
 
 `capture` runs extract per domain, in the same worker slot, as soon as the
-capture completes. The standalone `extract` stage exists for one situation: an
-extract bug is fixed and the captures are already paid for.
+capture completes. `capture --extract-only` exists for one situation: an extract
+bug is fixed and the captures are already paid for.
 
 `ingest` is deliberately **not** part of `pipeline`. A local capture records
 itself; ingest is for the Lambda path, where the bytes land in S3 and nothing
@@ -194,7 +194,7 @@ the whole capture — settle sequence, image decode and both screenshots — and
 what makes a Lambda batch's worst case finite.
 
 A domain is captured once, whatever its vertical. Several `companies` rows can
-share one website: `capture`, `dispatch`, `extract` and `ingest` all work from
+share one website: `capture` (with or without `--extract-only`), `dispatch` and `ingest` all work from
 `SELECT DISTINCT domain`, and the result is written to every row with that
 domain. The control panel's counts are **rows**, not domains.
 

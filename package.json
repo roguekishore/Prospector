@@ -8,7 +8,6 @@
     "discover": "node src/cli/index.js discover",
     "qualify": "node src/cli/index.js qualify",
     "capture": "node src/cli/index.js capture",
-    "extract": "node src/cli/index.js extract",
     "ingest": "node src/cli/index.js ingest",
     "migrate": "node src/cli/index.js migrate",
     "pipeline": "node src/cli/index.js all",

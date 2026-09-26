@@ -42,7 +42,7 @@ const { chromium } = require('playwright');
 
 const { captureDomain } = require('./capture-domain');
 const { uploadCompanyDir, captureComplete } = require('./s3');
-const { extractDir } = require('../extract');
+const { extractDir } = require('./extract');
 const { canonicalDomain } = require('../../lib-keys');
 
 const BUCKET   = process.env.CAPTURE_BUCKET;

@@ -137,7 +137,7 @@ qualify's `dead-host`, `http-error`, `parked`, `robots-disallow`,
 |---|---|
 | `NULL` | Not run (capture not done) |
 | `1` | `extract.json` in S3 and loaded |
-| `-2` | Extract failed; standalone `extract` retries these |
+| `-2` | Extract failed; `capture --extract-only` retries these |
 
 ### Who writes which columns
 
@@ -149,7 +149,7 @@ Each writer names its columns explicitly and never touches another writer's.
 | qualify | `src/qualify/index.js` | `status` (`0` or `-1`), `skip_reason`, the qualify columns. A new row whose domain is already known copies its sibling's qualify, capture and extract columns and links instead of probing |
 | ingest | `src/ingest/index.js` | through `recordDomain` |
 | local capture | `src/capture/index.js` | through `recordDomain`, straight after its own capture — a local capture is never uploaded, so nothing else would ever record it |
-| standalone extract | `src/extract/index.js` | through `recordDomain`, after re-extracting |
+| capture --extract-only | `src/capture/extract/index.js` | through `recordDomain`, after re-extracting |
 | `recordDomain` | `src/db/record.js` | `status` (`1` or `-2`), `capture_error`, `captured_at`, `extract_status`, `extracted_at`, `email`, and the domain's `links` rows |
 | deck | `src/server/index.js` | `tier`, `pitch`, `note`, `reviewed_at`, and nothing else |
 | control panel | `src/control/verticals.js` | `verticals` |

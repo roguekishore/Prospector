@@ -1,4 +1,4 @@
-/* src/extract/links.js
+/* src/capture/extract/links.js
    Outside links from rendered.html — social profiles and other domains.
    No network: this reads the DOM cheerio already parsed and nothing else. */
 'use strict';

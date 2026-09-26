@@ -29,13 +29,16 @@
  *   node src/cli capture [<vertical>] [--concurrency 4] [--retry-failed]
  *                        [--only <domain>] [--headful] [--timeout 30000]
  *                        [--deadline 60000]
+ *   node src/cli capture --extract-only [<vertical>] [--only <domain>] [--dry-run]
+ *     No browser: re-read rendered.html (from S3 if not on disk) for rows at
+ *     `status = 1 AND extract_status = -2`. See ./extract/index.js.
  */
 
 const fs   = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 const { captureDomain, isComplete } = require('./capture-domain');
-const { extractDir } = require('../extract');
+const { extractDir, reextract } = require('./extract');
 const { companyDir, canonicalDomain, readCity } = require('../../lib-keys');
 const { db, tx, close } = require('../db/mysql');
 const { recordDomain }  = require('../db/record');
@@ -64,6 +67,10 @@ async function run(argv, ctx) {
 
   // ── Parse argv ────────────────────────────────────────────────────────────
   const args        = _parseArgs(argv);
+
+  // Skip the browser: re-read rendered.html for domains whose extract failed.
+  if (args['extract-only']) return reextract(args, ctx);
+
   const concurrency = Math.max(1, Number(args.concurrency) || 4);
   const onlyDomain  = args.only || null;
   const headful     = !!args.headful;

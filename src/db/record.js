@@ -4,7 +4,7 @@
  * `recordDomain` — the one place capture and extract results become rows.
  *
  * Three callers reach it: `ingest` (S3 → MySQL), local `capture` (which never
- * uploads, so nothing else would record it) and standalone `extract`. They must
+ * uploads, so nothing else would record it) and `capture --extract-only`. They must
  * agree column for column, or a domain captured locally and a domain captured by
  * the Lambda would end up describable by different queries — and the deck would
  * show one and not the other.
@@ -31,7 +31,7 @@ const MAX_EMAIL    = 320;
  * Is this a well-formed `extract.json`?
  *
  * A bad file is a bug in extract, not a reason to abandon the domain: the caller
- * records `extract_status = -2` and the standalone `extract` stage retries it.
+ * records `extract_status = -2` and `capture --extract-only` retries it.
  *
  * @returns {?string} what is wrong, or null when it is usable
  */

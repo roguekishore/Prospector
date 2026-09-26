@@ -19,7 +19,8 @@ modelled and says so.
   business (tier, pitch flag, note).
 - **No machine scoring.** No score, tier or pitch angle is computed anywhere.
 - The pipeline is three stages: `discover → qualify → capture`, and capture
-  runs extract per domain. `extract`, `ingest` and `control` are independent
+  runs extract per domain. Extract is part of capture, not a stage (its re-run
+  is `capture --extract-only`). `migrate`, `ingest`, `control` and `serve` are
   commands.
 
 ### Built vs planned
@@ -190,9 +191,9 @@ same container in the Lambda. One page visit produces four files, flat in
   `social` or `external`. No phones, addresses, hours or agency credit — Places
   already supplies the first two, and the operator derives agencies from `links`.
 
-### extract (standalone)
+### `capture --extract-only`
 
-Re-extracts what failed, so a parsing change never costs a re-crawl. That is its
+Part of capture, not a stage. Skips the browser and re-extracts what failed, so a parsing change never costs a re-crawl. That is its
 only reason to exist; a normal run never invokes it.
 
 Its work list is `status = 1 AND extract_status = -2`: captured, and extract
@@ -278,7 +279,7 @@ vertical either, so it shares the folder.
 **The consequence is that a domain must be deduped before it is captured.** One
 website listed by two businesses is one folder, so the second capture would pay
 for bytes the first already wrote. That is now a property of the queries rather
-than of three hand-written passes: `capture`, `dispatch`, `extract` and `ingest`
+than of three hand-written passes: `capture`, `capture --extract-only`, `dispatch` and `ingest`
 all take their work from `SELECT DISTINCT domain`, and `recordDomain` writes the
 result to every row with that domain. The control panel's counts are rows, and
 say so.

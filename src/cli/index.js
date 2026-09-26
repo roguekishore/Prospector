@@ -82,7 +82,6 @@ function loadStage(name) {
     discover: 'discover',
     qualify:  'qualify',
     capture:  'capture',
-    extract:  'extract',
     ingest:   'ingest',
     control:  'control',
     serve:    'server',
@@ -126,18 +125,19 @@ async function main() {
     console.log(`
 PROSPECTOR pipeline runner
 
-  node src/cli <stage> [<vertical>] [options]
+  node src/cli <stage|command> [<vertical>] [options]
 
-Stages:
-  migrate                 Apply db/migrations/ to MySQL (--import-verticals <file>)
+Stages (what \`all\` runs):
   discover   <vertical>   Grid-tile the city, keyword variants, insert companies
   qualify                 HEAD + cert + parked-page probe per domain
   capture                 Playwright shots + rendered.html, then extract
-  extract                 Re-run extract over captures that need it
+  all                     discover → qualify → capture
+
+Commands:
+  migrate                 Apply db/migrations/ to MySQL (--import-verticals <file>)
   ingest                  Pull Lambda captures out of S3 and record them
   control                 Progress dashboard + run control (--port 7778)
   serve                   The review deck (--port 7777)
-  all                     discover → qualify → capture
 
 Common options:
   --concurrency N         Parallel workers (default: 4)
@@ -147,6 +147,7 @@ Common options:
 
 Stage-specific:
   capture:  --headful  --timeout 30000  --deadline 60000  --retry-failed
+            --extract-only   no browser; re-extract rows whose extract failed
   ingest:   --with-html
 
 Every stage but migrate reads MySQL. DATABASE_URL overrides DB_HOST/DB_PASSWORD.
@@ -158,13 +159,21 @@ Every stage but migrate reads MySQL. DATABASE_URL overrides DB_HOST/DB_PASSWORD.
   const config = loadConfig();
   const ctx    = { root: ROOT, config, log };
 
-  // `ingest` is deliberately not in `all`: `all` ends in a local capture, which
-  // records itself, and ingest is for the Lambda path where the bytes land in S3
-  // (R7.1).
-  const STAGES = ['migrate','discover','qualify','capture','extract','ingest','control','serve'];
+  // A stage is something `all` runs; everything else is a command. That is the
+  // whole distinction, and these two arrays are where it lives. Extract is
+  // neither: it is part of capture (src/capture/extract/), and its re-run is
+  // `capture --extract-only`.
+  //
+  // `ingest` is a command for the same reason read the other way round: `all`
+  // ends in a local capture, which records itself, while ingest is for the
+  // Lambda path where the bytes land in S3 and nothing else would tell the
+  // database they exist (R7.1).
+  const PIPELINE = ['discover','qualify','capture'];
+  const COMMANDS = ['migrate','ingest','control','serve'];
+  const KNOWN    = [...PIPELINE, ...COMMANDS];
 
   if (stageArg === 'all') {
-    for (const stage of ['discover','qualify','capture']) {
+    for (const stage of PIPELINE) {
       const mod    = loadStage(stage);
       const result = await mod.run(argv, ctx);
       if (result && result.ok === 0 && result.err === 0) {
@@ -176,8 +185,9 @@ Every stage but migrate reads MySQL. DATABASE_URL overrides DB_HOST/DB_PASSWORD.
     process.exit(process.exitCode || 0);
   }
 
-  if (!STAGES.includes(stageArg)) {
-    log.error(`Unknown stage '${stageArg}'. Valid stages: ${STAGES.join(', ')}`);
+  if (!KNOWN.includes(stageArg)) {
+    log.error(`Unknown command '${stageArg}'. Stages: ${PIPELINE.join(', ')}, all. ` +
+              `Commands: ${COMMANDS.join(', ')}`);
     process.exit(2);
   }
 

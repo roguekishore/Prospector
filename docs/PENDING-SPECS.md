@@ -10,8 +10,8 @@ still to delete. The work itself lives in `.kiro/specs/<spec>/`
   deck shows Places details, screenshots, what extract found, and the
   operator's own decisions.
 - **Pipeline:** `discover → qualify → capture`, and capture runs extract per
-  domain. `extract` (re-runs only), `ingest`, `migrate`, `serve` and `control`
-  are commands, not stages.
+  domain (`src/capture/extract/`; re-runs are `capture --extract-only`).
+  `ingest`, `migrate`, `serve` and `control` are commands, not stages.
 - **Capture keeps** `desktop.webp`, `mobile.webp`, `rendered.html`; **extract
   writes** `extract.json` (first email, outside links). Extract makes no network
   request. No agency detection; the operator derives agencies from links.

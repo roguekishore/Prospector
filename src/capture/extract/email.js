@@ -1,4 +1,4 @@
-/* src/extract/email.js
+/* src/capture/extract/email.js
    The first email address on the page. One address, not a list:
    docs/SCHEMA.md gives `companies.email` one column, and the operator writes to
    whichever address the site puts first. */

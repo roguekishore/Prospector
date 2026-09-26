@@ -18,7 +18,7 @@ const SEED = path.join(__dirname, 'smoke-companies.json');
 const VERTICAL = 'interior-design-smoke';
 
 const { companyDir, readCity } = require('../lib-keys');
-const { registrable } = require('../src/extract/links.js');
+const { registrable } = require('../src/capture/extract/links.js');
 const { isComplete }  = require('../src/capture/capture-domain.js');
 const { db, close }   = require('../src/db/mysql');
 const { requireTestDatabase, resetTestDatabase, seedVerticals } = require('./test-db-helper');
