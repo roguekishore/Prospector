@@ -1,3 +1,4 @@
+/p eol=lf
 *.sh eol=lf
 *.sh.tpl eol=lf
 *.service eol=lf
