@@ -21,6 +21,7 @@
     "test:clean": "node scripts/smoke-clean.js",
     "test:w1": "node scripts/test-w1.js",
     "test:extract": "node scripts/test-extract.js",
+    "test:lambda": "node scripts/test-lambda.js",
     "dispatch": "node scripts/dispatch.js"
   },
   "dependencies": {

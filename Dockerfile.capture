@@ -23,7 +23,7 @@
 # Function config: 2048 MB, 900s timeout, no VPC, env CAPTURE_BUCKET=<bucket>.
 # Memory is 2048 and not 1024 because `_forceImageDecode` rasterizes every image
 # on the page with no ceiling, and an OOM kills the whole batch, not one domain
-# (`docs/DEPLOYMENT.md`, sizing section).
+# (`docs/ARCHITECTURE.md`, "Why 2,048 MB").
 #
 # Base image pinned by digest (the multi-arch index, so --platform linux/arm64
 # still resolves the right per-arch manifest) rather than the `v1.63.0-noble`
@@ -66,6 +66,11 @@ RUN apt-get update \
 
 COPY src/ ./src/
 COPY config/ ./config/
+
+# `src/capture/lambda.js` requires `../../lib-keys` — the one file outside src/
+# the handler loads. Without it the image builds clean and every invocation dies
+# at require time.
+COPY lib-keys.js ./
 
 # Chromium cannot run as root without --no-sandbox, and Playwright's image ships
 # a `pwuser` with the browser cache already readable.
