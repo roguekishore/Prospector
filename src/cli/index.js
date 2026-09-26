@@ -63,7 +63,6 @@ function loadConfig() {
   try { city = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'city.json'), 'utf8')); }
   catch {}
   return {
-    refYear: 2026,
     city:    city.city || 'Coimbatore',
     runId:   `run-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}Z`,
   };
@@ -82,11 +81,9 @@ function loadStage(name) {
   const dirMap = {
     discover: 'discover',
     qualify:  'qualify',
-    audit:    'capture',   // W2 owns src/capture/
+    capture:  'capture',
     extract:  'extract',
-    score:    'score',
-    report:   'report',
-    serve:    'server',
+    control:  'control',
   };
 
   const dir = dirMap[name] || name;
@@ -122,13 +119,10 @@ PROSPECTOR pipeline runner
 Stages:
   discover   <vertical>   Grid-tile the city, keyword variants, dedupe
   qualify                 HEAD + cert + viewport probe + wayback CDX
-  audit                   Playwright captures + save raw HTML
-  extract                 Signals, links, contacts from raw/
-  score                   Weighted formula → tier, score, angle
-  report                  Rebuild index.json + CSV exports
-  serve                   Static frontend + review API
+  capture                 Playwright shots + rendered.html, then extract
+  extract                 Re-run extract over captures already on disk
   control                 Progress dashboard + run control (--port 7778)
-  all                     discover → qualify → audit → extract → report (not score)
+  all                     discover → qualify → capture
 
 Common options:
   --resume                Skip domains whose output already exists
@@ -138,10 +132,7 @@ Common options:
   --verbose               More output
 
 Stage-specific:
-  extract:  --no-probe              Skip dead-link probing (offline)
-  report:   --no-agency-fetch       Skip pricing/portfolio fetch (offline)
-  score:    --ref-year 2026
-  serve:    --port 7777
+  capture:  --headful  --timeout 30000  --deadline 60000
 `.trim());
     process.exit(0);
   }
@@ -150,10 +141,10 @@ Stage-specific:
   const config = loadConfig();
   const ctx    = { root: ROOT, config, log };
 
-  const STAGES = ['discover','qualify','audit','extract','score','report','serve','control'];
+  const STAGES = ['discover','qualify','capture','extract','control'];
 
   if (stageArg === 'all') {
-    for (const stage of ['discover','qualify','audit','extract','report']) {
+    for (const stage of ['discover','qualify','capture']) {
       const mod    = loadStage(stage);
       const result = await mod.run(argv, ctx);
       if (result && result.ok === 0 && result.err === 0) {

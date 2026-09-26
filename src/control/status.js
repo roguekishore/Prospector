@@ -18,6 +18,7 @@ const fs   = require('fs');
 const path = require('path');
 
 const { isComplete } = require('../capture/capture-domain');
+const { companyDir, canonicalDomain, readCity } = require('../../lib-keys');
 
 /** Verdicts other than this never reach capture, so they are not "pending". */
 const AUDIT_VERDICT = 'audit';
@@ -29,26 +30,38 @@ function _readJson(p) {
 /**
  * One vertical's counts.
  *
- * `failed` is only counted for a domain that is *not* complete: a capture that
- * errored, was retried and succeeded leaves `error.json` behind on purpose
- * (`src/score/index.js` no longer deletes it), and counting that as a failure
- * would permanently overstate the damage.
+ * `failed` is only counted for a domain that is *not* complete: `error.json` is
+ * written only by capture and never deleted, so a capture that errored, was
+ * retried and succeeded leaves one behind. Counting that as a failure would
+ * permanently overstate the damage — a complete domain is captured, whatever
+ * error.json still says.
  */
-function verticalStatus(dataDir, slug) {
-  const dir       = path.join(dataDir, slug);
+function verticalStatus(root, slug, city) {
+  const dir       = path.join(root, 'data', slug);
   const qualified = _readJson(path.join(dir, 'qualified.json'));
   if (!qualified) return null;
 
+  // Deduped by domain: one website listed twice in a vertical is one folder and
+  // so one unit of work, not two. Across verticals the folder is shared too, so
+  // each vertical counts the same domain once — matching what `capture` does.
+  const eligible = [];
+  const seen     = new Set();
   const businesses = qualified.businesses || [];
-  const eligible   = businesses.filter(
-    b => b.domain && b.qualify && b.qualify.verdict === AUDIT_VERDICT);
+  for (const b of businesses) {
+    if (!b.domain || !b.qualify || b.qualify.verdict !== AUDIT_VERDICT) continue;
+    let domain;
+    try { domain = canonicalDomain(b.domain); } catch { continue; }
+    if (seen.has(domain)) continue;
+    seen.add(domain);
+    eligible.push({ ...b, domain });
+  }
 
   let captured = 0, failed = 0;
   const failureKinds = {};
   const pendingDomains = [];
 
   for (const biz of eligible) {
-    const outDir = path.join(dir, biz.domain);
+    const outDir = companyDir(root, city, biz.domain);
     if (isComplete(outDir)) { captured++; continue; }
 
     const err = _readJson(path.join(outDir, 'error.json'));
@@ -93,14 +106,17 @@ function allStatus(root) {
   const dataDir = path.join(root, 'data');
   if (!fs.existsSync(dataDir)) return { verticals: [], total: _emptyTotal() };
 
+  const city  = readCity(root).slug;
   const slugs = fs.readdirSync(dataDir, { withFileTypes: true })
     .filter(d => d.isDirectory())
     .map(d => d.name)
     .sort();
 
+  // `data/<city>/` holds capture output and no qualified.json, so
+  // `verticalStatus` returns null for it and it never shows as a vertical.
   const verticals = [];
   for (const slug of slugs) {
-    const st = verticalStatus(dataDir, slug);
+    const st = verticalStatus(root, slug, city);
     if (st) verticals.push(st);
   }
 
@@ -136,7 +152,7 @@ function _emptyTotal() {
 
 /** Domains still awaiting capture, for slicing a bounded run out of. */
 function pendingFor(root, slug) {
-  const st = verticalStatus(path.join(root, 'data'), slug);
+  const st = verticalStatus(root, slug, readCity(root).slug);
   return st ? st.pendingDomains : [];
 }
 

@@ -7,7 +7,7 @@
  *
  * Two execution modes, one view:
  *
- * * **local** — `cli audit` on this box. Slow (2 vCPU, concurrency 1-2) but free
+ * * **local** — `cli capture` on this box. Slow (2 vCPU, concurrency 1-2) but free
  *   and unattended: start it at night, read it in the morning.
  * * **lambda** — `scripts/dispatch.js` fans batches out. Fast, bounded by the
  *   account's concurrency limit, and costs free-tier GB-s.
@@ -41,7 +41,7 @@ const STATUS_PUSH_MS = 3_000;
  *
  * A shared token is the floor, not the ceiling. Put Caddy in front with
  * `basicauth` and TLS before this answers on a public address — see
- * `docs/DEPLOYMENT.md`.
+ * `docs/ARCHITECTURE.md` ("Two hostnames, one Caddy").
  */
 const TOKEN = process.env.CONTROL_TOKEN || null;
 
@@ -180,7 +180,7 @@ async function run(argv, ctx) {
         const concurrency = _int(body.concurrency, 2, 1, 16);
         const deadline    = _int(body.deadline, 60_000, 10_000, 600_000);
         const argv = [
-          'audit',
+          'capture',
           ...(slug ? [slug] : []),
           '--resume',
           '--concurrency', String(concurrency),
@@ -263,7 +263,7 @@ async function run(argv, ctx) {
         ? { script: path.join('scripts', 'dispatch.js'), label: 'dispatch to lambda',
             argv: [slug, '--batch', String(batch)] }
         : { script: cli, label: 'capture',
-            argv: ['audit', slug, '--resume', '--concurrency', String(conc)] },
+            argv: ['capture', slug, '--resume', '--concurrency', String(conc)] },
     ];
 
     try {

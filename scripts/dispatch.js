@@ -1,13 +1,15 @@
 'use strict';
 
 /**
- * Dispatch capture batches to Lambda.
+ * Dispatch capture-and-extract batches to Lambda.
  *
  *     node scripts/dispatch.js [<vertical>] [--batch 10] [--dry-run]
  *                              [--function prospector-capture] [--region ap-south-1]
  *
  * Reads `data/<vertical>/qualified.json`, takes every business with
- * `verdict === "audit"`, and fires one async invoke per batch of 10.
+ * `verdict === "audit"`, and fires one async invoke per batch of 10. The function
+ * captures and extracts each domain and writes both to
+ * `s3://<bucket>/<city>/companies/<domain>/`.
  *
  * **No database involved.** The work list comes from the qualify artifact, so
  * capture can run before MySQL exists — which is the point of the S3 handoff in
@@ -43,7 +45,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
-const { readCity } = require('../lib-keys');
+const { readCity, canonicalDomain } = require('../lib-keys');
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -94,16 +96,28 @@ async function main() {
   let totalDomains = 0, totalBatches = 0;
   const plan = [];
 
+  // One S3 folder per domain, so one invoke per domain. A website listed in two
+  // verticals would otherwise be captured twice into the same prefix — the second
+  // capture paid for and thrown away. First vertical encountered wins.
+  const dispatched = new Set();
+
   for (const { slug, dir } of dirs) {
     const qualPath = path.join(dir, 'qualified.json');
     if (!fs.existsSync(qualPath)) { console.warn(`  skip ${slug}: no qualified.json`); continue; }
 
     const qualified = JSON.parse(fs.readFileSync(qualPath, 'utf8'));
     const runId     = qualified.run || 'unknown-run';
-    const eligible  = (qualified.businesses || [])
-      .filter(b => b.domain && b.qualify && b.qualify.verdict === 'audit');
+    const eligible  = [];
+    for (const b of (qualified.businesses || [])) {
+      if (!b.domain || !b.qualify || b.qualify.verdict !== 'audit') continue;
+      let domain;
+      try { domain = canonicalDomain(b.domain); } catch { continue; }
+      if (dispatched.has(domain)) continue;
+      dispatched.add(domain);
+      eligible.push(b);
+    }
 
-    if (!eligible.length) { console.warn(`  skip ${slug}: nothing marked audit`); continue; }
+    if (!eligible.length) { console.warn(`  skip ${slug}: nothing new marked audit`); continue; }
 
     const batches = chunk(eligible, batchSz);
     plan.push({ slug, runId, batches });
