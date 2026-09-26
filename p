@@ -234,10 +234,17 @@ cmd_ship() {
   cd "$HERE"
   [ -z "$(git status --porcelain)" ] || die "refusing to ship a dirty working tree (R2.1)"
 
-  local sha tmp
+  local sha
   sha="$(git rev-parse HEAD)"
-  tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
+  # Deliberately global, and EXIT rather than RETURN. A RETURN trap is not scoped
+  # to the function that installs it: it stays armed and fires again when main
+  # returns, where a `local tmp` is gone and `set -u` makes that a fatal "unbound
+  # variable" — exit 1 after a completely successful ship, which aborted `./p up`
+  # before it could create the Lambda. EXIT fires once, and also cleans up on the
+  # die paths below, which RETURN never did.
+  SHIP_TMP="$(mktemp -d)"
+  trap 'rm -rf "${SHIP_TMP:-}"' EXIT
+  local tmp="$SHIP_TMP"
 
   # git archive over S3, checked by sha256 on the box — the box never talks to
   # GitHub (R2.2).
