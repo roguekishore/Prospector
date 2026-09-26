@@ -10,6 +10,7 @@
  * CLI:
  *   node src/cli audit [<vertical>] [--resume] [--concurrency 4]
  *                      [--only <domain>] [--headful] [--timeout 30000]
+ *                      [--deadline 60000]
  */
 
 const fs   = require('fs');
@@ -46,6 +47,7 @@ async function run(argv, ctx) {
   const onlyDomain  = args.only || null;
   const headful     = !!args.headful;
   const navTimeout  = Number(args.timeout) || 30_000;
+  const deadline    = Number(args.deadline) || 60_000;
   const vertical    = args._[0] || null;   // optional filter
 
   // ── Find qualified.json files ────────────────────────────────────────────
@@ -123,7 +125,7 @@ async function run(argv, ctx) {
       let result;
 
       // First attempt
-      result = await _attemptCapture(browser, biz, outDir, headful, navTimeout, log);
+      result = await _attemptCapture(browser, biz, outDir, headful, navTimeout, log, 1, deadline);
 
       // Retry policy (§8.1)
       if (!result.ok && _shouldRetry(result.kind)) {
@@ -134,7 +136,7 @@ async function run(argv, ctx) {
         // For 403: retry headful (§8.2)
         const useHeadful = headful || result.kind === 'blocked-403';
         if (!browser.isConnected()) browser = await _launchBrowser(useHeadful);
-        result = await _attemptCapture(browser, biz, outDir, useHeadful, navTimeout, log, 2);
+        result = await _attemptCapture(browser, biz, outDir, useHeadful, navTimeout, log, 2, deadline);
 
         // Record headful in headers.json if it was used
         if (result.ok && useHeadful && !headful) {
@@ -171,13 +173,13 @@ async function run(argv, ctx) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function _attemptCapture(browser, biz, outDir, headful, timeout, log, attempt = 1) {
+async function _attemptCapture(browser, biz, outDir, headful, timeout, log, attempt = 1, deadline = 60_000) {
   try {
     // Crash recovery: rebuild browser if disconnected (§8.3)
     if (!browser.isConnected()) {
       browser = await _launchBrowser(headful);
     }
-    return await captureDomain({ browser, business: biz, outDir, headful, timeout, log });
+    return await captureDomain({ browser, business: biz, outDir, headful, timeout, deadline, log });
   } catch (err) {
     // Handle browser crash: reconnect and bubble a crash result
     const kind = (err.message || '').toLowerCase().includes('crash') ? 'crash' : 'unknown';

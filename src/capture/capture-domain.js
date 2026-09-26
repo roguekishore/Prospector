@@ -27,7 +27,8 @@ const { isAllowed } = require('./robots');
  * @returns {Promise<CaptureResult>}
  */
 async function captureDomain(opts) {
-  const { browser, business, outDir, headful = false, timeout = 30000, log = console } = opts;
+  const { browser, business, outDir, headful = false, timeout = 30000,
+          deadline = DEFAULT_DEADLINE_MS, log = console } = opts;
   const domain   = business.domain;
   const url      = business.qualify.final_url || `https://${domain}/`;
   const runId    = business.run || 'unknown-run';
@@ -48,10 +49,41 @@ async function captureDomain(opts) {
     return _errorResult(domain, 'unknown', err.message, outDir, runId);
   }
 
+  // ── capture, under a hard deadline ──────────────────────────────────────
+  // `timeout` bounds navigation only — not the settle sequence, not
+  // `_forceImageDecode`. One capture in run 1 ran 677s against a 12s mean. This
+  // is the outer bound on the whole thing, and it is what makes a batch's worst
+  // case finite: 10 domains x 60s = 600s, inside Lambda's 900s ceiling.
   let result;
+  const capture = _doCapture({ ctx, domain, url, runId, outDir, timeout, log });
+
+  // Promise.race leaves the loser running. When the deadline wins we close the
+  // context, which makes `_doCapture` reject; an unobserved rejection would take
+  // the whole run down, so it is swallowed here rather than left dangling.
+  capture.catch(() => {});
+
+  let timer = null;
+  const expiry = new Promise(resolve => { timer = setTimeout(() => resolve(DEADLINE), deadline); });
+
   try {
-    result = await _doCapture({ ctx, domain, url, runId, outDir, timeout, log });
+    const raced = await Promise.race([capture, expiry]);
+    if (raced !== DEADLINE) {
+      result = raced;
+    } else {
+      // Keep whatever landed before the cut — a desktop shot with no mobile one
+      // is still worth more than an empty directory.
+      const partial = SHOTS
+        .map(s => _findShot(outDir, s))
+        .filter(Boolean)
+        .map(p => path.basename(p));
+      if (log && log.warn) {
+        log.warn(`[capture] ${domain}: deadline ${deadline}ms exceeded, kept ${partial.length}/2 shots`);
+      }
+      result = _errorResult(domain, 'deadline', `capture exceeded ${deadline}ms`,
+                            outDir, runId, partial);
+    }
   } finally {
+    if (timer) clearTimeout(timer);   // else the process holds a live timer per capture
     await ctx.close().catch(() => {});
   }
   return result;
@@ -59,6 +91,19 @@ async function captureDomain(opts) {
 
 const SHOTS = ['mobile', 'desktop'];
 const SHOT_EXTS = ['.png', '.webp'];
+
+/**
+ * Hard ceiling on one whole capture, override with `--deadline`.
+ *
+ * 60s is ~5x the 11.5s mean measured at concurrency 1 on an 8-vCPU box. A
+ * 2-vCPU t4g.small is slower, so watch the `deadline` count on the first
+ * vertical: if legitimate captures are being cut, raise it rather than losing
+ * the pages.
+ */
+const DEFAULT_DEADLINE_MS = 60_000;
+
+/** Race marker. A Symbol so no capture result can ever collide with it. */
+const DEADLINE = Symbol('capture-deadline');
 
 /** Path of the shot on disk, whichever extension it was written with. */
 function _findShot(outDir, shot) {
