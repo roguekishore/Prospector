@@ -7,6 +7,51 @@ these. Figures come from that run and cannot be reproduced against local `data/`
 
 Update this file in the same commit as the fix.
 
+## box-discover-qualify (`.kiro/specs/box-discover-qualify/`)
+
+Tasks 1–6 are written and verified everything that can be verified without
+real AWS. Task 7 — the actual `./p up` against rogue (700897991126) — has
+**not run**. Nothing in this section has been applied.
+
+- [x] **Places raw-body archiving (R5.3).** `postSearch` writes every
+      successful response to `data/<vertical>/places-raw/<sha>.json`; `sha` is
+      the same `placesRawSha` the S3 key uses. Verified with a stubbed
+      `fetch()` that the written filename matches. — `src/discover/places.js`,
+      `src/capture/s3.js`
+- [x] **`scripts/backup-places.js`.** ETag-skip backup for
+      `discovered.json`/`qualified.json`/`places-raw/*`. No-op verified when
+      `CAPTURE_BUCKET` is unset; the ETag-compare path itself needs a real
+      bucket to exercise (task 2.3), which does not exist until Terraform is
+      applied.
+- [x] **Control: `captureMode: 'none'`.** Discover → qualify → backup, no
+      capture. UI button added. — `src/control/index.js`, `src/control/ui.html`
+- [x] **Terraform, both roots.** `terraform validate` and `fmt -check` pass for
+      `persist/` and `stack/`; both lockfiles committed. Never applied — no AWS
+      resources exist yet. `versions.tf` is duplicated byte-for-byte across the
+      two roots rather than shared from a top-level file: Terraform has no
+      cross-root include, and this repo has no symlink support on the Windows
+      box it was written on (`core.symlinks=false`).
+- [x] **`Dockerfile.capture`.** Base image pinned by digest (multi-arch index).
+      `npm ci --omit=dev --ignore-scripts` replaces the old `npm pkg delete` +
+      `npm install` — verified locally that `sharp` still resolves with
+      `--ignore-scripts` (needs no lifecycle script), which is what makes
+      dropping `better-sqlite3`'s native build free. `aws-lambda-ric@4.0.2`
+      needs a build toolchain Ubuntu noble doesn't ship
+      (`cmake`/`autoconf`/`libtool`/`libcurl4-openssl-dev`), installed and
+      purged in the same layer — confirmed with an actual `docker buildx build
+      --platform linux/arm64`, all 7 layers, no errors. Slow (~21 minutes,
+      almost all of it `node-gyp rebuild` for aws-lambda-ric's native addon
+      under QEMU emulation on this x86 laptop) — resolves design.md's open
+      items 1–2. Not `--load`ed or pushed anywhere; this was a build-only
+      check. The real build path (`deploy/install.sh` step 6) runs natively on
+      the box's own arm64 hardware, no emulation, once task 7 stands it up.
+- [x] **`./p`, `deploy/install.sh`, systemd units, Caddyfile, load-env.sh.**
+      Written per design.md. `bash -n p` and `bash -n deploy/install.sh` pass.
+      **Not run against the box** — there is no box yet.
+- [ ] **Task 7 — the first real run.** `./p up` against rogue, using the root
+      CSV, has not been attempted. Everything above is designed and
+      offline-verified, never AWS-verified.
+
 ## Open — offline, no re-crawl, no API quota
 
 Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`).
@@ -99,16 +144,23 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
 - [x] **S3 key layout fixed.** `captures/<vertical>/<domain>/<file>`, no date.
       History comes from bucket versioning instead, which keeps the key
       derivable from columns that exist. — `src/capture/s3.js`
-- [ ] **Enable S3 object versioning on the bucket.** Load-bearing: without it a
-      re-capture silently destroys the previous one. The layout has no date
-      precisely because versioning carries history.
-- [ ] **`npm install`** — `@aws-sdk/client-s3` and `@aws-sdk/client-lambda` were
-      added to `package.json` but not installed here.
-- [ ] **Build and push the image, create the function.** 2,048 MB, 900s, no VPC,
-      `CAPTURE_BUCKET` set. Commands in `Dockerfile.capture`.
-- [ ] **Attach a DLQ or failure destination.** Async invoke retries twice then
-      drops the event with nothing logged. Re-running `scripts/dispatch.js` is
-      the cheap recovery — `captureExists` makes every batch idempotent.
+- [x] **Enable S3 object versioning on the bucket.** Written into Terraform
+      (`box-discover-qualify` persist root), not yet applied against real AWS.
+      — `terraform/persist/main.tf`
+- [x] **`npm install`** — `@aws-sdk/client-s3` (3.1141.0) and
+      `@aws-sdk/client-lambda` (3.1141.0) pinned exact and actually installed;
+      the lockfile had never been regenerated since they were added to
+      `package.json`. `npm ci --ignore-scripts` verified clean (`better-sqlite3`'s
+      native build fails on this Windows devbox — pre-existing, unrelated).
+- [ ] **Build and push the image, create the function.** Scripted end to end
+      (`deploy/install.sh` step 6, `terraform/stack/lambda.tf`) but **not run
+      against real AWS** — nothing has been applied yet. The Dockerfile build
+      itself was smoke-tested locally with `docker buildx build --platform
+      linux/arm64`; see `box-discover-qualify` below for the result.
+- [x] **Attach a DLQ or failure destination.** `aws_sqs_queue.capture_failed`
+      (14-day retention) plus `aws_lambda_function_event_invoke_config` with
+      `maximum_retry_attempts = 2`, written into Terraform but not yet applied.
+      — `terraform/stack/lambda.tf`
 - [x] **Observability.** Handler emits EMF counters per batch
       (`Prospector/Capture`: CapturesOk/Failed/Skipped/BatchDurationMs, per
       vertical and aggregate). warden reads them as a `capture` tile gated on a
