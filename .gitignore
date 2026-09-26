@@ -21,3 +21,5 @@ terraform/**/*.tfstate.*
 terraform/**/crash.log
 terraform/**/*.tfvars
 terraform/**/*.tfplan
+
+.kiro/
