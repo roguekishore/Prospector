@@ -4,11 +4,12 @@ Finds local businesses whose websites are weak enough to sell a redesign to.
 
 Given a vertical and a city grid, it searches Google Places, probes each domain
 for reachability and TLS, opens it in a real browser to capture what a customer
-sees, extracts signals from the saved bytes, scores each lead with a frozen
-deterministic formula, and serves a review deck where an operator marks the ones
-worth pitching.
+sees, and pulls the first email and every outside link out of the captured DOM.
+The operator reads the result and decides who is worth pitching.
 
-Scoring is a pure function: same input, same output, no model and no clock.
+**Nothing in the pipeline scores, ranks or flags a lead.** There is no tier, no
+formula and no model. The judgement is the operator's; this collects the
+evidence.
 
 ## Setup
 
@@ -20,30 +21,35 @@ Playwright needs its browser once: `npx playwright install chromium`.
 ## Run
 
     npm run test:run          # real 5-domain crawl, no API key needed
-    npm start                 # review deck on http://127.0.0.1:3000
+    npm run control           # progress dashboard + run control on :7778
 
 A full vertical, stage by stage:
 
     npm run discover -- dental
-    npm run qualify
-    npm run audit -- dental
-    npm run extract
-    npm run score
-    npm run report
+    npm run qualify -- dental
+    npm run capture -- dental
 
-`npm run pipeline` chains everything except `score`.
+`npm run pipeline -- dental` chains those three. `capture` runs extract itself,
+per domain; `npm run extract` exists only to re-run extract over captures that
+are already on disk.
 
 ## Layout
 
     src/            one directory per pipeline stage
-    lib-scoring.js  the scorer — frozen as rules@1, do not retune
-    config/         city grid, verticals, pitch angles, reason templates
-    preview/        operator review deck (static, served by src/server)
-    scripts/        smoke tests, fixture generators, image compression
+    config/         city grid and verticals
+    scripts/        smoke and acceptance tests, the Lambda dispatcher
+    terraform/      the box, the capture Lambda, the buckets
     spec/           frozen contracts — MASTER plus one per workstream
-    docs/           STATUS (what works, what doesn't) and COMMANDS
+    docs/           STATUS (what works, what doesn't), COMMANDS, SCHEMA
+
+Output lands in two places, both keyed the same way:
+
+    data/<vertical>/discovered.json  qualified.json
+    data/<city>/companies/<domain>/  desktop.webp  mobile.webp
+                                     rendered.html  extract.json  [error.json]
+
+`src/server/`, `src/db/` and `preview/` are the old review deck. They are
+retired, not deleted, and nothing loads them — spec B rebuilds the deck on
+MySQL.
 
 Start with `CLAUDE.md` and `docs/STATUS.md`.
-
-The server binds loopback only and has no authentication — it is a local
-single-operator tool. Do not expose it to a network.

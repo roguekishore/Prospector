@@ -1,18 +1,20 @@
 # PROSPECTOR
 
-Deterministic lead-generation pipeline. Finds Coimbatore businesses with weak
-websites, scores them, and presents a shortlist for a human operator to pitch.
+Lead-generation pipeline. Finds Coimbatore businesses, captures what their
+websites look like, and presents the evidence for a human operator to judge.
 
-Seven stages, one directory each under `src/`:
-`discover → qualify → audit → extract → score → report → serve`
+`discover → qualify → capture`, one directory each under `src/`. Capture runs
+extract per domain, in the same worker slot; `extract` is also a standalone
+stage, for re-running it over captures already on disk after a fix.
 
 ## Rules
 
-**Never reimplement or retune `lib-scoring.js`.** Frozen as `rules@1`; three
-modules require it. Changing `WEIGHTS` means bumping `scorer` to `rules@2` so
-existing `score.json` stays attributable. Do not tune it against fixtures —
-the fixtures were built to reproduce its current output, so tuning against them
-is circular. Wait for real operator marks.
+**No scoring, ever.** Nothing computes a tier, score, pitch angle, flag or
+signal. `lib-scoring.js`, `src/score/`, `src/report/` and
+`src/extract/signals/` are deleted, not disabled, and nothing replaces them.
+The operator reads the shots, the first email and the outside links, and
+decides. If a request starts with "rank" or "which are the best leads", the
+answer is a query over `docs/SCHEMA.md`, not a formula.
 
 **`data/` here is a 5-domain smoke tree, not a real run.** `npm run test:run`
 built it. The one real run (18 verticals, 3,906 leads) happened on an EC2 box and
@@ -25,11 +27,18 @@ before working on it.
 **Update `docs/STATUS.md` in the same commit as the fix.** That is the reason it
 is one line per item.
 
-**`error.json` is unreliable right now.** The score stage deletes it on success
-(`src/score/index.js:140`), destroying capture-stage diagnostics. Open item.
+**`error.json` is written only by capture, and never deleted.** A domain that
+failed, was retried and succeeded keeps it, so a stale one proves nothing on its
+own: `isComplete()` is the authority on whether a capture is done.
 
-**Captures are for human eyes only.** Nothing in `extract` or `score` reads a
-`.webp` — the ranking comes from the crawl, not the screenshots.
+**Captures are for human eyes only.** Nothing reads a `.webp`. `extract` reads
+`rendered.html` and nothing else.
+
+**A domain is captured once, whatever its vertical.** One folder,
+`data/<city>/companies/<domain>/`, built by `companyDir` in `lib-keys.js` and
+mirrored by `companyKey` in `src/capture/s3.js`. Three places dedupe by
+canonical domain — the capture queue, `scripts/dispatch.js` and
+`src/control/status.js`. Miss one and a domain is captured twice.
 
 **Get the thinnest path running before building wide.** The box deploy was
 written complete, validated statically, then run — and needed 17 fixes, each
@@ -52,11 +61,12 @@ because systemd reads it as root before dropping privileges.
 
 ## Verifying a change offline
 
-No network, no API quota:
+No network, no API quota, no browser:
 
-    node src/cli extract <vertical> --no-probe
-    node src/cli score   <vertical>
-    node src/cli report
+    npm run test:extract
+
+`npm run test:lambda` drives the Lambda's whole batch flow against a stub S3
+client — no AWS account, but it does take two real captures.
 
 `npm run test:run` does a real 5-domain crawl, seeded from
 `scripts/smoke-seed.json` so it needs no Places key; `npm run test:clean` removes
@@ -64,17 +74,19 @@ it.
 
 `npm run test:w1` runs the W1 acceptance tests (AC1–AC10, 40 assertions). It
 needs no Places key either — discover runs `--source fixture` — but qualify does
-make **real DNS and HTTP requests**, and the run leaves `data/interior-design/`
-behind with no clean-up script. Delete that directory yourself afterwards.
+make **real DNS and HTTP requests**. It removes `data/interior-design/` in a
+`finally`.
 
 ## Which doc is authoritative
 
 | Question | Read |
 |---|---|
-| Deferred specs, not yet started | `docs/PENDING-SPECS.md` |
+| How it's built, where it runs, and why | `docs/ARCHITECTURE.md` |
+| Deferred specs, not yet started; files to remove | `docs/PENDING-SPECS.md` |
 | What's built, what's broken, what's deferred on purpose | `docs/STATUS.md` |
 | How to run a stage, what flags it takes | `docs/COMMANDS.md` |
-| On-disk schemas, run contract, scoring model | `spec/MASTER.md` |
+| On-disk schemas and the run contract | `spec/MASTER.md` |
+| The MySQL tables `extract.json` feeds | `docs/SCHEMA.md` |
 | Per-stage detail and acceptance criteria | `spec/W1`–`spec/W4` |
 
 **Code wins over spec for behaviour.** Where the two disagreed, W1's spec was
@@ -100,16 +112,14 @@ JSON shapes, field names.
   Community edition does not enforce IAM at all — least-privilege work passes
   green against it and fails for real.
 
-- `npm run pipeline` (`cli all`) runs **five** stages — discover, qualify, audit,
-  extract, report. `score` is excluded on purpose; run it yourself.
-- Data filenames carry no underscore prefix (`qualified.json`, `leads.csv`).
-  Older commit messages and spec text say `_qualified.json`.
+- `npm run pipeline` (`cli all`) runs **three** stages — discover, qualify,
+  capture — and capture includes extract.
+- Data filenames carry no underscore prefix (`qualified.json`). Older commit
+  messages and spec text say `_qualified.json`.
 - `GOOGLE_PLACES_KEY` is required by `discover`. `BRAVE_KEY` is optional and
   only used by the Brave fallback provider (`src/discover/brave.js`).
-- `scripts/gen-fixtures.js` and `scripts/emit-sample.js` are complementary, not
-  duplicates: the first writes pipeline *inputs* (`raw/`, `qualified.json`), the
-  second writes expected *outputs* (`signals/links/contacts/verdict.json`, CSVs).
 - `discover` is the only stage that spends Places API quota. It is deliberately
   left out of the `.claude/settings.json` allowlist so it always prompts.
-- Captures are already written as `desktop.webp` / `mobile.webp` in place, so
-  `npm run compress` is only useful on older PNG trees.
+- `src/server/`, `src/db/` and `preview/` are the retired review deck. They are
+  left on disk and unreachable — `serve` is not a stage — until spec B rebuilds
+  the deck on MySQL. They are the one place a grep for `score.json` still hits.
