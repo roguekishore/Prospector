@@ -13,272 +13,106 @@ Each section has the same parts:
 
 "Unverified" means read from code or docs, never run against real AWS.
 
-**Credentials.** The operator supplies root keys for rogue (and clasher,
-where needed) to the agent at run time. No spec here builds an admin role.
+## Standing decisions (operator, 2026-09-26, final)
+
+- **No scoring, ever.** The deck shows business details, screenshots and the
+  operator's own decisions. No machine tier, score or pitch angle. The `score`
+  stage and `lib-scoring.js` are removed, not frozen.
+- **The pipeline is three stages:** `discover → qualify → capture`.
+  - `capture` = two screenshots and `rendered.html`, then extract (the first
+    email and the outside links), run the same way on the box and in the Lambda.
+  - `ingest` and `control` are independent commands, not pipeline stages.
+- **Extract runs inside the capture Lambda,** and makes no network request of
+  its own. `rendered.html` is always saved to S3, so extract can be re-run on the
+  box against the exact DOM the shots were taken from.
+- **Credentials.** The operator supplies root keys for rogue (and clasher,
+  where needed) to the agent at run time. No spec here builds an admin role.
 
 ## Order
 
-| # | Spec | Why here |
+| # | Spec | State |
 |---|---|---|
-| 1 | Local disk layout matching S3 | Before the first real capture run, while there is nothing to migrate |
-| 2 | MySQL for prospector | Unblocks `ingest`, resume from `companies.status`, marks, deck scaling |
-| 3 | Pipeline quality | Fix `error.json` and link classification before a real sweep depends on them |
-| 4 | Running capture | Needs 1; uses 2's `ingest` and resume |
-| 5 | The `leads` deck | Index scaling is simplest on 2's MySQL |
+| 1 | Three-stage pipeline | **Done** — spec A |
+| 2 | Local disk layout matching S3 | **Half done** — capture output by spec A; the business list is spec B |
+| 3 | MySQL for prospector | Folded into spec B. Table design in `docs/SCHEMA.md` |
+| 4 | Running capture | Next. Needs nothing further built; needs real AWS |
+| 5 | The `leads` deck | Folded into spec B |
 | 6 | Warden follow-ups | The capture tile only shows data after 4's first Lambda run |
-| 7 | mavdb security | Independent of 1–6 and can run any time; reuses 2's user conventions |
+| 7 | mavdb security | Independent of the rest and can run any time |
+
+## Files removed for good
+
+Every tracked file the specs below delete, in one place. A file leaves the repo
+in the same commit as the spec step that makes it dead, never earlier: most are
+still imported by live code today.
+
+| File | Removed by | Blocker before deleting |
+|---|---|---|
+| `docs/DEPLOYMENT.md` | Done, 2026-09-26 | Merged into `docs/ARCHITECTURE.md` |
+| `src/score/`, `lib-scoring.js`, `src/report/` | Done, spec A | — |
+| `src/extract/signals/`, `src/extract/contacts.js` | Done, spec A | — |
+| `config/{angles,reasons,themeforest-slugs,agency-aliases}.json` | Done, spec A | — |
+| `scripts/{emit-sample,gen-fixtures,compress-shots}.js` | Done, spec A | — |
+| `ops/run-night.sh` | Done, spec A | — |
+| `logs/night.log` | Spec p4 | Close the truncation-sizing and capture-outlier items in `docs/STATUS.md` |
+| `logs/recover.log`, `logs/squeeze.log`, `logs/swap.log`, `logs/web.log` | Spec p4 | None. Run-1 output; nothing reads them |
+| `src/server/`, `src/db/`, `preview/` | Spec B | Retired in place today: nothing loads them, `serve` is not a stage. Import the `reviews` rows into `companies` first |
+| `better-sqlite3` in `package.json`, `index.db*` in `.gitignore` | Spec B | Same. `Dockerfile.capture` relies on `--ignore-scripts` until then |
+| `ops/recover.sh` | Spec p4 | None. A run-1 script, rewritten by spec A to call `capture`; delete once the box's recovery path is the control panel |
+
+Generated, never tracked, and no longer produced: `score.json`,
+`verdict.json`, `signals.json`, `links.json`, `contacts.json`, `headers.json`,
+`home.html`, `data-webp/`, `places-raw/`. `data/index.json` and the CSVs stop
+with the old deck (spec B). Any of these still sitting in `data/` or in S3 are
+leftovers; nothing reads them.
+
+Not decided yet (each needs an operator call in its spec):
+
+- `preview/mocks.js` and `preview/data.js` (18 synthetic leads with hand-written
+  tiers and scores). They go with the old deck. Spec B.
+- `scripts/migrate-layout.js`, once spec B has moved the business list.
+- This file, once `.kiro/specs/p4-*` to `p7-*` and spec B are committed and
+  carry everything here.
 
 ---
 
-## 1. Local disk layout matching S3
+## 1. Three-stage pipeline — done
 
-### Why
+Built by **spec A** (`.kiro/specs/spec-a-capture-extract/`). The pipeline is
+`discover → qualify → capture`; capture runs extract per domain, in the same
+worker slot on the box and the same container in the Lambda. Nothing computes a
+score, tier, pitch angle, flag or signal, and the files that did are deleted.
 
-S3 is keyed by city and domain. Local disk is keyed by vertical
-(`data/<vertical>/<domain>/`, with a nested `raw/`). Two layouts mean `ingest`
-must translate every path through `qualified.json`. That translation is exactly
-where the drift `lib-keys.js` warns about would live: if the S3 key, the local
-directory and `companies.domain` disagree, `--resume` re-captures everything,
-and it looks like a first run.
-
-The reasons for keeping the vertical out of the S3 key apply to disk too:
-recategorisation strands files, and one website under two verticals is stored
-twice.
-
-### Decided (proposed, confirm when the spec is written)
-
-```
-data/<city>/captures/<domain>/          exact mirror of S3 (raw/ flattened)
-data/<city>/places/<vertical>/          exact mirror of S3
-data/<city>/places-raw/<vertical>/      exact mirror of S3
-data/<city>/derived/<domain>/           signals, links, contacts, score (local only, rebuildable)
-data/index.json, leads.csv, …           report outputs, unchanged
-```
-
-With identical layouts:
-- `ingest` is a prefix copy with nothing to translate;
-- backing up local captures is the same copy in reverse;
-- `scripts/backup-places.js` reduces to a sync of `places/` and `places-raw/`.
-
-### Work
-
-1. Add local-path functions to `lib-keys.js`, so every local path is spelled in
-   one place, next to `canonicalCity`/`canonicalDomain`.
-2. Replace every hand-built `path.join(DATA, vertical, domain)` with them:
-   - `src/capture/` (capture-domain, audit);
-   - `src/extract/index.js` (`:44`, `:182`, `:211`);
-   - `src/score/index.js` (`:30`, `:109`, `:126`, and the `qualified.json` read at `:41`);
-   - `src/report/index.js` (`:28`, `:109`, `:240`, `:322`, `:364`, `:444`);
-   - `src/qualify/index.js` (`:492`, `:501`);
-   - `src/discover/` (output paths and the new `places-raw/` from box-discover-qualify);
-   - `src/server/index.js` (`/data/*` URLs, the `score.json` lookup at `:214`);
-   - `src/control/status.js` (progress walk);
-   - `scripts/backup-places.js`, `scripts/gen-fixtures.js`,
-     `scripts/emit-sample.js`, `scripts/smoke.js`, `scripts/smoke-clean.js`,
-     `scripts/test-w1.js`.
-3. Update the file-layout contract in `spec/MASTER.md`. Spec wins for contracts,
-   so this is the source of truth.
-4. Update the W1 assertions that depend on paths.
-5. The deck's `/data/*` URL shape changes, so `preview/` asset paths change with it.
-6. Decide the fate of `data-webp/` (the compressed parallel tree).
-
-### Unverified
-
-- Whether scoring gives a different result for the same domain under two
-  verticals. If it does, `derived/` needs the vertical in its path
-  (`derived/<vertical>/<domain>/`).
-
-### Done when
-
-- `npm run test:run`, then `extract --no-probe` → `score` → `report`, produces
-  identical output to before, apart from paths.
-- The 40 W1 assertions pass.
-- `aws s3 sync s3://<bucket>/coimbatore/captures/ data/coimbatore/captures/` is
-  sufficient for `extract` to run with no other step.
-
-**Timing.** Do this before the first real capture run. Today the only local
-data is the regenerable smoke tree; after a real run it becomes a migration.
+What it shipped, what it left unverified, and what it deliberately did not
+touch: `docs/STATUS.md`, section "spec A".
 
 ---
 
-## 2. MySQL for prospector
+## 2. Local disk layout matching S3 — half done
 
-### Why
+The capture half is done by **spec A**: `data/<city>/companies/<domain>/` on
+disk is byte-for-byte the S3 key `<city>/companies/<domain>/`, both built from
+`lib-keys.js`, so `ingest` is a prefix copy with nothing to translate. There was
+nothing to migrate — the only local data was the regenerable smoke tree.
 
-The docs treat MySQL as prospector's state store: "S3 holds bytes, MySQL holds
-state" (`docs/ARCHITECTURE.md`), and `companies.status` answers "what is left".
-None of it exists in code yet. There is:
-- no MySQL driver;
-- no tables;
-- no `ingest` stage.
-
-Today the pipeline runs on files plus a local SQLite file (`src/db/index.js`).
-
-### Decided
-
-- **Database.** `mavdb` in clasher (028972816671):
-  - RDS MySQL 8.4.8, `db.t4g.micro`, 20 GB, single-AZ;
-  - not publicly accessible;
-  - reachable today only from MaverickInstance (`i-0c694c2174cd3e74c`, private IP
-    `172.31.0.10`), which is in the same VPC.
-- **Network.** VPC peering, rogue `10.43.0.0/16` to clasher (`172.31.0.0/16`,
-  presumed default VPC). A relay listener on MaverickInstance was rejected:
-  - it would have to face the internet, because there is no private path between
-    the accounts;
-  - it puts clasher's production box in prospector's path;
-  - it is another process to secure and maintain.
-- **Isolation.** Prospector gets its own database `prospector` and its own user,
-  never `maverick`. The database name in a connection URL does not restrict
-  access; the user's grants do.
-- **Password storage.** SSM SecureString `/prospector/db-password`, read at
-  service start by `deploy/load-env.sh`, the same path as the other secrets.
-- **IAM database authentication: rejected.** It needs 300–1000 MiB of spare
-  memory on the instance
-  ([AWS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)),
-  and mavdb has 1 GiB total, shared by every app.
-
-### Work
-
-1. **Peering, rogue side** (`terraform/stack`):
-   - `aws_vpc_peering_connection` to clasher's VPC;
-   - route `172.31.0.0/16` → pcx in the box's route table;
-   - SG egress 3306 to `172.31.0.0/16`.
-2. **Peering, clasher side.** Three standalone resources only, never inline blocks
-   or whole-table resources, so Terraform never takes ownership of clasher's
-   existing route table or security group:
-   - `aws_vpc_peering_connection_accepter`;
-   - one `aws_route` (`10.43.0.0/16` → pcx) in the route table of mavdb's subnets;
-   - one `aws_vpc_security_group_ingress_rule` on mavdb's SG, tcp 3306 from
-     `10.43.0.0/16`.
-   
-   Needs a clasher provider alias, authenticated with clasher root keys supplied
-   by the operator at run time (`./p` reads a second CSV, e.g.
-   `${PROSPECTOR_CLASHER_CSV:-~/Downloads/clasher.csv}`, and checks the account
-   is 028972816671). Decide whether this lives in `stack` (recreated by
-   `./p down` / `./p up`) or its own root (survives `down`).
-3. **Database and user bootstrap:** `./p db-bootstrap`, run over SSM
-   `send-command` on the box, since only the box can reach mavdb.
-   - It reads `MAVERICK_DB_PASSWORD` from `.env` once and generates a random
-     32-character password.
-   - It runs:
-     ```sql
-     CREATE DATABASE IF NOT EXISTS prospector;
-     CREATE USER IF NOT EXISTS 'prospector'@'10.43.%' IDENTIFIED BY '<random>' REQUIRE SSL;
-     GRANT SELECT, INSERT, UPDATE, DELETE ON prospector.* TO 'prospector'@'10.43.%';
-     ```
-   - Consider a second user, `prospector_migrate`, with `CREATE, ALTER, INDEX, DROP`
-     on `prospector.*`, used only by the migration runner. That split matches
-     spec 7.
-   - It writes the password(s) to SSM and never stores `maverick` anywhere. The
-     operator removes it from `.env` afterwards.
-4. **Driver and TLS:**
-   - `mysql2`, exact version pinned in `package.json`;
-   - TLS verified against the RDS CA bundle (`global-bundle.pem`), pinned with a
-     sha256 in `deploy/versions.env`.
-5. **Schema and migrations:**
-   - Numbered plain-SQL migration files plus a small runner; no ORM.
-   - Tables per the MySQL section of `docs/ARCHITECTURE.md` (`cities`,
-     `companies` with `status` = 0 pending, 1 done, -1 no website, -2 failed, and
-     the rest listed there).
-   - Keep the "no `scores` table" and "no `agencies` table yet" decisions recorded
-     there.
-6. **`ingest` stage** (new `src/ingest/`, added to the `STAGES` whitelist in
-   `src/cli/index.js:152`). One pipe that grows; there is no separate "sync":
-   - S3 `<city>/captures/<domain>/` → local disk (spec 1 layout);
-   - then extract → score on the new domains;
-   - then upsert results and `companies.status` into MySQL.
-   
-   Runs at the end of every Lambda dispatch and on a systemd timer.
-7. **Resume from MySQL.** `dispatch.js` and `audit --resume` read pending work
-   from `companies.status` instead of walking disk. `captureComplete()`
-   (`src/capture/s3.js`) is for a `--verify` repair mode only, not for resume.
-8. **Marks to MySQL.** Operator marks are currently being lost (DEPLOYMENT.md
-   "Order of work" item 1), and they are the input the `rules@2` retune waits for.
-   Where marks live today is not verified.
-9. **Doc fix.** `docs/ARCHITECTURE.md`, MySQL section: "The path is computable
-   from vertical, website and capture date" contradicts the FIXED layout. It
-   should say "from city and domain".
-10. **Health check.** `./p status` checks the MySQL connection as the
-    `prospector` user.
-
-### Unverified
-
-- Clasher's VPC CIDR and which route tables mavdb's subnets use. It is presumed
-  to be the default `172.31.0.0/16`, from MaverickInstance's IP.
-- The mavdb endpoint resolving to a private IP from rogue. It should, since a
-  non-public RDS endpoint resolves to its private address, but confirm; otherwise
-  enable DNS resolution on the peering options.
-- mavdb's security group id and its current rules.
-
-### Done when
-
-- From the box, `mysql --ssl-mode=VERIFY_IDENTITY -u prospector` connects to
-  mavdb.
-- `maverick` is absent from the box, SSM and `.env`.
-- Migrations apply cleanly on an empty `prospector` database, and re-running
-  them is a no-op.
-- `ingest` on a Lambda-captured vertical fills `companies`, and a second run
-  changes nothing.
-- `dispatch --resume` skips every domain with `status = 1`.
+What is left is the *other* half, and it is **spec B**: discover and qualify
+still write `data/<vertical>/discovered.json` and `qualified.json`, and the
+capture queue, the dispatcher and the control panel all read the business list
+from there. Spec B moves that to MySQL, at which point the per-vertical
+directory and `scripts/migrate-layout.js` go away.
 
 ---
 
-## 3. Pipeline quality (from `docs/STATUS.md`)
+## 3. MySQL for prospector — folded into spec B
 
-Open items the first real overnight run will hit. The bugs come first because
-spec 4's sweep depends on them.
+`docs/SCHEMA.md` is the table design: `verticals`, `companies`, `links`, on
+mavdb. `extract.json`'s fields map one to one onto the columns `ingest` writes,
+so loading a capture is a straight copy.
 
-### Bugs (fix before spec 4)
-
-- **The score stage deletes `error.json` on success** (`src/score/index.js:140`),
-  destroying capture diagnostics. `src/control/status.js` works around it by
-  counting a failure only when the domain is not complete.
-- **Links to a site's own pages count as external.** The smoke tree shows
-  `internal: 0` for a site that links to itself, and the agency-by-links query
-  depends on this. Undiagnosed; start at `src/extract/links.js`.
-- **`npm run test:w1` leaves `data/interior-design/` behind** with no clean-up
-  script, after making real DNS and HTTP requests. Add a clean-up.
-
-### Before the next city-wide sweep
-
-- **Re-run discover on the fixed field mask.** Run 1 lacked the `nextPageToken`
-  fix, so every tile × keyword was capped at 20 results. 3,906 is a floor, not a
-  census.
-- **Places quota headroom,** sized against the real keyword × tile count.
-- **Places cost per request.** Billing showed ~Rs 171 for run 1's 3,600 requests,
-  far below the documented rate. Settle it from Billing → Reports, 18–19 Sep,
-  grouped by SKU, gross and net.
-- **Raise audit concurrency.** Capture is wait-bound (~7 s of each ~12 s is
-  deliberate settle), not CPU-bound.
-
-### Extraction
-
-- **Agency attribution never compounds.** Every agency name appears once, so
-  cross-site frequency inversion cannot work, and copyright fragments parse as
-  company names. Related: `REJECT_DOMAINS` at `src/discover/index.js:21`.
-
-### Deck
-
-- **Expose flags as filters** (`preview/app.js:145`):
-  - 920 sites on plain HTTP;
-  - 826 with broken images;
-  - 32 with expired certificates, the strongest cold open in the dataset.
-- **A view for the no-website pool.** For example, 259 dental businesses have
-  no website (211 with phone numbers), a larger pool than the 139 scored dental
-  leads. `qualified.json` has them, but the deck cannot show them.
-
-### Deferred on purpose
-
-- **`rules@2` retune.** Waits for real operator marks (spec 2's marks table).
-  `lib-scoring.js` stays frozen at `rules@1`; never tune against fixtures.
-- **Drop `logs/night.log`** (1.4 MB of run-1 evidence) once the truncation-sizing
-  and capture-outlier items are closed.
-
-### Optional
-
-- **A real CSP for control.** Only after splitting `src/control/ui.html` into
-  HTML, JS and CSS files. Copying warden's `script-src 'self'` onto the single
-  file blanks the page.
+Spec B owns all of it: the DDL, `ingest`, moving discover / qualify / dispatch /
+the control panel off `discovered.json` and `qualified.json`, and the deck that
+queries it. The decisions recorded in this section are carried into
+`docs/SCHEMA.md`; read that, not this.
 
 ---
 
@@ -295,9 +129,12 @@ local capture does not work either.
 - **Lambda shape:** arm64, 2048 MB, 900 s timeout, no VPC (a NAT gateway would be
   ~$32/month), `CAPTURE_BUCKET` set, no reserved concurrency (an account capped
   at 10 cannot reserve any).
+- **What each invocation does:** captures a batch and runs extract on each site,
+  in the same container, uploading each domain's folder to
+  `<city>/companies/<domain>/`. Built; see `docs/STATUS.md` section "spec A".
 - **Batch size 10**, pinned by arithmetic: `10 × 60 s = 600 s < 900 s`, and 15 fails
   exactly. The per-capture hard deadline (`--deadline`, 60 s) is what makes any
-  batch size safe.
+  batch size safe. Extract adds seconds per site, not minutes.
 - **Invocation:** async (`InvocationType: Event`), 2 retries, then the SQS on-failure
   destination, which records the error rather than just the event.
 - **Accounts:** one account (rogue). The six-account `for_each` fan-out waits
@@ -309,103 +146,78 @@ local capture does not work either.
 
 ### Work
 
+0. **Apply the Lambda role's S3 statements.** `terraform/stack/lambda.tf` grants
+   `s3:PutObject` + `s3:GetObject` on `*/companies/*` and `s3:ListBucket` on the
+   bucket; both are needed for `captureComplete`'s HeadObject to answer 404
+   rather than 403, and neither is applied. Without this the first real batch
+   errors on every domain before capturing anything.
 1. **Box role grants:**
    - `lambda:InvokeFunction` on `prospector-capture`;
    - `sqs:GetQueueAttributes`, `ReceiveMessage` and `DeleteMessage` on
      `prospector-capture-failed`;
-   - `s3:GetObject` and `ListBucket` on `*/captures/*`, for `ingest`.
-2. **Verify one batch end to end before fanning out:**
+   - `s3:GetObject` and `ListBucket` on `*/captures/*` and `*/derived/*`, for
+     `ingest`.
+2. **Lambda execution role:** add `s3:PutObject` on `bucket/*/derived/*`. Today
+   it has `*/captures/*` only.
+3. **Verify one batch end to end before fanning out:**
    - one batch of 10 real domains;
-   - check the S3 objects under `<city>/captures/<domain>/`;
-   - check the EMF metrics in CloudWatch, the logs and duration;
+   - check the S3 objects under `<city>/captures/<domain>/` and
+     `<city>/derived/<domain>/`;
+   - check the EMF metrics in CloudWatch, the logs and duration (including
+     extract time per site);
    - check the failure queue is empty;
    - check GB-s consumed.
-3. **Async event age.** Queued events expire after at most 6 hours. At
+4. **Async event age.** Queued events expire after at most 6 hours. At
    concurrency 10, a large sweep can have late batches expire into the failure
    queue. That's safe because re-dispatch is idempotent, but it must be visible:
    - the control panel shows failure-queue depth;
    - a "re-dispatch missing" button runs `dispatch.js --resume` against
-     `companies.status` (spec 2).
-4. **Wire spec 2's `ingest`** at the end of every dispatch. Without it, Lambda
-   results never reach the dashboard or the scorer.
-5. **Local capture on the box**, if wanted:
+     `companies.status` (spec 3).
+5. **Run spec 3's `ingest`** at the end of every dispatch. Without it, Lambda
+   results never reach the box's disk, the dashboard or the deck.
+6. **Local capture on the box**, if wanted:
    - `npx playwright install --with-deps chromium`, version-matched to
      `playwright` 1.63.0;
    - drop `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` from the install;
    - t4g.small (2 vCPU, 2 GB) supports concurrency 1–2.
    
    Until this is done, the panel's local-capture button fails; hide or disable it.
-6. **Free-tier budget.** Per account, 400,000 GB-s/month.
+7. **Free-tier budget.** Per account, 400,000 GB-s/month.
    - Typical batch: ~12 s × 10 × 2 GB ≈ 240 GB-s, so ~9,600 domains ≈ 230,000 GB-s.
    - Worst case: 60 s each, 1,200 GB-s per batch, ~1.15M GB-s, which exceeds
      free tier.
    
-   Measure the real figure from the first batch.
-7. **Concurrency 10 → 100** support ticket in rogue, only when overnight at 10
+   Measure the real figure, extract included, from the first batch.
+8. **Concurrency 10 → 100** support ticket in rogue, only when overnight at 10
    stops being enough. It is the slowest to be granted on new accounts.
-8. `docs/DEPLOYMENT.md` "Six-account capture fleet" stays as the design for
-   when a second city needs it.
+9. `docs/ARCHITECTURE.md` "Six-account fleet" stays as the design for when a
+   second city needs it. Replace the modelled throughput and free-tier figures
+   there with the measured ones.
 
 ### Unverified
 
-- Real cold-start time and image size (DEPLOYMENT.md "Open").
+- Real cold-start time (`Init Duration`) for the ~1.05 GB image.
 - Whether 2048 MB is enough for `_forceImageDecode` on heavy pages (an OOM
   kills the whole batch).
 
 ### Done when
 
-- One vertical dispatched from the panel lands in S3, is ingested, and shows in
-  the dashboard progress.
+- One vertical dispatched from the panel lands in S3 with `captures/` and
+  `derived/`, is ingested, and shows in the dashboard progress.
 - The failure queue is visible, and re-dispatch fills the gaps.
 
 ---
 
-## 5. The `leads` deck
+## 5. The `leads` deck — folded into spec B
 
-### Why
+`src/server/`, `src/db/` and `preview/` are retired in place: they depend on the
+deleted `report` stage and on score fields, `serve` is not a CLI stage, and
+nothing loads them. Spec B rebuilds the deck on MySQL rather than repairing
+them.
 
-box-discover-qualify serves only `prospect.themaverick.tech` (control). The
-review deck (`src/server/`, port 7777) is not deployed.
-
-### Decided
-
-- **A separate hostname:** `leads.themaverick.tech`, not a path, because both
-  apps emit root-absolute URLs. Separate names also allow separate auth, since a
-  prospect may one day be shown the deck, but never control.
-- **The deck binds 127.0.0.1**, hard-coded at `src/server/index.js:202`. Caddy is
-  the only public listener.
-- **Auth covers `/data/*` too.** Gating only `/` leaves captures and per-domain
-  JSON public, and it looks correct when you test it.
-- **Captures are synced to local disk, never FUSE-mounted from S3.** A mounted
-  bucket makes every request an S3 GET and goes stale.
-
-### Work
-
-1. `deploy/prospector-serve.service`, the same pattern as control
-   (`load-env.sh`, `EnvironmentFile`).
-2. Caddy block for `leads.themaverick.tech`: `basic_auth` (its own credential in
-   SSM, e.g. `/prospector/deck-password`), `reverse_proxy 127.0.0.1:7777`.
-3. The operator adds a second Netlify A record, `leads` → EIP. `./p` waits for
-   DNS before enabling the block, as it does for `prospect`.
-4. **Index scaling, the first wall at real scale.** `src/server/index.js:73`
-   reads the whole `data/index.json` with `readFileSync` on every request, under
-   `Cache-Control: no-store`. At 4.2 KB per lead:
-
-   | Leads | Size |
-   |---|---|
-   | 3,906 | 16 MB |
-   | ~9,600 | 41 MB |
-   | 50,000 | 210 MB |
-
-   Fix with a paginated MySQL query on spec 2's tables, which also fixes marks.
-   Splitting per vertical is the fallback.
-5. `./p status` checks the deck: service active, 401 without auth.
-
-### Done when
-
-- `https://leads.themaverick.tech` prompts for the password, and `/data/…`
-  returns 401 without it.
-- The deck loads a real vertical in under 2 s on a phone.
+It shows Places details, the two screenshots, the first email, the outside
+links, and the operator's own tier / pitch / note — which today live in browser
+localStorage behind a fire-and-forget `PUT` and are at risk of being lost.
 
 ---
 
@@ -481,7 +293,7 @@ six-account fan-out exists.
 ## 7. mavdb security
 
 Separate from prospector and independent of specs 1–6, so it can run any time.
-Spec 2's prospector user already follows its conventions.
+Spec 3's prospector user already follows its conventions.
 
 ### Findings (2026-09-26)
 
@@ -512,7 +324,7 @@ Spec 2's prospector user already follows its conventions.
   2. **A personal MySQL user** with grants only on what they need.
 - **Warden displays access, never grants it.** Its write paths are frozen by
   design, and a dashboard that creates database users is a target.
-- **IAM database authentication is rejected** (memory; see spec 2).
+- **IAM database authentication is rejected** (memory; see spec 3).
 - **Root keys** are supplied by the operator at run time. Root can switch off
   every control here, including deleting the audit logs, so the keys should
   not sit on disk between runs.

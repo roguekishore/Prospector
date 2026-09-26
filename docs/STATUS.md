@@ -1,11 +1,62 @@
 # Status
 
-All seven stages are built and the pipeline has completed one real run
-(18 verticals, 3,906 scored leads, on an EC2 box). That run is what produced the
-open list below — the pipeline works end to end, and running it at scale exposed
-these. Figures come from that run and cannot be reproduced against local `data/`.
+The pipeline is `discover → qualify → capture`, and capture runs extract. It
+has completed one real run (18 verticals, 3,906 leads, on an EC2 box) — under
+the old seven-stage shape, with scoring. That run is what produced most of the
+open list below. Figures come from it and cannot be reproduced against local
+`data/`.
 
 Update this file in the same commit as the fix.
+
+## spec A — capture and extract (`.kiro/specs/spec-a-capture-extract/`)
+
+Built. The pipeline is three stages, there is no scoring anywhere, and capture
+and extract share one folder per domain.
+
+- [x] **Scoring, signals and the report stage deleted.** `src/score/`,
+      `lib-scoring.js`, `src/report/`, `src/extract/signals/`,
+      `src/extract/contacts.js`, `config/{angles,reasons,themeforest-slugs,agency-aliases}.json`,
+      `ops/run-night.sh`, `scripts/{emit-sample,gen-fixtures,compress-shots}.js`.
+      `audit`, `score`, `report` and `serve` are not CLI stages.
+- [x] **One folder per domain,** `<city>/companies/<domain>/` on disk and in S3,
+      flat, built by `companyDir` / `companyKey`. A domain in two verticals is
+      captured once; the capture queue, `dispatch.js` and `control/status.js`
+      each dedupe by canonical domain.
+- [x] **Capture writes three files** — both shots and `rendered.html`, written
+      last so it is the completion marker. No headers, timings, asset list,
+      console errors, mobile metrics or raw body.
+- [x] **Extract writes `extract.json`** — first email, outside links — and makes
+      no network request. The dead-link probe is removed, not defaulted off.
+      Deterministic: no run id, no timestamp, so a re-run is byte-identical.
+      Verified by deleting one file and re-extracting (`npm run test:extract`,
+      38 assertions).
+- [x] **`registrable()` fixed.** It returned `antaryaconcepts.com.com` — domain
+      plus the suffix a second time — so own-domain links never matched and every
+      one of them was classified `external`. This is the "link classification
+      looks wrong" item below. — `src/extract/links.js`
+- [x] **Email text scan no longer glues blocks.** `$('body').text()` concatenates
+      text nodes with nothing between them, so a minified
+      `<p>info@foo.com</p><p>Call us</p>` scanned as `info@foo.comCall` — a
+      plausible, valid-looking, wrong address. — `src/extract/email.js`
+- [x] **`error.json` survives.** Written only by capture, never deleted; the
+      score stage that deleted it is gone. A complete domain counts as captured
+      even if a stale `error.json` remains.
+- [x] **Lambda captures and extracts in one container,** `runBatch` split out so
+      the whole per-domain flow is testable against a stub S3 client
+      (`npm run test:lambda`, 28 assertions, two real captures).
+      `Dockerfile.capture` now copies `lib-keys.js`; without it the image built
+      clean and every invocation would have died at require time.
+- [x] **Places raw-body archiving removed.** No `places-raw/` locally or in S3.
+
+Not verified, and needing the operator:
+
+- [ ] **`terraform plan` for both roots.** Edited and `fmt -check` + `validate`
+      clean; no plan run, because the SSO token on this laptop is expired. The
+      diff should be exactly: versioning `Suspended`, the Lambda policy's two S3
+      statements, and the box policy's narrowed `places/*`.
+- [ ] **The Lambda image build.** `docker build` for `linux/arm64` and
+      `node -e "require('/var/task/src/capture/lambda')"` inside it were not run.
+- [ ] **One real batch.** See the IAM item under *Open — Lambda capture*.
 
 ## box-discover-qualify (`.kiro/specs/box-discover-qualify/`)
 
@@ -49,16 +100,10 @@ no `getent`, the aws CLI encodes stdout as cp1252 unless told otherwise, and
 editors save UTF-16LE. `terraform validate`, `shellcheck` and `bash -n` pass on
 every one of those.
 
-- [x] **Places raw-body archiving (R5.3).** `postSearch` writes every
-      successful response to `data/<vertical>/places-raw/<sha>.json`; `sha` is
-      the same `placesRawSha` the S3 key uses. Verified with a stubbed
-      `fetch()` that the written filename matches. — `src/discover/places.js`,
-      `src/capture/s3.js`
 - [x] **`scripts/backup-places.js`.** ETag-skip backup for
-      `discovered.json`/`qualified.json`/`places-raw/*`. No-op verified when
+      `discovered.json` and `qualified.json`. No-op verified when
       `CAPTURE_BUCKET` is unset. The bucket now exists, but the ETag-compare path
-      still needs a run that actually produces `places-raw/` to exercise it
-      (task 2.3).
+      still needs a real discover run to exercise it.
 - [x] **Control: `captureMode: 'none'`.** Discover → qualify → backup, no
       capture. UI button added. — `src/control/index.js`, `src/control/ui.html`
 - [x] **Terraform, both roots.** `terraform validate` and `fmt -check` pass for
@@ -89,24 +134,19 @@ every one of those.
 
 ## Open — offline, no re-crawl, no API quota
 
-Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`).
+Verify with `npm run test:extract`, then `npm run test:run` for a real crawl.
 
-- [x] **Phone regex drops 11.5% of valid Indian mobiles.** Reduced `badPhoneRe`
-      to `^\d{6}$` only; removed the unanchored year clause and two dead clauses.
-      — `src/extract/contacts.js:30`
-- [x] **953 leads display no phone though Places supplied one.** Added
-      Places phone fallback after body-text scan; marked `owner:'places'` to
-      exempt it from the cross-site frequency rule. — `src/extract/contacts.js`
-- [x] **No WhatsApp extraction exists at all.** Added `wa.me` href handling;
-      emits `kind:'whatsapp'` contacts. — `src/extract/contacts.js`
-- [ ] **Agency attribution never compounds.** Every agency name appears exactly
-      once, so cross-site frequency inversion cannot work. Copyright fragments
-      parse as company names (`"Vivdleo.com , All rights reserved"`) and one
-      domain emitted a doubled TLD (`krishnadentalclinic.com.com`).
-      — `src/report/agency.js`
-- [x] **Hosting platforms reach scoring as businesses.** Added `vercel.app`,
-      `ueniweb.com`, `bolt.host`, `mypixieset.com`, `sleek.fitness` to
-      `REJECT_DOMAINS`. — `src/discover/index.js:21`
+- [x] **Phone, WhatsApp and address extraction** — dropped entirely with the
+      contacts file. Places supplies the phone and address; `extract.json` holds
+      the email and the links, and nothing else wants them.
+- [x] **Agency attribution never compounds.** Closed by deletion, not by a fix:
+      the pipeline no longer detects agencies. The operator derives them from
+      `links` — a domain that appears in many unrelated sites' footers is an
+      agency — which is a query over `docs/SCHEMA.md`, and it needs the
+      `registrable()` fix above to work at all.
+- [x] **Hosting platforms reach the pipeline as businesses.** Added
+      `vercel.app`, `ueniweb.com`, `bolt.host`, `mypixieset.com`,
+      `sleek.fitness` to `REJECT_DOMAINS`. — `src/discover/index.js:21`
 
 ## Open — needs a re-crawl
 
@@ -135,27 +175,28 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
       of any of this, which is why the truncation went unnoticed.
       — `src/discover/index.js:100`, `src/discover/places.js:150`
 
-## Open — review deck (`preview/`)
+## Open — the deck (spec B)
 
-- [x] **Sort by review count, keep tier as a glyph.** `leadsIn()` now sorts by
-      `review_count` descending. — `preview/app.js:142`
-- [ ] **Expose flags as filters.** Filters are `all`/`unreviewed`/`pitch`/tier
-      only. Invisible in a screenshot and unreachable by eye: 920 sites on plain
-      HTTP, 826 with broken images, 32 with expired certificates — the last is
-      the strongest cold open in the dataset. — `preview/app.js:145`
-- [ ] **Add a view for the no-website pool.** 259 dental businesses have no
-      website at all, 211 of them with phone numbers — a larger pool than the 139
-      scored dental leads, including clinics at 4,684 and 2,302 reviews. Maximum
+`src/server/`, `src/db/` and `preview/` are retired and unreachable: they depend
+on the deleted `report` stage and on score fields. Spec B rebuilds the deck on
+MySQL. Two findings from the old one are worth carrying over:
+
+- [ ] **A view for the no-website pool.** 259 dental businesses have no website
+      at all, 211 of them with phone numbers — a larger pool than the 139 dental
+      leads that had one, including clinics at 4,684 and 2,302 reviews. Maximum
       ability to pay, no incumbent to displace. They exist only in
-      `qualified.json` and the deck cannot show them.
+      `qualified.json` and the old deck could not show them.
+- [ ] **The operator's decisions are at risk today.** They live in browser
+      localStorage plus a fire-and-forget `PUT` (`preview/app.js:134`). Spec B's
+      `companies.tier` / `pitch` / `note` columns are the fix.
 
 ## Open — robustness before the next run
 
-- [ ] **Raise audit concurrency.** Capture is wait-bound, not CPU-bound: 11.5s
-      per capture at concurrency 1 vs ~12.5s at 8, because ~7s of each is
-      deliberate settle sleeps. 8 vCPUs sat idle. Default is 4; the night driver
-      passes 8. At 16 a full 18-vertical run goes from ~5h to ~3.3h.
-      — `src/capture/index.js:45`, `ops/run-night.sh:11`
+- [ ] **Raise capture concurrency.** Capture is wait-bound, not CPU-bound:
+      11.5s per capture at concurrency 1 vs ~12.5s at 8, because ~7s of each is
+      deliberate settle sleeps. 8 vCPUs sat idle. Default is 4; the control
+      panel's local mode passes 2 on a t4g.small. At 16 a full 18-vertical run
+      goes from ~5h to ~3.3h. — `src/capture/index.js`
 - [x] **Hard per-capture deadline.** Whole capture wrapped in `Promise.race`
       against `--deadline` (default 60s); whatever shots landed are kept and
       listed in `error.json` as `partial`, `kind: "deadline"`. Not retried —
@@ -165,9 +206,8 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
       t4g.small is slower, so watch the `deadline` count on the first vertical
       and raise it rather than losing pages.**
       — `src/capture/capture-domain.js:29`, `src/capture/index.js:50`
-- [x] **Stop the score stage destroying `error.json`.** Removed the
-      `unlinkSync` on success (`src/score/index.js:140`). Prior-stage errors
-      now survive a successful score run.
+- [x] **Stop the score stage destroying `error.json`.** Closed permanently:
+      the score stage is gone, and `error.json` is written only by capture.
 
 ## Open — Lambda capture
 
@@ -176,13 +216,15 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
       uploads, and clears it — no rewrite, CLI path unchanged.
       — `src/capture/lambda.js`, `src/capture/s3.js`, `scripts/dispatch.js`,
       `Dockerfile.capture`
-- [x] **S3 key layout fixed.** `captures/<vertical>/<domain>/<file>`, no date.
-      History comes from bucket versioning instead, which keeps the key
-      derivable from columns that exist. — `src/capture/s3.js`
-- [x] **Enable S3 object versioning on the bucket.** Written into Terraform
-      (`box-discover-qualify` persist root), applied — the bucket is versioned and
-      SSE-S3 encrypted, which is what makes the backup ETag check equal MD5.
-      — `terraform/persist/main.tf`
+- [x] **S3 key layout fixed.** `<city>/companies/<domain>/<file>`, flat, no
+      vertical and no date — derivable from columns that exist.
+      — `src/capture/s3.js`
+- [x] **Bucket versioning suspended.** A domain is captured once and never
+      re-captured, so no key is overwritten and versioning protects nothing. It
+      was load-bearing only while `places-raw/` overwrote a per-query key every
+      run. Suspended, not removed: a bucket that has had versioning cannot go
+      back to unversioned. SSE-S3 stays, which is what makes the backup ETag
+      check equal MD5. Edited, not applied. — `terraform/persist/main.tf`
 - [x] **`npm install`** — `@aws-sdk/client-s3` (3.1141.0) and
       `@aws-sdk/client-lambda` (3.1141.0) pinned exact and actually installed;
       the lockfile had never been regenerated since they were added to
@@ -200,9 +242,10 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
       `maximum_retry_attempts = 2`, applied alongside the function.
       — `terraform/stack/lambda.tf`
 - [x] **Observability.** Handler emits EMF counters per batch
-      (`Prospector/Capture`: CapturesOk/Failed/Skipped/BatchDurationMs, per
-      vertical and aggregate). warden reads them as a `capture` tile gated on a
-      new `prospector` capability tag — 602 tests green in that repo.
+      (`Prospector/Capture`: CapturesOk/Failed/Skipped/BatchDurationMs, plus
+      ExtractOk/ExtractFailed, per vertical and aggregate). The four warden reads
+      keep their names. warden renders them as a `capture` tile gated on a new
+      `prospector` capability tag — 602 tests green in that repo.
       Lambda's own Invocations/Errors count batches, not pages, and read clean
       through a total collapse, which is why the handler counts for itself.
       — `src/capture/lambda.js`, `AWS-COMMAND-CENTER warden/app/adapters/capture.py`
@@ -210,21 +253,24 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
       reader role `cloudwatch:GetMetricData` + `lambda:GetFunctionConfiguration`.
       The local `accounts.local.json` copy is tagged; the authoritative SSM one
       is not, so the tile renders `not_applicable` until it is.
-- [ ] **Verify one batch end to end before fanning out.** Nothing here has run
-      against real AWS; only the key helpers, the upload walker and the batching
-      were testable offline.
+- [ ] **The Lambda role could not have read its own skip check.** The policy
+      granted `s3:PutObject` only. `captureComplete` uses HeadObject, authorized
+      as `s3:GetObject`, and without `s3:ListBucket` a missing key answers 403
+      rather than 404 — which `_exists` throws on, by design, so every domain in
+      a real batch would have errored before capturing anything. Fixed in
+      `terraform/stack/lambda.tf` (`Companies` + `ListForHeadObject`), **not
+      applied**. A stub-S3 test cannot catch this class of bug.
+- [ ] **Verify one batch end to end before fanning out.** `npm run test:lambda`
+      covers the handler's logic against a stub client; nothing has run against
+      real AWS.
 
 ## Deferred on purpose
 
-- **`rules@2` retune.** Two known miscalibrations from the operator's hand-marked
-  dental list: broken CTAs score near zero (`quoteForm` only detects a *missing*
-  form, not one that posts nowhere), and `pain × pay` multiplication zeroes
-  high-review low-pain leads (1,130 reviews, mild flaws → C/28 where the operator
-  reads an obvious payer). Let the Disagreements view accumulate real marks
-  first. Do not tune against fixtures. Bump `scorer` to `rules@2` when weights
-  change. — `lib-scoring.js`
-- **Broken-CTA detection.** Prerequisite for the retune. The `form-broken` angle
-  exists in `config/angles.json:19` with nothing in `src/` feeding it.
+- **`rules@2` retune — closed, will not happen.** The operator's hand-marked
+  dental list showed the scorer miscalibrated in two directions at once (broken
+  CTAs near zero; `pain × pay` zeroing high-review low-pain leads), and the
+  answer chosen was to stop scoring rather than to retune. There is no formula
+  to bump. Broken-CTA detection goes with it.
 - **Image rebuilds on every release sha.** `install.sh` step 6 asks ECR whether
   the tag exists, and the tag is the git sha, so any commit forces a fresh ~1 GB
   arm64 build and push even when it cannot have changed the image — a docs-only
@@ -244,7 +290,7 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
 
 ## Done
 
-- **`nextPageToken` field mask** — `src/discover/places.js:17`. **Local only;
+- **`nextPageToken` field mask** — `src/discover/places.js`. **Local only;
   absent on the EC2 box.** Deploy it before the next run.
 - **`full.png` dropped.** Captures write `desktop.webp` / `mobile.webp` in place;
   the deck's `F` tab is gone. Was 75% of image storage at 2.6 MB average. The
