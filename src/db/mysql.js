@@ -77,6 +77,28 @@ function db() {
       supportBigNumbers:  true,
       bigNumberStrings:   true,
     });
+
+    // Pin every connection's session clock to UTC, or `dateStrings` above is
+    // only half a decision. The `DATETIME` columns are UTC because we write
+    // them that way (`toMysqlDatetime`, `UTC_TIMESTAMP()`), but `updated_at`
+    // and `verticals.created_at` are `TIMESTAMP … CURRENT_TIMESTAMP`, which the
+    // *server* fills in the session's timezone and converts back on read. Left
+    // to `SYSTEM` that makes them the only session-dependent values in the
+    // database: the box (UTC) and this laptop (IST) would write the same
+    // instant 5h30m apart, and any query comparing `updated_at` — or a later
+    // `NOW()` — against a `DATETIME` column would be wrong by the host offset
+    // rather than wrong everywhere, which is the kind of bug that survives a
+    // test suite. Pinned here, `NOW()`, `CURRENT_TIMESTAMP` and
+    // `UTC_TIMESTAMP()` all agree.
+    //
+    // The handler runs before the pool hands the connection out, so the SET is
+    // first in that connection's queue; the callback form keeps a failure off
+    // the connection's `error` event, where it would be fatal.
+    pool.on('connection', conn => {
+      conn.query("SET time_zone = '+00:00'", err => {
+        if (err) console.error(`[error] could not pin session time_zone to UTC: ${err.message}`);
+      });
+    });
   }
   return pool;
 }

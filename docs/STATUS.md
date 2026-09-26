@@ -62,8 +62,8 @@ and extract share one folder per domain.
       `extract_status = -2`, then one run re-extracted both — `2 ok  0 errors
       0 skipped`, rows back to `extract_status = 1`, the 3 `links` rows restored
       identically, and the regenerated `extract.json` **byte-identical** (647 B,
-      `cmp`) to the one the original capture wrote a day earlier, which is the
-      determinism claim proved end to end rather than in a unit test. The work
+      `cmp`) to the one the original capture had written earlier that evening —
+      the determinism claim proved against a real capture rather than a fixture. The work
       list has no hole: `src/db/record.js:117` writes `-2` whenever a capture
       completes without a usable `extract.json`, so no row can sit at
       `status = 1` with `extract_status` NULL. The flag reads the **database**,
@@ -310,32 +310,39 @@ contract and only `app.js` needed rewriting. Verified by `npm run test:deck`
 
 ## Open — robustness before the next run
 
-- [ ] **Every `DATETIME` we write is UTC; every `TIMESTAMP` MySQL writes is
-      local.** `toMysqlDatetime` (`src/db/record.js:63`) formats with
-      `toISOString()`, so `captured_at`, `extracted_at`, `qualified_at`,
-      `discovered_at` and `reviewed_at` are UTC — while `companies.updated_at` is
-      `TIMESTAMP … DEFAULT CURRENT_TIMESTAMP` (`db/migrations/0001_init.sql:67`),
-      which MySQL fills from the session clock and returns in it. `DATETIME`
-      carries no zone, so the two disagree by the host offset. Measured on this
-      laptop (IST) 2026-09-27: one `recordDomain` call wrote
-      `extracted_at = 2026-09-26 18:41:58` and `updated_at = 2026-09-27
-      00:11:58` into the same row in the same transaction — **330 minutes
-      apart**, the same instant. Consequences: every capture and extract time the
-      deck shows an Indian operator is 5h30m in the past, and any query that
-      compares one of these columns to `NOW()` or to `updated_at` (freshness,
-      "captured in the last hour", ordering across the two) is wrong by the
-      offset. Rows written only by Node are self-consistent, which is why the
-      test suites do not catch it.
+- [x] **Every clock in the database is UTC, the two MySQL fills included.**
+      `toMysqlDatetime` (`src/db/record.js:63`) writes `DATETIME` columns in UTC
+      and `qualify` already used `UTC_TIMESTAMP()`, so the `DATETIME` side was
+      never wrong. `companies.updated_at` and `verticals.created_at` were:
+      `TIMESTAMP … CURRENT_TIMESTAMP` (`db/migrations/0001_init.sql:17,67`) is
+      filled by the *server* in the session's timezone and converted back on
+      read, which made those two the only session-dependent values in the
+      database. The same instant therefore stored 5h30m apart on this laptop and
+      not at all on the box, and any query comparing `updated_at` — or a later
+      `NOW()` — against a `DATETIME` column would have been wrong by the host
+      offset rather than wrong everywhere: a bug that hides on the machine that
+      runs in UTC. Measured before the fix, one `recordDomain` call wrote
+      `extracted_at = 2026-09-26 18:41:58` beside `updated_at = 2026-09-27
+      00:11:58` — **330 minutes apart**, the same instant.
 
-      **Not fixed — it needs a call, because both fixes change stored meaning.**
-      Either format local time in `toMysqlDatetime` (matches MySQL's own clock,
-      but then the same run on the box and on the laptop store different
-      strings), or keep UTC and pin `time_zone = '+00:00'` on the pool in
-      `src/db/mysql.js` so `TIMESTAMP` reads back UTC too, and let the deck
-      render in the viewer's locale. The second is host-independent, which
-      matters because capture runs on a laptop in IST, the box, and Lambda; it
-      also means the box's existing rows must be read as UTC. Whichever is
-      chosen, it is cheaper now than after the first real run writes 3,906 rows.
+      Fixed by pinning every pooled connection to UTC — `SET time_zone =
+      '+00:00'` on the pool's `connection` event, which runs before the
+      connection is handed out, so the SET is first in its queue — making
+      `NOW()`, `CURRENT_TIMESTAMP` and `UTC_TIMESTAMP()` agree and `TIMESTAMP`
+      read back UTC. `dateStrings` was already half of this decision; this is the
+      other half. — `src/db/mysql.js:97`
+
+      Locked in by `testClocksAreUtc` in `scripts/test-db.js`, verified both
+      directions: with the fix 102 pass, and with the four lines removed the
+      three new assertions fail and reproduce the 330-minute gap exactly. A test
+      that only reads Node-written columns cannot catch this, which is why the
+      assertion reads `extracted_at` beside `updated_at`.
+
+      Note for whoever reads these columns with another client: `DATETIME` is
+      returned literally and `TIMESTAMP` is converted into the reader's session
+      timezone, so a `mysql` CLI or MCP session left at `SYSTEM` shows the two
+      column families 5h30m apart even though both are correct. Read them through
+      the pool, or `SET time_zone = '+00:00'` first.
 
 - [ ] **Raise capture concurrency.** Capture is wait-bound, not CPU-bound:
       11.5s per capture at concurrency 1 vs ~12.5s at 8, because ~7s of each is

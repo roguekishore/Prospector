@@ -368,6 +368,47 @@ async function testQualifyInheritance() {
 // ---------------------------------------------------------------------------
 // recordDomain
 // ---------------------------------------------------------------------------
+/**
+ * Every clock in the database is UTC, including the two the *server* fills.
+ *
+ * `captured_at` and friends are `DATETIME` and UTC because we write them that
+ * way; `updated_at` is `TIMESTAMP … ON UPDATE CURRENT_TIMESTAMP`, filled by
+ * MySQL in the session's timezone. Unless the pool pins that session to UTC the
+ * two disagree by the host offset — 5h30m on an IST laptop, nothing at all on a
+ * UTC box, which is why only a test that reads both catches it.
+ */
+async function testClocksAreUtc() {
+  console.log('\n--- every clock is UTC ---');
+  await truncate();
+  const ids = await seedVerticals();
+  const conn = db();
+
+  const [[t]] = await conn.query(
+    'SELECT @@session.time_zone AS tz, NOW() AS now_, UTC_TIMESTAMP() AS utc_');
+  eq('the pool pins the session timezone to UTC', t.tz, '+00:00');
+  eq('so NOW() is UTC_TIMESTAMP()', String(t.now_), String(t.utc_));
+
+  // One write, then read the column we set beside the column MySQL set.
+  await conn.query(
+    'INSERT INTO companies (place_id, city, vertical_id, name, domain,' +
+    '  discovered_run, discovered_at, status)' +
+    " VALUES ('clock', ?, ?, 'clock', 'clock.com', 'r1', UTC_TIMESTAMP(), 0)",
+    [CITY, ids['interior-design']]);
+  await tx(c => recordDomain(c, {
+    city: CITY, domain: 'clock.com', complete: true,
+    capturedAt: new Date(), extract: { domain: 'clock.com', email: null, links: [] },
+    extractedAt: new Date(),
+  }, quietLog()));
+
+  const [[row]] = await conn.query(
+    'SELECT extracted_at, updated_at,' +
+    '  ABS(TIMESTAMPDIFF(MINUTE, extracted_at, updated_at)) AS apart' +
+    "  FROM companies WHERE domain = 'clock.com'");
+  assert('extracted_at and updated_at describe the same instant',
+    Number(row.apart) === 0,
+    `extracted_at=${row.extracted_at} updated_at=${row.updated_at} (${row.apart} min apart)`);
+}
+
 async function testRecord() {
   console.log('\n--- recordDomain ---');
   await truncate();
@@ -693,6 +734,7 @@ async function main() {
     await testDiscoverInterrupted();
     await testQualify();
     await testQualifyInheritance();
+    await testClocksAreUtc();
     await testRecord();
     await testIngest();
     await testIngestCrash();
