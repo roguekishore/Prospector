@@ -1,8 +1,13 @@
 'use strict';
 
 /**
- * Per-domain capture: screenshots, raw HTML, headers.json.
- * W2-capture.md — full implementation.
+ * Per-domain capture: two screenshots and the post-JavaScript DOM.
+ *
+ * Exactly three files, flat in `outDir`, and `rendered.html` is written last so
+ * its presence is the completion marker (`completionFiles`, and `COMPLETION` in
+ * `s3.js`). Nothing here measures the page: no headers, timings, asset tally or
+ * mobile metrics. The deck shows the shots, `extract` reads the DOM, and neither
+ * wants a number this stage could produce. W2-capture.md.
  */
 
 const fs   = require('fs');
@@ -20,7 +25,7 @@ const { isAllowed } = require('./robots');
  * @param {object} opts
  * @param {import('playwright').Browser} opts.browser
  * @param {object}  opts.business   entry from qualified.json businesses[]
- * @param {string}  opts.outDir     absolute path to data/<vertical>/<domain>/
+ * @param {string}  opts.outDir     absolute path to data/<city>/companies/<domain>/
  * @param {boolean} [opts.headful]  override: launch headful context
  * @param {number}  [opts.timeout]  nav timeout ms (default 30000)
  * @param {object}  [opts.log]      logger with .info / .warn
@@ -55,7 +60,7 @@ async function captureDomain(opts) {
   // is the outer bound on the whole thing, and it is what makes a batch's worst
   // case finite: 10 domains x 60s = 600s, inside Lambda's 900s ceiling.
   let result;
-  const capture = _doCapture({ ctx, domain, url, runId, outDir, timeout, log });
+  const capture = _doCapture({ ctx, domain, url, runId, outDir, timeout });
 
   // Promise.race leaves the loser running. When the deadline wins we close the
   // context, which makes `_doCapture` reject; an unobserved rejection would take
@@ -116,18 +121,21 @@ function _findShot(outDir, shot) {
 
 /**
  * Return the set of files that indicate a complete, successful capture.
- * Used by --resume logic.
+ * Used by --resume logic and by `src/control/status.js`.
  *
- * A shot resolves to whichever extension is on disk, so a tree whose captures
- * have been compressed to WebP still counts as complete — otherwise --resume
- * would re-capture every domain and overwrite the compressed set. Falls back
- * to the .png name when neither exists, so a missing shot still reports under
- * its expected name.
+ * `rendered.html` is last both here and in the write order, so a capture cut by
+ * the deadline after one screenshot never looks complete. A shot resolves to
+ * whichever extension is on disk, so an older tree whose captures are .png still
+ * counts as complete — otherwise --resume would re-capture every domain.
+ * Falls back to the .webp name when neither exists, so a missing shot still
+ * reports under the name this stage writes.
+ *
+ * Mirrors `COMPLETION` in `s3.js`. The two must stay in step.
  */
 function completionFiles(outDir) {
   return [
-    ...SHOTS.map(s => _findShot(outDir, s) || path.join(outDir, s + '.png')),
-    path.join(outDir, 'raw', 'headers.json'),
+    ...SHOTS.map(s => _findShot(outDir, s) || path.join(outDir, s + '.webp')),
+    path.join(outDir, 'rendered.html'),
   ];
 }
 
@@ -172,37 +180,10 @@ async function _newContext(browser, headful) {
 // Main capture pipeline
 // ---------------------------------------------------------------------------
 
-async function _doCapture({ ctx, domain, url, runId, outDir, timeout, log }) {
-  // Ensure output directories exist
-  fs.mkdirSync(path.join(outDir, 'raw'), { recursive: true });
-
-  const assets        = [];
-  let   consoleErrors = 0;
-  const brokenRequests = [];
-  let   mainResponse  = null;
-  const redirectChain = [];
+async function _doCapture({ ctx, domain, url, runId, outDir, timeout }) {
+  fs.mkdirSync(outDir, { recursive: true });
 
   const page = await ctx.newPage();
-
-  // ── Instrumentation ─────────────────────────────────────────────────────
-  page.on('response', async r => {
-    const h = r.headers();
-    assets.push({
-      url:           r.url(),
-      type:          r.request().resourceType(),
-      status:        r.status(),
-      bytes:         Number(h['content-length'] || 0),
-      last_modified: h['last-modified'] || null,
-    });
-  });
-
-  page.on('console', m => {
-    if (m.type() === 'error') consoleErrors++;
-  });
-
-  page.on('requestfailed', r => {
-    brokenRequests.push({ url: r.url(), status: 0 });
-  });
 
   // ── Cookie-consent: block known consent scripts before navigation ────────
   await ctx.route('**/*', route => {
@@ -214,11 +195,10 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout, log }) {
   });
 
   // ── Navigation ──────────────────────────────────────────────────────────
-  let navErr = null;
+  let mainResponse = null;
   try {
     mainResponse = await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
   } catch (err) {
-    navErr = err;
     // Capture whatever rendered on timeout; on other errors, bail.
     if (!_isTimeout(err)) {
       const kind = _classifyError(err, mainResponse);
@@ -226,43 +206,20 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout, log }) {
     }
   }
 
-  // Collect redirect chain from the response chain
-  if (mainResponse) {
-    let r = mainResponse.request();
-    while (r) {
-      redirectChain.unshift(r.url());
-      r = r.redirectedFrom();
-    }
-    if (redirectChain.length === 0) redirectChain.push(url);
-  } else {
-    redirectChain.push(url);
-  }
-
-  // Capture served bytes before any JS mutations
-  let rawHtmlBuffer = Buffer.alloc(0);
-  let rawCharset    = 'utf-8';
-  if (mainResponse) {
-    try {
-      rawHtmlBuffer = await mainResponse.body();
-      const ct = (mainResponse.headers()['content-type'] || '');
-      const m  = ct.match(/charset=([^\s;]+)/i);
-      if (m) rawCharset = m[1].toLowerCase();
-    } catch { /* partial load — keep empty buffer */ }
-  }
-
-  const finalUrl = mainResponse ? mainResponse.url() : url;
-  const httpStatus = mainResponse ? mainResponse.status() : 0;
-  const respHeaders = mainResponse ? mainResponse.headers() : {};
+  // `page.url()` rather than the response URL: a JavaScript redirect after
+  // `domcontentloaded` moves the page without a new main response, and extract
+  // needs the URL the DOM actually belongs to in order to resolve relative
+  // hrefs and to know which domain is the site's own.
+  const finalUrl = page.url() || (mainResponse ? mainResponse.url() : url);
 
   // ── Settle sequence (§3.1) ───────────────────────────────────────────────
-  const settleStart = Date.now();
-  const settleDeadline = settleStart + 10_000;
+  const settleDeadline = Date.now() + 10_000;
 
   // 1. Freeze animations
   await _freezeAnimations(page);
 
   // 2. Dismiss consent
-  const consentResult = await _dismissConsent(page, settleDeadline);
+  await _dismissConsent(page, settleDeadline);
 
   // 3. Fonts ready (capped 3s)
   await Promise.race([
@@ -285,13 +242,9 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout, log }) {
   // 7. Settle wait 1200ms
   await _delay(1200);
 
-  // ── Performance metrics (§7.3) ───────────────────────────────────────────
-  const timing = await _collectTiming(page);
-
   // ── Capture desktop.webp ─────────────────────────────────────────────────
   await page.setViewportSize({ width: 1440, height: 900 });
-  const desktopPath = path.join(outDir, 'desktop.webp');
-  await _atomicScreenshot(page, desktopPath, { fullPage: false });
+  await _atomicScreenshot(page, path.join(outDir, 'desktop.webp'), { fullPage: false });
 
   // ── Mobile viewport (§6.3) ───────────────────────────────────────────────
   await page.setViewportSize({ width: 390, height: 844 });
@@ -303,81 +256,15 @@ async function _doCapture({ ctx, domain, url, runId, outDir, timeout, log }) {
   await _freezeAnimations(page);
   await page.waitForTimeout(800);
 
-  // ── Measure layout at 390px (§6.4) ───────────────────────────────────────
-  const mobileMetrics = await page.evaluate(() => {
-    const d = document.documentElement;
-    return {
-      scrollWidth:  d.scrollWidth,
-      clientWidth:  d.clientWidth,
-      overflowPx:   Math.max(0, d.scrollWidth - d.clientWidth),
-      hasViewportMeta: !!document.querySelector('meta[name="viewport" i]'),
-      tapTargetsUnder44: [...document.querySelectorAll('a,button,[role="button"],input,select')]
-        .filter(e => {
-          const r = e.getBoundingClientRect();
-          return r.width > 0 && r.height > 0 && (r.width < 44 || r.height < 44);
-        }).length,
-      smallText: [...document.querySelectorAll('p,li,span,div')]
-        .filter(e => e.textContent.trim().length > 20 &&
-                     parseFloat(getComputedStyle(e).fontSize) < 14).length,
-    };
-  }).catch(() => ({ scrollWidth: 0, clientWidth: 0, overflowPx: 0,
-                    hasViewportMeta: false, tapTargetsUnder44: 0, smallText: 0 }));
+  await _atomicScreenshot(page, path.join(outDir, 'mobile.webp'), { fullPage: false });
 
-  const mobilePath = path.join(outDir, 'mobile.webp');
-  await _atomicScreenshot(page, mobilePath, { fullPage: false });
-
-  // ── Rendered HTML ─────────────────────────────────────────────────────────
+  // ── Rendered HTML, last ───────────────────────────────────────────────────
+  // Written after both shots because its presence is what `isComplete` and
+  // `captureComplete` read as "this domain is done".
   const renderedHtml = await page.content().catch(() => '');
+  _atomicWrite(path.join(outDir, 'rendered.html'), renderedHtml);
 
-  // ── Tally asset stats ─────────────────────────────────────────────────────
-  const transferBytes = assets.reduce((s, a) => s + (a.bytes || 0), 0);
-  const imageBytes    = assets.filter(a => a.type === 'image')
-                              .reduce((s, a) => s + (a.bytes || 0), 0);
-  const videoBytes    = assets.filter(a => a.type === 'media' || a.type === 'video')
-                              .reduce((s, a) => s + (a.bytes || 0), 0);
-
-  // ── Write raw/ ────────────────────────────────────────────────────────────
-  const rawDir = path.join(outDir, 'raw');
-  _atomicWriteBuffer(path.join(rawDir, 'home.html'), rawHtmlBuffer);
-  _atomicWrite(path.join(rawDir, 'rendered.html'), renderedHtml);
-
-  const headersDoc = {
-    domain,
-    final_url:      finalUrl,
-    status:         httpStatus,
-    redirect_chain: redirectChain,
-    charset:        rawCharset !== 'utf-8' ? rawCharset : undefined,
-    headers:        _flattenHeaders(respHeaders),
-    timing: {
-      lcp_ms:         timing.lcp_ms,
-      cls:            timing.cls,
-      transfer_bytes: transferBytes,
-      requests:       assets.length,
-      image_bytes:    imageBytes,
-      video_bytes:    videoBytes,
-    },
-    assets,
-    console_errors:  consoleErrors,
-    broken_requests: brokenRequests,
-    consent:         consentResult,
-    mobile:          mobileMetrics,
-    headful:         undefined, // set by caller if headful was used
-    captured_at:     new Date().toISOString(),
-  };
-
-  _atomicWrite(path.join(rawDir, 'headers.json'), JSON.stringify(headersDoc, null, 2));
-
-  return {
-    ok:            true,
-    domain,
-    finalUrl,
-    status:        httpStatus,
-    transferBytes,
-    timing,
-    consentSeen:   consentResult.seen,
-    mobileMetrics,
-    partialTimeout: !!navErr,
-  };
+  return { ok: true, domain, finalUrl };
 }
 
 // ---------------------------------------------------------------------------
@@ -502,43 +389,12 @@ async function _forceImageDecode(page) {
 }
 
 // ---------------------------------------------------------------------------
-// Performance metrics
-// ---------------------------------------------------------------------------
-
-async function _collectTiming(page) {
-  return page.evaluate(() => new Promise(resolve => {
-    let lcp = 0, cls = 0;
-    try {
-      new PerformanceObserver(l => {
-        for (const e of l.getEntries())
-          lcp = Math.max(lcp, e.renderTime || e.loadTime || e.startTime || 0);
-      }).observe({ type: 'largest-contentful-paint', buffered: true });
-
-      new PerformanceObserver(l => {
-        for (const e of l.getEntries())
-          if (!e.hadRecentInput) cls += e.value;
-      }).observe({ type: 'layout-shift', buffered: true });
-    } catch {}
-    setTimeout(() => resolve({
-      lcp_ms: Math.round(lcp),
-      cls:    Math.round(cls * 1000) / 1000,
-    }), 1500);
-  })).catch(() => ({ lcp_ms: 0, cls: 0 }));
-}
-
-// ---------------------------------------------------------------------------
 // Atomic file writes
 // ---------------------------------------------------------------------------
 
 function _atomicWrite(filePath, text) {
   const tmp = filePath + '.tmp';
   fs.writeFileSync(tmp, text, 'utf8');
-  fs.renameSync(tmp, filePath);
-}
-
-function _atomicWriteBuffer(filePath, buf) {
-  const tmp = filePath + '.tmp';
-  fs.writeFileSync(tmp, buf);
   fs.renameSync(tmp, filePath);
 }
 
@@ -566,7 +422,7 @@ function _errorResult(domain, kind, message, outDir, runId, partial = []) {
   fs.mkdirSync(outDir, { recursive: true });
   const doc = {
     domain,
-    stage:    'audit',
+    stage:    'capture',
     at:       new Date().toISOString(),
     kind,
     message,
@@ -602,14 +458,4 @@ function _classifyError(err, resp) {
   }
   if (msg.includes('crash')) return 'crash';
   return 'unknown';
-}
-
-function _flattenHeaders(headers) {
-  const out = {};
-  for (const [k, v] of Object.entries(headers)) {
-    // Only include useful headers; skip set-cookie noise.
-    if (k.toLowerCase() === 'set-cookie') continue;
-    out[k] = v;
-  }
-  return out;
 }
