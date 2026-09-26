@@ -1,4 +1,7 @@
 *.sh eol=lf
+*.sh.tpl eol=lf
 *.service eol=lf
 *.timer eol=lf
+*.conf eol=lf
 Caddyfile eol=lf
+deploy/versions.env eol=lf
