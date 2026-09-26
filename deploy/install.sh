@@ -65,7 +65,13 @@ if [ ! -f "$DATA_ROOT/.bootstrapped" ]; then
   mount -a
 
   apt-get update -y
-  apt-get install -y docker.io build-essential python3 unzip awscli curl gnupg
+  # No `awscli` here: Ubuntu 24.04 dropped the package ("no installation
+  # candidate", which is fatal under apt's exit 100), and it would be the wrong
+  # one anyway — user-data already installed CLI v2 from Amazon's own zip, which
+  # is what fetched this script. Fail loudly rather than discover it missing in
+  # step 2's release download or step 6's ECR push.
+  command -v aws >/dev/null 2>&1 || { log "FATAL: aws CLI missing (user-data should have installed v2)"; exit 1; }
+  apt-get install -y docker.io build-essential python3 unzip curl gnupg
 
   if ! id prospector >/dev/null 2>&1; then
     useradd --system --create-home --shell /usr/sbin/nologin prospector
