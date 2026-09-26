@@ -212,6 +212,9 @@ button:disabled{opacity:.4;cursor:not-allowed}
     <div class="row" style="margin-top:4px">
       <button id="startPipeline" class="ghost" style="flex:1">discover → qualify → capture</button>
     </div>
+    <div class="row" style="margin-top:8px">
+      <button id="startPipelineNoCapture" class="ghost" style="flex:1">Discover + qualify</button>
+    </div>
     <div class="note" id="pipeNote">
       Discover is the only stage that spends Places quota. Confirm the request
       estimate before starting.
@@ -357,6 +360,7 @@ function renderRun(running, st, lastExit){
   $('conn').className = 'dot ' + (running ? 'run' : 'live');
   $('startRun').disabled = running;
   $('startPipeline').disabled = running;
+  $('startPipelineNoCapture').disabled = running;
   $('addVertical').disabled = running;
   $('stopRun').classList.toggle('hide', !running);
 
@@ -445,6 +449,19 @@ $('startPipeline').addEventListener('click', function(){
   api('/api/pipeline/start', { method:'POST', body: JSON.stringify({
     vertical: slug, captureMode: state.pipeMode,
     concurrency: Number($('conc').value), batch: Number($('batch').value),
+  })}).catch(function(e){ banner(e.message); });
+});
+
+$('startPipelineNoCapture').addEventListener('click', function(){
+  var slug = $('pipeVertical').value;
+  var v = state.verticals.filter(function(x){ return x.slug === slug; })[0];
+  if (!v) { banner('Pick a vertical'); return; }
+  var msg = 'Run discover → qualify for ' + v.label + ', no capture?\n\n' +
+            'Discover will spend ' + v.estimate.floor + '–' + v.estimate.ceiling +
+            ' Places requests. This is the only stage that costs quota.';
+  if (!confirm(msg)) return;
+  api('/api/pipeline/start', { method:'POST', body: JSON.stringify({
+    vertical: slug, captureMode: 'none',
   })}).catch(function(e){ banner(e.message); });
 });
 

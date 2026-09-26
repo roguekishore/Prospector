@@ -246,14 +246,20 @@ async function run(argv, ctx) {
     if (!known) return reply.code(404).send({ error: `No such vertical: ${slug}` });
 
     const cli    = path.join('src', 'cli', 'index.js');
-    const mode   = body.captureMode === 'lambda' ? 'lambda' : 'local';
+    const mode   = body.captureMode === 'lambda' ? 'lambda'
+                 : body.captureMode === 'none'   ? 'none'
+                 : 'local';
     const conc   = _int(body.concurrency, 2, 1, 16);
     const batch  = _int(body.batch, 10, 1, 15);
 
     const steps = [
       { script: cli, label: 'discover', argv: ['discover', slug, '--source', 'places-new'] },
       { script: cli, label: 'qualify',  argv: ['qualify', slug] },
-      mode === 'lambda'
+      // 'none' skips capture entirely — box-discover-qualify R6.1, for running
+      // discover + qualify alone while the capture Lambda is still just staged.
+      mode === 'none'
+        ? { script: path.join('scripts', 'backup-places.js'), label: 'backup', argv: [slug] }
+        : mode === 'lambda'
         ? { script: path.join('scripts', 'dispatch.js'), label: 'dispatch to lambda',
             argv: [slug, '--batch', String(batch)] }
         : { script: cli, label: 'capture',
