@@ -9,9 +9,39 @@ Update this file in the same commit as the fix.
 
 ## box-discover-qualify (`.kiro/specs/box-discover-qualify/`)
 
-Tasks 1–6 are written and verified everything that can be verified without
-real AWS. Task 7 — the actual `./p up` against rogue (700897991126) — has
-**not run**. Nothing in this section has been applied.
+**The box is live.** `./p up` ran against rogue (700897991126) on 2026-09-26 and
+the control panel answers on <https://prospect.themaverick.tech> behind Caddy
+basic auth. Both Terraform roots re-apply as a no-op, so `./p up` is safe to
+repeat.
+
+| What | Where |
+|---|---|
+| Instance | `i-0bf50fee5a6cbc935`, t4g.small, Ubuntu 24.04 arm64 |
+| EIP | `35.154.77.31`, DNS `prospect.themaverick.tech` A |
+| Data volume | `vol-0c3cf5fb03fd56d75` at `/var/lib/prospector`, survives `./p down` |
+| Buckets | `prospector-captures-700897991126`, `prospector-deploy-700897991126` |
+| Capture image | `prospector-capture:03ce726…`, ~1.05 GB, built natively on the box |
+| Function | `prospector-capture`, arm64, 2048 MB, DLQ `prospector-capture-failed` |
+
+Verified against the real box: HTTPS 401 without credentials, control service
+`active` with local health 200, a real Let's Encrypt certificate, `ship` and
+`status` working under the scoped `prospector-deploy` user, failure queue at 0.
+
+Still open, both needing the operator rather than more code — a discover+qualify
+run from the panel (it spends Places quota, and the `places*` backup objects and
+their version counts can only be checked after one), and `./p down` + `./p up`
+proving `data/` survives. Task 7.4's root-key deletion is also untested.
+
+The capture function is **staged, never invoked** — that was the spec's intent.
+
+Two environment notes worth keeping, because both cost a debugging cycle and
+neither is visible from the code. `./p` runs on Windows under Git Bash, where
+MSYS rewrites any bare absolute-Unix-path argument before it reaches a native
+`.exe`; `MSYS_NO_PATHCONV=1` at the top of `./p` stops that mangling every
+`/prospector/*` SSM name, and the cost is that local paths must then be passed as
+`cd` plus a relative name instead. Git Bash also ships no `getent`, so `resolve_a`
+falls back through `dig` to `nslookup`. Neither `terraform validate` nor
+`shellcheck` can see either problem.
 
 - [x] **Places raw-body archiving (R5.3).** `postSearch` writes every
       successful response to `data/<vertical>/places-raw/<sha>.json`; `sha` is
@@ -20,14 +50,14 @@ real AWS. Task 7 — the actual `./p up` against rogue (700897991126) — has
       `src/capture/s3.js`
 - [x] **`scripts/backup-places.js`.** ETag-skip backup for
       `discovered.json`/`qualified.json`/`places-raw/*`. No-op verified when
-      `CAPTURE_BUCKET` is unset; the ETag-compare path itself needs a real
-      bucket to exercise (task 2.3), which does not exist until Terraform is
-      applied.
+      `CAPTURE_BUCKET` is unset. The bucket now exists, but the ETag-compare path
+      still needs a run that actually produces `places-raw/` to exercise it
+      (task 2.3).
 - [x] **Control: `captureMode: 'none'`.** Discover → qualify → backup, no
       capture. UI button added. — `src/control/index.js`, `src/control/ui.html`
 - [x] **Terraform, both roots.** `terraform validate` and `fmt -check` pass for
-      `persist/` and `stack/`; both lockfiles committed. Never applied — no AWS
-      resources exist yet. `versions.tf` is duplicated byte-for-byte across the
+      `persist/` and `stack/`; both lockfiles committed. Applied 2026-09-26 and
+      re-applied clean. `versions.tf` is duplicated byte-for-byte across the
       two roots rather than shared from a top-level file: Terraform has no
       cross-root include, and this repo has no symlink support on the Windows
       box it was written on (`core.symlinks=false`).
@@ -42,15 +72,14 @@ real AWS. Task 7 — the actual `./p up` against rogue (700897991126) — has
       --platform linux/arm64`, all 7 layers, no errors. Slow (~21 minutes,
       almost all of it `node-gyp rebuild` for aws-lambda-ric's native addon
       under QEMU emulation on this x86 laptop) — resolves design.md's open
-      items 1–2. Not `--load`ed or pushed anywhere; this was a build-only
-      check. The real build path (`deploy/install.sh` step 6) runs natively on
-      the box's own arm64 hardware, no emulation, once task 7 stands it up.
+      items 1–2. That laptop build was a check only, never pushed. The real build
+      path (`deploy/install.sh` step 6) has since run natively on the box's own
+      arm64 hardware in ~6 minutes, no emulation, and pushed the image to ECR.
 - [x] **`./p`, `deploy/install.sh`, systemd units, Caddyfile, load-env.sh.**
-      Written per design.md. `bash -n p` and `bash -n deploy/install.sh` pass.
-      **Not run against the box** — there is no box yet.
-- [ ] **Task 7 — the first real run.** `./p up` against rogue, using the root
-      CSV, has not been attempted. Everything above is designed and
-      offline-verified, never AWS-verified.
+      Written per design.md, then run against the real box until `install.sh`
+      completed end to end and `./p status` came back green on all seven checks.
+- [x] **Task 7 — the first real run.** Done, bar the two operator-only items and
+      the root-key deletion listed at the top of this section.
 
 ## Open — offline, no re-crawl, no API quota
 
@@ -145,21 +174,24 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
       History comes from bucket versioning instead, which keeps the key
       derivable from columns that exist. — `src/capture/s3.js`
 - [x] **Enable S3 object versioning on the bucket.** Written into Terraform
-      (`box-discover-qualify` persist root), not yet applied against real AWS.
+      (`box-discover-qualify` persist root), applied — the bucket is versioned and
+      SSE-S3 encrypted, which is what makes the backup ETag check equal MD5.
       — `terraform/persist/main.tf`
 - [x] **`npm install`** — `@aws-sdk/client-s3` (3.1141.0) and
       `@aws-sdk/client-lambda` (3.1141.0) pinned exact and actually installed;
       the lockfile had never been regenerated since they were added to
       `package.json`. `npm ci --ignore-scripts` verified clean (`better-sqlite3`'s
       native build fails on this Windows devbox — pre-existing, unrelated).
-- [ ] **Build and push the image, create the function.** Scripted end to end
-      (`deploy/install.sh` step 6, `terraform/stack/lambda.tf`) but **not run
-      against real AWS** — nothing has been applied yet. The Dockerfile build
-      itself was smoke-tested locally with `docker buildx build --platform
-      linux/arm64`; see `box-discover-qualify` below for the result.
+- [x] **Build and push the image, create the function.** Both done for real.
+      `deploy/install.sh` step 6 built the arm64 image natively on the box — no
+      QEMU, ~6 minutes against the ~21 the emulated laptop build took — pushed
+      ~1.05 GB to ECR, and `terraform apply` then created `prospector-capture`
+      against that tag. Step 6 skips the build when the sha is already an ECR tag,
+      so a commit that cannot change the image still costs a full rebuild today;
+      see the note under **Deferred on purpose**.
 - [x] **Attach a DLQ or failure destination.** `aws_sqs_queue.capture_failed`
       (14-day retention) plus `aws_lambda_function_event_invoke_config` with
-      `maximum_retry_attempts = 2`, written into Terraform but not yet applied.
+      `maximum_retry_attempts = 2`, applied alongside the function.
       — `terraform/stack/lambda.tf`
 - [x] **Observability.** Handler emits EMF counters per batch
       (`Prospector/Capture`: CapturesOk/Failed/Skipped/BatchDurationMs, per
@@ -187,6 +219,16 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
   change. — `lib-scoring.js`
 - **Broken-CTA detection.** Prerequisite for the retune. The `form-broken` angle
   exists in `config/angles.json:19` with nothing in `src/` feeding it.
+- **Image rebuilds on every release sha.** `install.sh` step 6 asks ECR whether
+  the tag exists, and the tag is the git sha, so any commit forces a fresh ~1 GB
+  arm64 build and push even when it cannot have changed the image — a docs-only
+  change costs ~6 minutes. Tag-by-sha is design.md's call and worth keeping for
+  traceability; what is wrong is treating the release sha as the image identity.
+  The fix is to key the skip on a hash of the image's real inputs
+  (`Dockerfile.capture`, `package-lock.json`, `src/capture/**`) and re-tag the
+  existing manifest with `aws ecr put-image` when they match, which costs seconds
+  and no layer upload. Done by hand once already, to avoid a pointless rebuild
+  mid-deploy.
 - **Live iframe as a deck tab — undecided.** 19.6% of sites refuse framing (736
   `X-Frame-Options`, 278 CSP `frame-ancestors`, 835 either) and render as a
   permanent blank box. A stored capture also gives dated evidence, and a 390px

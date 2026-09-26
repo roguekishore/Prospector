@@ -4,8 +4,15 @@ Target shape: capture runs as sharded Lambda, everything else runs on a small
 always-on box, S3 is the durable store, marks go to MySQL, and the whole run is
 triggered from warden.
 
-Nothing here is built yet. Figures marked **measured** come from run 1
-(`docs/STATUS.md`); everything else is modelled and labelled as such.
+Figures marked **measured** come from run 1 (`docs/STATUS.md`); everything else is
+modelled and labelled as such.
+
+> **The box in "Hosting the box" now exists.** Built 2026-09-26 by
+> `.kiro/specs/box-discover-qualify/`, serving
+> <https://prospect.themaverick.tech>. It runs `discover` and `qualify` only, and
+> the capture Lambda is staged but never invoked. `docs/STATUS.md` has the live
+> resource ids and what is and isn't verified. The Lambda fleet, the six-account
+> fan-out and the MySQL work below remain unbuilt.
 
 > **Superseded in part.** Run 1's log has since been measured directly and
 > several figures below were roughly 2x reality — they are corrected inline and
@@ -373,9 +380,14 @@ when you test it.
 - [ ] **Places quota headroom** sized against the real keyword x tile count
       before a city-wide sweep.
 - [ ] **Two A records in Netlify DNS** — `prospect` and `leads` — resolving
-      before Caddy first starts, or ACME fails.
-- [ ] **Caddy cert storage on a persistent path** (`/var/lib/caddy`), so a
-      restart does not re-issue into a Let’s Encrypt rate limit.
+      before Caddy first starts, or ACME fails. `prospect` → `35.154.77.31` is
+      done (it replaced a CNAME pointing at Netlify, which had to be deleted
+      first); `leads` waits on the deck being served from this box.
+- [x] **Caddy cert storage on a persistent path**, so a restart does not re-issue
+      into a Let's Encrypt rate limit. `/var/lib/prospector/caddy` on the data
+      volume, not `/var/lib/caddy` on the root disk, so the certs also survive
+      `./p down`. Must be owned by the `caddy` user — Caddy writes them as itself,
+      and root-owned storage fails after the config has already validated.
 
 ## Order of work
 

@@ -19,14 +19,16 @@
         with the same sha as `placesRawKey`. Plumb the vertical into `search()`.
   - [x] 2.2 Add `scripts/backup-places.js` with an ETag skip. It is a no-op without `CAPTURE_BUCKET`.
   - [ ] 2.3 Check against the smoke tree: run backup twice and confirm no second PUT.
-        No-op-without-bucket path verified; the ETag-skip path itself needs a
-        real bucket (task 4), so it can only be checked once task 7 runs.
+        No-op-without-bucket path verified. The bucket now exists, but nothing has
+        been backed up to it yet — this needs a discover run on the box first, so
+        it stays open until the operator makes one.
 
 - [x] 3. Control (R6.1)
   - [x] 3.1 Add `captureMode: 'none'` to the pipeline route (discover → qualify → backup).
   - [x] 3.2 Add a "Discover + qualify" button in `ui.html`.
 
-- [x] 4. Terraform (R7, R8, R5.1)
+- [x] 4. Terraform (R7, R8, R5.1) — applied; see task 7
+
   - [x] 4.1 `versions.tf`: exact versions; `allowed_account_ids`.
   - [x] 4.2 `persist/`: capture bucket (versioned, public access blocked, no lifecycle),
         deploy bucket (30-day `releases/` expiry), ECR (IMMUTABLE), data volume
@@ -40,7 +42,7 @@
         with SQS on-failure, log group.
   - [x] 4.6 `stack/` `prospector-deploy` user and policy.
   - [x] 4.7 `terraform validate` and `fmt -check` on both roots; commit both lockfiles.
-        Neither root has been applied — no AWS resources exist yet.
+        Both roots applied 2026-09-26 and re-applied clean (0 added/changed/destroyed).
 
 - [x] 5. Box (R2.3, R3.3, R4, R5.1, R5.2)
   - [x] 5.1 `deploy/versions.env`, `install.sh`, `load-env.sh`.
@@ -58,11 +60,24 @@
   - [x] 6.2 `secrets`, `up`, `ship`, `status`, `logs`, `down`, following the design.
   - [x] 6.3 `status` covers: SSM ping, service active, local health check, DNS vs EIP,
         HTTPS 401 without auth, function image tag, failure-queue depth.
-        `bash -n` and shellcheck pass; never run against a real box.
+        All seven verified against the real box.
 
 - [ ] 7. First real run: operator plus agent (Done when 1–6)
-  - [ ] 7.1 Operator: rogue root CSV outside the repo; fill `.env`.
-  - [ ] 7.2 `./p up`. Operator adds the Netlify A record for `prospect`.
-  - [ ] 7.3 Check Done-when items 2–6. Run `./p up` a second time and confirm a no-op plan.
+  - [x] 7.1 Operator: rogue root CSV outside the repo; fill `.env`.
+  - [x] 7.2 `./p up`. Operator adds the Netlify A record for `prospect`.
+        `prospect.themaverick.tech` A → `35.154.77.31`, replacing a CNAME that
+        pointed at Netlify. Caddy took a real Let's Encrypt cert once it resolved.
+  - [x] 7.3 Check Done-when items 2–6. Run `./p up` a second time and confirm a no-op plan.
+        Both roots re-apply as 0 added/0 changed/0 destroyed. Verified: EIP printed,
+        HTTPS 401 without auth, control service active with local health 200,
+        function staged at the right image tag, failure queue readable at 0.
+        **Not** verified — item 4 (a discover+qualify run, and the `places*` objects
+        and version counts that follow from it) and `./p down` + `./p up` preserving
+        `data/`. Both need the operator: the first spends Places quota, the second
+        destroys the box.
   - [ ] 7.4 Operator deletes the root keys. Confirm `./p ship` still works.
-  - [ ] 7.5 Update `docs/DEPLOYMENT.md` and `docs/STATUS.md`, and replace `docs/HANDOFF.md`.
+        `ship` and `status` no longer read terraform state — they take the box's
+        identity from `/prospector/instance-id` and `/prospector/eip`, which the
+        scoped user can already read — so this should hold. Both ran green under
+        the deploy user alone; only the root keys' absence is untested.
+  - [x] 7.5 Update `docs/DEPLOYMENT.md` and `docs/STATUS.md`, and delete `docs/HANDOFF.md`.
