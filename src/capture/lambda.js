@@ -68,6 +68,45 @@ function _rmrf(p) {
 }
 
 /**
+ * Emit batch counters as CloudWatch Embedded Metric Format.
+ *
+ * A structured log line, not an API call: CloudWatch extracts the metrics from
+ * the log itself, so this costs nothing per invocation and needs no permission
+ * beyond the logging the function already does. `PutMetricData` would be a
+ * billed call on a path that runs 960 times a run.
+ *
+ * Lambda's own Invocations/Errors/Duration cannot answer the question that
+ * matters — those count *batches*, and a batch of 10 that captured 3 and failed
+ * 7 is a successful invocation. Only these say how many pages were actually
+ * taken.
+ *
+ * The two dimension sets give both per-vertical and estate-wide aggregates from
+ * one emission; `[]` is the aggregate.
+ */
+function _emitMetrics({ vertical, ok, failed, skipped, durationMs }) {
+  console.log(JSON.stringify({
+    _aws: {
+      Timestamp: Date.now(),
+      CloudWatchMetrics: [{
+        Namespace: 'Prospector/Capture',
+        Dimensions: [['Vertical'], []],
+        Metrics: [
+          { Name: 'CapturesOk',      Unit: 'Count' },
+          { Name: 'CapturesFailed',  Unit: 'Count' },
+          { Name: 'CapturesSkipped', Unit: 'Count' },
+          { Name: 'BatchDurationMs', Unit: 'Milliseconds' },
+        ],
+      }],
+    },
+    Vertical:        vertical,
+    CapturesOk:      ok,
+    CapturesFailed:  failed,
+    CapturesSkipped: skipped,
+    BatchDurationMs: durationMs,
+  }));
+}
+
+/**
  * @param {object} event  { runId, vertical, businesses }
  * @returns {Promise<{runId, vertical, ok, failed, skipped, results}>}
  */
@@ -81,6 +120,7 @@ async function handler(event) {
   const { S3Client } = require('@aws-sdk/client-s3');
   const s3 = new S3Client({ region: REGION });
 
+  const startedAt = Date.now();
   const browser = await _getBrowser();
   const results = [];
   let ok = 0, failed = 0, skipped = 0;
@@ -127,9 +167,11 @@ async function handler(event) {
     }
   }
 
+  const durationMs = Date.now() - startedAt;
+  _emitMetrics({ vertical, ok, failed, skipped, durationMs });
   console.log(`[lambda] ${vertical}: ${ok} ok, ${failed} failed, ${skipped} skipped ` +
-              `of ${businesses.length}`);
-  return { runId, vertical, ok, failed, skipped, results };
+              `of ${businesses.length} in ${(durationMs / 1000).toFixed(1)}s`);
+  return { runId, vertical, ok, failed, skipped, durationMs, results };
 }
 
 module.exports = { handler };

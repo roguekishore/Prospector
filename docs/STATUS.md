@@ -109,6 +109,17 @@ Verify each with `extract --no-probe` → `score` → `report` (see `CLAUDE.md`)
 - [ ] **Attach a DLQ or failure destination.** Async invoke retries twice then
       drops the event with nothing logged. Re-running `scripts/dispatch.js` is
       the cheap recovery — `captureExists` makes every batch idempotent.
+- [x] **Observability.** Handler emits EMF counters per batch
+      (`Prospector/Capture`: CapturesOk/Failed/Skipped/BatchDurationMs, per
+      vertical and aggregate). warden reads them as a `capture` tile gated on a
+      new `prospector` capability tag — 602 tests green in that repo.
+      Lambda's own Invocations/Errors count batches, not pages, and read clean
+      through a total collapse, which is why the handler counts for itself.
+      — `src/capture/lambda.js`, `AWS-COMMAND-CENTER warden/app/adapters/capture.py`
+- [ ] **Tag the account `prospector` in `/warden/registry`** and grant the warden
+      reader role `cloudwatch:GetMetricData` + `lambda:GetFunctionConfiguration`.
+      The local `accounts.local.json` copy is tagged; the authoritative SSM one
+      is not, so the tile renders `not_applicable` until it is.
 - [ ] **Verify one batch end to end before fanning out.** Nothing here has run
       against real AWS; only the key helpers, the upload walker and the batching
       were testable offline.

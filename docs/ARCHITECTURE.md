@@ -344,6 +344,40 @@ Four properties that are easy to get wrong, and are handled:
 Async invoke reports nothing back. Attach a DLQ or failure destination, or a
 domain that fails its two automatic retries is simply absent with nothing logged.
 
+## Observability
+
+The capture Lambda emits CloudWatch Embedded Metric Format on every batch — a
+structured log line, not an API call, so it costs nothing per invocation and
+needs no permission the function does not already have.
+
+    Namespace   Prospector/Capture
+    Dimensions  [Vertical] and [] (aggregate)
+    Metrics     CapturesOk, CapturesFailed, CapturesSkipped, BatchDurationMs
+
+**Lambda's own metrics cannot answer the question that matters.** `Invocations`
+and `Errors` count *batches*: a batch of 10 that captured 3 and failed 7 is a
+successful invocation, so `Errors` reads zero straight through a total collapse.
+Only these counters say how many pages were actually taken.
+
+warden (`D:\PROJECTS\AWS-COMMAND-CENTER`) reads them as a `capture` tile —
+`warden/app/adapters/capture.py`, contract §5.7. It is gated on a new
+`prospector` capability tag in the registry, so only the account running the
+fleet collects it and the other five render `not_applicable`.
+
+The tile reports captures ok/failed/skipped with a failure rate, invocations and
+throttles, and free-tier consumption in GB-s with the headroom expressed in
+captures remaining. Six metrics on a 30-minute cadence, about $0.09/month against
+warden's CloudWatch budget.
+
+Free-tier usage is derived from summed billed `Duration` x configured memory.
+There is no "free tier used" metric, and `freetier:GetFreeTierUsage` lags billing
+by hours — already rejected as a routing input in `docs/DEPLOYMENT.md`.
+
+**Still needed on the AWS side:** add the `prospector` tag to the account's row in
+the `/warden/registry` SecureString (the local `accounts.local.json` copy has it,
+the authoritative one does not), and grant the warden reader role
+`cloudwatch:GetMetricData` and `lambda:GetFunctionConfiguration` in that account.
+
 ## Scale
 
 Measured from run 1 (`logs/night.log`), truncated:
