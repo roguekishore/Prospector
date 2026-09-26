@@ -200,6 +200,10 @@ NULL_DEV=/dev/null
 DOCTOR_FAILED=0
 _dok()   { printf '  ok    %s\n' "$*"; }
 _dfail() { printf '  FAIL  %s\n' "$*" >&2; DOCTOR_FAILED=1; }
+# A warning is for something this machine may legitimately not need: a laptop
+# that only ships does not need the root CSV, and one that never peers does not
+# need clasher's. It must not set DOCTOR_FAILED, or `./p up` stops for it.
+_dwarn() { printf '  warn  %s\n' "$*"; }
 
 cmd_doctor() {
   echo "[p] doctor — checking this machine before it touches AWS"
@@ -215,7 +219,7 @@ cmd_doctor() {
   if command -v session-manager-plugin >/dev/null 2>&1; then
     _dok "session-manager-plugin present (./p db needs it)"
   else
-    printf '  warn  session-manager-plugin is not on PATH — ./p db cannot open its tunnel\n'
+    _dwarn 'session-manager-plugin is not on PATH — ./p db cannot open its tunnel'
     printf '        see docs/COMMANDS.md for where to get it\n'
   fi
 
@@ -270,6 +274,19 @@ cmd_doctor() {
   else
     _dfail ".env not found — copy .env.example and fill it in"
   fi
+
+  # The credential CSVs, by presence only — never parsed, never echoed. Every
+  # AWS command here dies without one, and the message it dies with looks like a
+  # credential problem rather than a missing file, so say it up front. Needs no
+  # AWS access, which is what keeps this doctor-shaped.
+  _dcsv() {
+    local label="$1" file="$2" why="$3"
+    if [ -f "$file" ]; then _dok "$label credentials present ($file)"
+    else _dwarn "$label credentials not found at $file — $why"; fi
+  }
+  _dcsv root    "$ROOT_CSV"    "./p up, peer and db cannot authenticate"
+  _dcsv deploy  "$DEPLOY_CSV"  "./p ship and status cannot authenticate (./p up writes it)"
+  _dcsv clasher "$CLASHER_CSV" "./p peer cannot reach the other account"
 
   if [ "$DOCTOR_FAILED" != 0 ]; then
     die "doctor found problems above — fix them before deploying"
@@ -327,13 +344,20 @@ _dotenv_get() {
 
 cmd_secrets() {
   [ -f "$HERE/.env" ] || die ".env not found — copy .env.example and fill it in"
-  local google_key brave_key control_password
+  local google_key brave_key control_password deck_password
   google_key="$(_dotenv_get GOOGLE_PLACES_KEY)"
   brave_key="$(_dotenv_get BRAVE_KEY)"
   control_password="$(_dotenv_get CONTROL_PASSWORD)"
+  deck_password="$(_dotenv_get DECK_PASSWORD)"
 
+  # Every required key is checked before the first put-parameter. `deck_password`
+  # was read nowhere and only expanded below, so under `set -u` this aborted
+  # *after* writing the first two parameters and before ever writing brave-key —
+  # a half-applied secret set, and `/prospector/deck-password` never created,
+  # which is the one the leads site block waits on.
   [ -n "$google_key" ]       || die "GOOGLE_PLACES_KEY is empty in .env"
   [ -n "$control_password" ] || die "CONTROL_PASSWORD is empty in .env"
+  [ -n "$deck_password" ]    || die "DECK_PASSWORD is empty in .env"
 
   aws ssm put-parameter --name /prospector/google-places-key --type SecureString \
     --overwrite --region "$REGION" --value "$google_key" >/dev/null

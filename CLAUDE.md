@@ -124,6 +124,13 @@ Where a doc and the code disagree about what happens, fix the doc. The old
 
 ## Gotchas
 
+- **There is no SSO and no AWS profile here.** `./p` authenticates from
+  access-key CSVs (`~/Downloads/rogue.csv`, `~/.prospector/deploy.csv`,
+  `~/Downloads/clasher.csv`) and unsets `AWS_PROFILE` first, because the laptop's
+  `default` profile is SSO into a forbidden account. A bare `aws` or `terraform`
+  command inherits that profile and fails with "token has expired" — which is not
+  a missing credential and never needs `aws sso login`. See *Auth* in
+  `docs/ARCHITECTURE.md`.
 - **`./p doctor` first, always.** It preflights this machine with no credentials
   and no box: binaries, DNS, path handling, CLI encoding, `.env`. `./p up` runs
   it. If you add a check it must be able to fail on a machine with no AWS access.

@@ -734,6 +734,37 @@ The design for when a second city needs it. One account is ~11× oversized for
 - Sharding does nothing for discover: `GOOGLE_PLACES_KEY` is a Google Cloud
   project quota.
 
+## Auth: access-key CSVs, never a profile
+
+**There is no SSO in this project and no profile to log into.** Every AWS call
+`./p` makes is authenticated from an access-key CSV, exported into
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` after `unset AWS_PROFILE
+AWS_DEFAULT_PROFILE` (`p:83–92`). The `default` profile on the operator's laptop
+is SSO into a **different, forbidden account**, which is precisely why `p` unsets
+it rather than inheriting it; `allowed_account_ids` in each root's `versions.tf`
+is the second layer, and `verify_account` comparing `sts get-caller-identity`
+against the expected id is the third.
+
+| CSV | Default path | Identity | Used by |
+|---|---|---|---|
+| root | `~/Downloads/rogue.csv` | root of rogue, `700897991126` | `./p up`, `peer`, `db` — anything that creates IAM or applies a root |
+| deploy | `~/.prospector/deploy.csv` | `prospector-deploy` user in rogue | `./p ship`, `status`, `secrets`, `logs` |
+| clasher | `~/Downloads/clasher.csv` | root of clasher, `028972816671` | `./p peer` only — the accepter and the route live in that account |
+
+Override any of them with `PROSPECTOR_ROOT_CSV`, `PROSPECTOR_DEPLOY_CSV`,
+`PROSPECTOR_CLASHER_CSV`. The deploy CSV is not downloaded: `./p up` creates the
+scoped user with root creds and writes the CSV at mode 600 (`p:459–470`),
+skipping the step when the file already exists.
+
+**A bare `aws` or `terraform` command inherits the forbidden SSO profile
+instead**, which is how an expired-token error gets mistaken for missing
+credentials. Run AWS work through `./p`, or export the CSV keys the same way it
+does. `terraform plan` has no `p` subcommand, so it is the one thing that needs
+the export done by hand.
+
+Root keys are the bootstrap credential and are meant to be deleted afterwards —
+`box-discover-qualify` task 7.4, still untested.
+
 ## The box
 
 Built 2026-09-26 by `.kiro/specs/box-discover-qualify/`. Live resource ids are

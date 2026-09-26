@@ -75,9 +75,16 @@ and extract share one folder per domain.
 Not verified, and needing the operator:
 
 - [ ] **`terraform plan` for both roots.** Edited and `fmt -check` + `validate`
-      clean; no plan run, because the SSO token on this laptop is expired. The
-      diff should be exactly: versioning `Suspended`, the Lambda policy's two S3
-      statements, and the box policy's narrowed `places/*`.
+      clean; no plan run. The reason recorded here was wrong — it blamed an
+      expired SSO token, but **this project has no SSO and no profile**: `p`
+      authenticates from access-key CSVs and unsets `AWS_PROFILE` (see *Auth* in
+      `docs/ARCHITECTURE.md`). All three CSVs are present and
+      `sts get-caller-identity` succeeds on each, verified 2026-09-27. What
+      actually blocked the plan is that `terraform` was run directly, so it
+      inherited the laptop's forbidden SSO `default` profile; exporting the CSV
+      keys first is all it needed. The diff should be exactly: versioning
+      `Suspended`, the Lambda policy's two S3 statements, and the box policy's
+      narrowed `places/*`.
 - [ ] **The Lambda image build.** `docker build` for `linux/arm64` and
       `node -e "require('/var/task/src/capture/lambda')"` inside it were not run.
 - [ ] **One real batch.** See the IAM item under *Open — Lambda capture*.
