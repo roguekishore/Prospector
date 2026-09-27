@@ -8,6 +8,24 @@ open list below. Figures come from it and cannot be reproduced against local
 
 Update this file in the same commit as the fix.
 
+## langfuse — the two web UIs redesigned (`HANDOFF.md`)
+
+Both browser front ends are being rebuilt as Vite + React apps under `web/`,
+following the Langfuse design language (`web/DESIGN.md`). The schema, the
+pipeline, both API contracts and the auth model are unchanged.
+
+- [x] **`web/` scaffolded** — one Vite config, two apps (`web/lead`,
+      `web/prospect`), a shared `web/ui/` with the Langfuse tokens and three
+      self-hosted OFL fonts (Inter, Geist Mono, IBM Plex Serif in place of the
+      commercial F37 Analog). Every dependency pinned exactly; nothing added to
+      the root `dependencies`. `npm run build:web` builds both into
+      `web/dist/<app>/`. — `web/package.json`, `web/vite.config.ts`
+- [ ] **Serving and deploy** — `src/server/static.js`, both servers, the
+      test-deck assertions, the ship path (§5 of the handoff).
+- [ ] **lead** rebuilt to parity (§3.1) plus the keyboard set (§3.2).
+- [ ] **prospect** rebuilt to parity (§3.3).
+- [ ] **`preview/` and `src/control/ui.html` retired**, docs updated.
+
 ## spec A — capture and extract (`.kiro/specs/spec-a-capture-extract/`)
 
 Built. The pipeline is three stages, there is no scoring anywhere, and capture
