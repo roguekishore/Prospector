@@ -65,8 +65,14 @@ nothing front-end lands in the root `dependencies` (the box and the Lambda run
 | `npm run dev:prospect` | Vite dev server for the control panel on `127.0.0.1:5178`, proxying `/api` to `:7778` — run `npm run control` alongside |
 
 `npm run serve` and `npm run control` serve `web/dist/<app>/` as built, so a
-change to the UI needs `npm run build:web` before it shows there. `web/dist/`
-is not committed; see **`./p ship`** below for how it reaches the box.
+change to the UI needs `npm run build:web` before it shows there.
+
+**How the build reaches the box.** `web/dist/` is not committed. `./p ship`
+runs `npm run web:ci` and `npm run build:web` on the laptop, fails if either
+fails, and appends `web/dist/lead` and `web/dist/prospect` to the `git archive`
+tarball it uploads — the box (a t4g.small with no toolchain) only ever unpacks.
+`langfuse/` is `export-ignore` in `.gitattributes`, so the design reference
+never ships.
 
 ---
 
@@ -149,7 +155,7 @@ not on this machine it is downloaded from `CAPTURE_BUCKET` first, and the new
 |---|---|
 | `./p doctor` | Preflight this machine: binaries, DNS, path handling, CLI encoding, `.env`. No credentials needed |
 | `./p up` | doctor, `terraform apply` persist + stack, secrets, ship, migrate, enable Caddy |
-| `./p ship` | `git archive HEAD` → S3, `install.sh` on the box, update the function |
+| `./p ship` | Build `web/` here, then `git archive HEAD` + `web/dist/` → S3, `install.sh` on the box, update the function. A failed web build fails the ship |
 | `./p secrets` | Copy the named keys out of `.env` into SSM SecureString |
 | `./p status` | SSM ping, both services, DNS vs EIP, both 401s, image tag, DLQ depth, MySQL row counts |
 | `./p logs` | Tail the control service's journal |

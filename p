@@ -3,7 +3,7 @@
 # ./p — the one command. box-discover-qualify design.md.
 #
 #   ./p up        build everything from nothing, print the EIP
-#   ./p ship      push HEAD to the box and restart it (refuses a dirty tree)
+#   ./p ship      build web/, push HEAD + the build to the box, restart it (refuses a dirty tree)
 #   ./p secrets   copy .env into SSM SecureString
 #   ./p status    SSM ping, service state, DNS vs EIP, HTTPS 401, image tag, DLQ depth,
 #                 MySQL row counts
@@ -209,9 +209,9 @@ cmd_doctor() {
   echo "[p] doctor — checking this machine before it touches AWS"
 
   local b
-  for b in git terraform aws curl node; do
+  for b in git terraform aws curl node npm tar; do
     if command -v "$b" >/dev/null 2>&1; then _dok "$b present"
-    else _dfail "$b is not on PATH (R1.4 needs all of them)"; fi
+    else _dfail "$b is not on PATH (R1.4 needs all of them; npm and tar build and pack web/ for ship)"; fi
   done
 
   # Only `./p db` needs it, which is why this warns rather than fails: a laptop
@@ -402,12 +402,24 @@ poll_ssm_command() {
 }
 
 cmd_ship() {
-  need_bin git aws
+  need_bin git aws npm
   cd "$HERE"
   [ -z "$(git status --porcelain)" ] || die "refusing to ship a dirty working tree (R2.1)"
 
   local sha
   sha="$(git rev-parse HEAD)"
+
+  # The two web UIs are built here, never on the box (t4g.small, no toolchain),
+  # and never committed: `web/dist/` is gitignored, so the tree stays clean and
+  # `git archive` below does not carry it. It is appended to the release tarball
+  # instead, and a failed build fails the ship before anything is uploaded.
+  # `npm ci` inside web/ is the lockfile install, so the box gets exactly what
+  # web/package-lock.json says was tested.
+  log "building web/ (npm run web:ci && npm run build:web)"
+  npm run web:ci    >/dev/null || die "npm ci inside web/ failed"
+  npm run build:web           || die "web build failed — nothing shipped"
+  [ -f web/dist/lead/index.html ]     || die "web/dist/lead/index.html missing after build"
+  [ -f web/dist/prospect/index.html ] || die "web/dist/prospect/index.html missing after build"
   # Deliberately global, and EXIT rather than RETURN. A RETURN trap is not scoped
   # to the function that installs it: it stays armed and fires again when main
   # returns, where a `local tmp` is gone and `set -u` makes that a fatal "unbound
@@ -419,8 +431,12 @@ cmd_ship() {
   local tmp="$SHIP_TMP"
 
   # git archive over S3, checked by sha256 on the box — the box never talks to
-  # GitHub (R2.2).
-  git archive --format=tar "$sha" | gzip -n > "$tmp/release.tar.gz"
+  # GitHub (R2.2). `langfuse/` is `export-ignore` in .gitattributes (540 files
+  # of design reference the box has no use for), and the web build output is
+  # appended to the archive since it is not in git.
+  git archive --format=tar "$sha" > "$tmp/release.tar"
+  tar --append -f "$tmp/release.tar" web/dist/lead web/dist/prospect
+  gzip -n "$tmp/release.tar"
   sha256sum "$tmp/release.tar.gz" | awk '{print $1}' > "$tmp/release.tar.gz.sha256"
 
   # Relative names from inside $tmp, for the same reason as tf_output: aws.exe is
@@ -831,7 +847,7 @@ usage: ./p <up|ship|secrets|status|logs|down|peer|db|doctor>
   doctor   preflight this machine: binaries, DNS, path handling, encoding, .env
   up       doctor, then terraform apply persist + stack, secrets, ship, migrate,
            enable Caddy. Never runs peer or db.
-  ship     git archive HEAD -> S3, install.sh on the box, update the function
+  ship     build web/, git archive HEAD + web/dist -> S3, install.sh on the box, update the function
   secrets  copy .env into SSM SecureString
   status   SSM ping, service state, DNS vs EIP, HTTPS 401, image tag, DLQ depth,
            MySQL row counts

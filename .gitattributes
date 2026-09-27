@@ -6,3 +6,6 @@
 *.conf eol=lf
 Caddyfile eol=lf
 deploy/versions.env eol=lf
+
+# The langfuse design reference (540 files, ~12 MB) is read here and never on the box.
+langfuse/ export-ignore
