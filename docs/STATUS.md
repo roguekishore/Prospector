@@ -49,7 +49,22 @@ pipeline, both API contracts and the auth model are unchanged.
       failed PUT reverting, filters in the URL, storage) — the script lives
       outside the repo; `npm run test:deck` covers the server side. —
       `web/lead/src/`
-- [ ] **prospect** rebuilt to parity (§3.3).
+- [x] **prospect rebuilt to parity.** `web/prospect/`: token from `?token=` or
+      `localStorage['pc.token']`, sent as `X-Control-Token` and as `?token=`
+      on the EventSource; a 401 shows a token form, never a blank page, and a
+      refused token stays on it. Header with the connection dot (SSE open,
+      run in progress, down) and the run state; dismissable error banner.
+      Progress: totals, stacked bar, failure kinds, per-vertical rows, and
+      "counts are listings (rows), not websites" in words. Run: this box /
+      Lambda, vertical with pending counts, concurrency 1–16 (default 2),
+      deadline 60/90/120 s, batch 5/10/15 with 15 marked risky, Start, and a
+      Stop that confirms with the resume wording. New vertical with the live
+      25 × keywords estimate and the 1–20 rule; pipeline with both buttons
+      behind a confirm that states the Places estimate. Live log: last 500
+      lines, out/err/sys tones, clear, follow-to-bottom, auto-reconnect.
+      Verified with a Playwright script against the built app at 390 and
+      1440 px, with and without `CONTROL_TOKEN` (18 checks plus a real start
+      → stop). — `web/prospect/src/`
 - [ ] **`preview/` and `src/control/ui.html` retired**, docs updated.
 
 ## spec A — capture and extract (`.kiro/specs/spec-a-capture-extract/`)
