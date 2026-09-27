@@ -14,6 +14,8 @@ evidence.
 ## Setup
 
     npm install
+    npm run web:ci           # the two browser UIs have their own package.json under web/
+    npm run build:web        # builds them into web/dist/, which serve and control serve
     cp .env.example .env     # add GOOGLE_PLACES_KEY
 
 Playwright needs its browser once: `npx playwright install chromium`.
@@ -29,6 +31,10 @@ the development setup. Point the CLI at one and create the tables:
     npm run test:run          # real 5-domain capture, no Places key needed
     npm run control           # progress dashboard + run control on :7778
     npm run serve             # the review deck on 127.0.0.1:7777
+
+Both serve the built apps from `web/dist/`; while working on a UI,
+`npm run dev:lead` or `npm run dev:prospect` runs Vite with a proxy to the
+matching server instead.
 
 A full vertical, stage by stage:
 
@@ -49,10 +55,10 @@ reaching a real one:
 
 ## Layout
 
-    src/            one directory per pipeline stage, plus db/ and server/
+    src/            one directory per pipeline stage, plus db/, control/ and server/
+    web/            the two browser UIs (lead, prospect) and their shared ui/; web/DESIGN.md
     db/migrations/  numbered plain SQL, applied by `npm run migrate`
     config/         the city grid (verticals live in MySQL)
-    preview/        the deck's front end
     scripts/        smoke and acceptance tests, the Lambda dispatcher
     terraform/      persist, stack, mavdb (peering), db (the database)
     docs/           ARCHITECTURE, SCHEMA, STATUS (what works, what doesn't), COMMANDS

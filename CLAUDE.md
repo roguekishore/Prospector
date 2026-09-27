@@ -92,7 +92,7 @@ No network, no API quota, no browser:
 
     npm run test:extract      # 38 assertions, no database either
     npm run test:db           # 99 — migrate, discover, qualify, record, ingest
-    npm run test:deck         # 77 — the deck's routes through Fastify inject
+    npm run test:deck         # 150 — both servers' routes through Fastify inject: the deck's API, static serving, control's auth
 
 `npm run test:lambda` drives the Lambda's whole batch flow against a stub S3
 client — no AWS account, but it does take two real captures.
@@ -113,7 +113,8 @@ in a `finally`.
 | How it's built, where it runs, and why | `docs/ARCHITECTURE.md` |
 | Spec order (A–E, in `.kiro/specs/`) and files still to remove | `docs/PENDING-SPECS.md` |
 | MySQL tables, statuses, who writes which column; `extract.json` and `error.json` | `docs/SCHEMA.md` |
-| Capture's settle, consent and retry rules; extract's link and email rules; the deck's design rules | `docs/ARCHITECTURE.md` |
+| Capture's settle, consent and retry rules; extract's link and email rules | `docs/ARCHITECTURE.md` |
+| The two web UIs' design rules, components and keyboard map | `web/DESIGN.md` (pointed to from `docs/ARCHITECTURE.md`, "Deck design") |
 | What's built, what's broken, what's deferred on purpose | `docs/STATUS.md` |
 | How to run a stage, what flags it takes | `docs/COMMANDS.md` |
 | What a spec built and how | `.kiro/specs/spec-*/design.md` |

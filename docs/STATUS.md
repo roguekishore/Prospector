@@ -65,7 +65,9 @@ pipeline, both API contracts and the auth model are unchanged.
       Verified with a Playwright script against the built app at 390 and
       1440 px, with and without `CONTROL_TOKEN` (18 checks plus a real start
       → stop). — `web/prospect/src/`
-- [ ] **`preview/` and `src/control/ui.html` retired**, docs updated.
+- [x] **`preview/` and `src/control/ui.html` retired.** Both servers serve
+      `web/dist/<app>/` only; README, CLAUDE.md and ARCHITECTURE point at
+      `web/`. — `git rm preview src/control/ui.html`
 
 ## spec A — capture and extract (`.kiro/specs/spec-a-capture-extract/`)
 
@@ -361,7 +363,8 @@ Rebuilt on MySQL. `node src/cli serve` on 127.0.0.1:7777, `leads.themaverick.tec
 in front of it. `src/db/index.js`, `preview/data.js` and `preview/mocks.js` are
 deleted; `preview/app.css` is unchanged, because it was always the design
 contract and only `app.js` needed rewriting. Verified by `npm run test:deck`
-(77 assertions, offline).
+(77 assertions, offline). *Since superseded: `preview/` is gone and the deck is
+`web/lead/` — see the langfuse section at the top.*
 
 - [x] **A view for the no-website pool.** 259 dental businesses have no website
       at all, 211 of them with phone numbers — a larger pool than the 139 dental

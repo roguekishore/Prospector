@@ -932,7 +932,7 @@ is `web/DESIGN.md`.
 The design contract is **`web/DESIGN.md`**: the Langfuse tokens both UIs
 adopt, the component inventory in `web/ui/`, and the keyboard map. The
 earlier contract — `preview/app.css`, monochrome, four opacity steps, no
-build step — is retired with `preview/` itself.
+build step — is retired, and `preview/` is deleted.
 
 What carries over unchanged, because it is about the operator rather than the
 look:
