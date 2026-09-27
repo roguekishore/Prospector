@@ -23,9 +23,9 @@
  * exposes the raw socket which is all it takes.
  */
 
-const fs   = require('fs');
 const path = require('path');
 
+const { mount: mountStatic, staticDir } = require('../server/static');
 const { allStatus } = require('./status');
 const { Runner }    = require('./runner');
 const verticals     = require('./verticals');
@@ -44,15 +44,19 @@ const STATUS_PUSH_MS = 3_000;
  * `basicauth` and TLS before this answers on a public address — see
  * `docs/ARCHITECTURE.md` ("Two hostnames, one Caddy").
  */
-const TOKEN = process.env.CONTROL_TOKEN || null;
-
-function authorised(req) {
-  if (!TOKEN) return true;                       // loopback-only mode
+function authorised(req, token) {
+  if (!token) return true;                       // loopback-only mode
   const header = req.headers['authorization'] || '';
   const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
   const given  = bearer || req.headers['x-control-token'] || (req.query && req.query.token);
-  return typeof given === 'string' && given.length === TOKEN.length && given === TOKEN;
+  return typeof given === 'string' && given.length === token.length && given === token;
 }
+
+/**
+ * The front end is the Vite build in `web/dist/prospect/` (`npm run build:web`),
+ * served by `src/server/static.js` under the same rules as the deck's.
+ */
+const WEB_DIR = ['web', 'dist', 'prospect'];
 
 /** A slug is a directory name under data/ — never let one reach the filesystem unchecked. */
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -76,10 +80,16 @@ function _flags(argv) {
   return out;
 }
 
-async function run(argv, ctx) {
-  const { root, log } = ctx;
-  const flags = _flags(argv);
-  const port = flags.port ? Number(flags.port) : 7778;
+/**
+ * Every route, on a Fastify instance that is not listening yet — the same split
+ * as `src/server/index.js`, so `scripts/test-deck.js` can drive the auth hook
+ * and the static routes with `inject()`.
+ *
+ * `ctx.token` overrides `CONTROL_TOKEN` (tests only); `null` means unset.
+ */
+function build(ctx = {}) {
+  const { root, log = console } = ctx;
+  const TOKEN = ctx.token !== undefined ? (ctx.token || null) : (process.env.CONTROL_TOKEN || null);
 
   const Fastify = require('fastify');
   const app = Fastify({ logger: false });
@@ -93,11 +103,19 @@ async function run(argv, ctx) {
   const runner  = new Runner(root);
   const clients = new Set();
 
-  // Every route but the page itself is gated. The page is public so a phone can
-  // load it and prompt for the token; it renders nothing without one.
+  // Every route but the page and its own files is gated. The page is public so
+  // a phone can load it and prompt for the token; it renders nothing without
+  // one. "Its own files" is decided by the static resolver — a `GET`/`HEAD` for
+  // a path that really exists in `web/dist/prospect/` — so a built app's hashed
+  // JS, CSS and fonts load without the token, and nothing under `/api/` ever
+  // does: the resolver never answers for a reserved prefix.
+  const site = staticDir(path.join(root, ...WEB_DIR));
   app.addHook('onRequest', async (req, reply) => {
-    if (req.url === '/' || req.url.startsWith('/?')) return;
-    if (authorised(req)) return;
+    const urlPath = req.raw.url.split('?')[0];
+    if ((req.method === 'GET' || req.method === 'HEAD') && !urlPath.startsWith('/api')) {
+      if (urlPath === '/' || site.resolve(urlPath)) return;
+    }
+    if (authorised(req, TOKEN)) return;
     return reply.code(401).send({ error: 'Unauthorized' });
   });
 
@@ -127,12 +145,10 @@ async function run(argv, ctx) {
 
   const timer = setInterval(() => { if (clients.size) pushStatus(); }, STATUS_PUSH_MS);
   timer.unref();
-
-  // ---- UI ----
-  app.get('/', async (req, reply) => {
-    const html = fs.readFileSync(path.join(__dirname, 'ui.html'), 'utf8');
-    reply.header('Content-Type', 'text/html; charset=utf-8');
-    return reply.send(html);
+  app.addHook('onClose', async () => {
+    clearInterval(timer);
+    for (const res of clients) { try { res.end(); } catch { /* gone */ } }
+    clients.clear();
   });
 
   // ---- status ----
@@ -311,6 +327,21 @@ async function run(argv, ctx) {
     return reply.send({ ok: stopped, message: stopped ? 'stopping' : 'nothing running' });
   });
 
+  // ---- the built front end ----
+  mountStatic(app, site.dir, { reserved: ['/api/'] });
+
+  app.decorate('controlToken', TOKEN);
+  return app;
+}
+
+async function run(argv, ctx) {
+  const { log } = ctx;
+  const flags = _flags(argv);
+  const port = flags.port ? Number(flags.port) : 7778;
+
+  const app = build(ctx);
+  const TOKEN = app.controlToken;
+
   // No token means no remote access. Binding 0.0.0.0 unauthenticated would expose
   // run control and Places spend to anything that can reach the box.
   const host = TOKEN ? '0.0.0.0' : '127.0.0.1';
@@ -329,4 +360,4 @@ async function run(argv, ctx) {
   return new Promise(() => {});
 }
 
-module.exports = { run };
+module.exports = { run, build };

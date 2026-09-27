@@ -796,13 +796,12 @@ in `docs/STATUS.md`.
 
 | Hostname | Serves | Upstream | State |
 |---|---|---|---|
-| `prospect.themaverick.tech` | control (`src/control/`) | `127.0.0.1:7778` | Live |
-| `leads.themaverick.tech` | the deck (`src/server/` + `preview/`) | `127.0.0.1:7777` | Built; live once the A record and `DECK_PASSWORD` exist |
+| `prospect.themaverick.tech` | control (`src/control/` + `web/prospect/`) | `127.0.0.1:7778` | Live |
+| `leads.themaverick.tech` | the deck (`src/server/` + `web/lead/`) | `127.0.0.1:7777` | Built; live once the A record and `DECK_PASSWORD` exist |
 
-- **Names, not paths.** Both apps emit root-absolute URLs (control's `api()`
-  helper in `src/control/ui.html`, the deck's `/data/*` and `/preview/*`).
-  `handle_path` strips a prefix on the way in but cannot change what the browser
-  asks for. One hostname split by path was also rejected: the first new endpoint
+- **Names, not paths.** Both apps emit root-absolute URLs (`/api/*`, `/shots/*`,
+  and Vite's `/assets/*`). `handle_path` strips a prefix on the way in but
+  cannot change what the browser asks for. One hostname split by path was also rejected: the first new endpoint
   on either side collides silently as a confusing 404.
 - **Separate names allow separate auth.** They have separate credentials:
   `CONTROL_PASSWORD` and `DECK_PASSWORD` in `.env`, copied by `./p secrets` to
@@ -826,9 +825,10 @@ in `docs/STATUS.md`.
 - **DNS is Netlify**, not Route53. Each hostname is a manual A record to the EIP,
   and it must resolve before Caddy enables the site, or HTTP-01 fails. `./p`
   polls both names and enables whichever site block resolves.
-- **No CSP.** Copying warden's `script-src 'self'` blanks the control panel,
-  because `ui.html` is one file with inline script and style. Add a CSP only
-  after splitting it into three files.
+- **No CSP yet.** The old panel was one file with inline script and style, so
+  warden's `script-src 'self'` blanked it. Both front ends are now Vite builds
+  with separate hashed JS and CSS and no inline script, so a `'self'` policy is
+  possible; it has not been added in this pass.
 
 ## Control: `node src/cli control`
 
@@ -859,9 +859,14 @@ Constraints it enforces:
   error.
 - **Stop is safe.** SIGTERM, then SIGKILL after 8 s. Capture is per-domain
   atomic, so a stop loses at most the page in flight.
+- **The page is `web/dist/prospect/`**, built by `npm run build:web` from
+  `web/prospect/` (React, `web/DESIGN.md`) and served through
+  `src/server/static.js`. The `onRequest` hook exempts exactly `/` and the files
+  the static resolver finds — hashed JS, CSS, fonts, favicon — so a token-gated
+  panel can load itself; every `/api/*` request stays behind `authorised()`.
 - **Auth is Caddy `basic_auth`, with `CONTROL_TOKEN` unset.** Unset, the server
-  binds `127.0.0.1` (`src/control/index.js:316`) and Caddy is the only public
-  listener. Setting the token binds `0.0.0.0` and puts the secret in a query
+  binds `127.0.0.1` (`src/control/index.js`, `run()`) and Caddy is the only
+  public listener. Setting the token binds `0.0.0.0` and puts the secret in a query
   string, where it lands in logs and phone history. The token stays for the case
   where nothing is in front.
 
@@ -877,10 +882,11 @@ or agency: not in a column, not in a filter, not in the export. Searching the
 served files for any of those words finds nothing, and that is a check, not a
 coincidence.
 
-`src/server/index.js` (Fastify, ~7 routes) and `preview/` (one page, no
-framework, no build step). `preview/app.css` is unchanged — it was always the
-design contract, and the rewrite is `app.js` alone. `src/db/index.js`,
-`preview/data.js` and `preview/mocks.js` are deleted with the old deck.
+`src/server/index.js` (Fastify, ~7 routes) and `web/lead/` (React + Vite,
+built by `npm run build:web` into `web/dist/lead/`, which the server serves
+through `src/server/static.js`). Hash routes, so every view, filter set and
+lead is a link and the server needs no history fallback. The design contract
+is `web/DESIGN.md`.
 
 - **Binds `127.0.0.1`**, hard-coded. Caddy holds the certificate and the
   password and is the only public listener; a deck on `0.0.0.0` would serve
@@ -895,6 +901,13 @@ design contract, and the rewrite is `app.js` alone. `src/db/index.js`,
   `/shots/:domain/:file` validates the domain against `lib-keys.DOMAIN_RE` and
   the file against a two-name allow-list, and sets
   `Cache-Control: private, max-age=604800` — a capture never changes.
+- **Static files are a directory, not an allow-list.** `web/dist/lead/` is
+  served by `src/server/static.js`: the path is decoded, normalised, resolved
+  and `realpath`ed inside the directory, only known content types are emitted,
+  `assets/*` (content-hashed) is `public, max-age=31536000, immutable`, and
+  `index.html` is `no-cache`. `/api/*` and `/shots/*` are routed first and a
+  miss there is a JSON 404, never the page. `scripts/test-deck.js` asserts
+  every one of these for both servers.
 - **Everything pages.** `limit` defaults to 60 and is capped at 60; no endpoint
   returns every lead. The old deck read the whole of `data/index.json` with
   `readFileSync` on every request, under `Cache-Control: no-store`, at ~4.2 KB a
@@ -916,48 +929,26 @@ design contract, and the rewrite is `app.js` alone. `src/db/index.js`,
 
 ### Deck design
 
-`preview/app.css` is the design contract. Extend it in the same idiom; don't
-rewrite or reinterpret it. Where this section and the CSS disagree, the CSS
-wins.
+The design contract is **`web/DESIGN.md`**: the Langfuse tokens both UIs
+adopt, the component inventory in `web/ui/`, and the keyboard map. The
+earlier contract — `preview/app.css`, monochrome, four opacity steps, no
+build step — is retired with `preview/` itself.
 
-- **The screenshots are the only colour in the interface.** Every coloured
-  pixel in view belongs to a lead, not to the chrome, and that is what makes
-  reviewing hundreds of sites in one sitting tolerable. `#000` ground, `#fff`
-  ink, and greys only: no accent, no brand colour, no colour-coded badge, no
-  chart palette. A feature that seems to need colour uses weight, opacity,
-  inversion or space instead.
-- **Hierarchy is four opacity steps** (`--o1` 1, `--o2` .64, `--o3` .40,
-  `--o4` .24) and hairline rules (`--rule` `rgba(255,255,255,.12)`,
-  `--rule-strong` .22). **Emphasis is an inverted block**, white ground and
-  black ink, as on a pressed chip or tier button.
-- **Tier is a glyph or a letter, never a hue:** A, B, C, X, told apart by
-  opacity.
-- **One monospace stack** (`--mono`), a fixed type scale (`.t-micro` 10 px to
-  `.t-num` 34 px), `tabular-nums` on every numeric column, spacing in multiples
-  of `--u` (8 px). No shadows, no rounded corners, no animation beyond the
-  120 ms crossfade (`--t`).
-- **Layout:** the lead view is `270px | minmax(0,1fr) | 300px`, narrowing at
-  1100 px; below 860 px the rails collapse and nothing scrolls sideways.
-- **No toolchain and no network.** Plain HTML, CSS and JS: no framework, no
-  bundler, no build step. No external font, CDN or telemetry request;
-  `index.html` loads `app.css` and `app.js` and nothing else.
+What carries over unchanged, because it is about the operator rather than the
+look:
 
-Accessibility, as the deck implements it:
-
-- Every control is a real `<button>` or `<a href>`, never a `div` with a click
-  handler, and every key binding (A/B/C/X tier, pressing the current one
-  clears it; P pitch; Esc back) is also a visible, clickable control. The
-  keycap footer is the keyboard documentation.
-- Filter chips, tabs and the pitch button carry `aria-pressed`; the tier
-  buttons are `role="radio"` with `aria-checked` as well; the nav marks the
-  current view with `aria-current="page"`. Keys are ignored while a textarea or
-  input has focus.
-- Every screenshot `<img>` has a real alt: "Mobile screenshot of <name>" in the
-  grid, "<shot> screenshot of <name>" in the lead view.
-- `:focus-visible` is a 1 px white outline at a 2 px offset; never remove it.
-  `prefers-reduced-motion: reduce` turns off every animation and transition.
-- `--o4` is decorative only. Never put text the operator needs to read at .24
-  on black.
+- **Nothing computes or implies a judgement.** No score, no colour-coded
+  quality, no sort by anything but the server's order. Evidence badges are
+  neutral; a tier is a letter the operator chose.
+- Every control is a real `<button>`, `<a href>`, `<select>` or `<textarea>`;
+  every key binding has a visible, clickable twin and a keycap hint. Keys are
+  ignored while an input has focus, except Esc.
+- Filter chips, tabs and the pitch button carry `aria-pressed`; the tier group
+  is `role="radiogroup"` with `aria-checked`; every screenshot has an `alt`
+  naming the business; `:focus-visible` is never removed;
+  `prefers-reduced-motion` turns off every transition.
+- No request leaves the origin: fonts are bundled, there is no CDN and no
+  telemetry.
 
 ## Observability
 

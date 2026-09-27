@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Offline tests for the deck's HTTP surface.
+ * Offline tests for the deck's HTTP surface, and control's static and auth rules.
  *
  *     DATABASE_URL=mysql://root:pw@127.0.0.1:3306/prospector_test npm run test:deck
  *
@@ -92,10 +92,22 @@ function makeTree() {
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(path.join(dir, 'config'), { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'config', 'city.json'), path.join(dir, 'config', 'city.json'));
-  // `preview/` is served from the same root, so it has to be reachable from here.
-  fs.mkdirSync(path.join(dir, 'preview'), { recursive: true });
-  for (const f of ['index.html', 'app.css', 'app.js']) {
-    fs.copyFileSync(path.join(ROOT, 'preview', f), path.join(dir, 'preview', f));
+  // Both servers serve `web/dist/<app>/`. A synthetic build with the same shape
+  // — index.html, hashed files under assets/, a favicon — stands in for a real
+  // one, so these tests need no toolchain and assert the serving rules rather
+  // than one particular build. Two traps are planted too: a file with no known
+  // type, and a symlink that points outside the build.
+  for (const app of ['lead', 'prospect']) {
+    const dist = path.join(dir, 'web', 'dist', app);
+    fs.mkdirSync(path.join(dist, 'assets'), { recursive: true });
+    fs.writeFileSync(path.join(dist, 'index.html'),
+      `<!doctype html><title>${app}</title><script type="module" src="/assets/index-abc123.js"></script>`);
+    fs.writeFileSync(path.join(dist, 'assets', 'index-abc123.js'),    'console.log("built")');
+    fs.writeFileSync(path.join(dist, 'assets', 'index-abc123.css'),   'body{}');
+    fs.writeFileSync(path.join(dist, 'assets', 'inter-abc123.woff2'), Buffer.from('woff2-bytes'));
+    fs.writeFileSync(path.join(dist, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+    fs.writeFileSync(path.join(dist, 'notes.xyz'), 'no content type for this');
+    fs.symlinkSync(path.join(dir, 'config', 'city.json'), path.join(dist, 'escape.json'));
   }
   const shots = path.join(dir, 'data', CITY, 'companies', 'alpha.com');
   fs.mkdirSync(shots, { recursive: true });
@@ -296,17 +308,131 @@ async function testShots(app) {
   eq('a domain with no capture is 404', res.statusCode, 404);
 }
 
-async function testStatic(app) {
-  console.log('\n--- static files ---');
+/** The serving rules every built front end relies on (HANDOFF §5). */
+async function testStatic(app, label) {
+  console.log(`\n--- static files (${label}) ---`);
   let res = await app.inject({ method: 'GET', url: '/' });
   eq('the page is served', res.statusCode, 200);
-  assert('as html', /text\/html/.test(res.headers['content-type']));
-  res = await app.inject({ method: 'GET', url: '/app.js' });
-  eq('and its script', res.statusCode, 200);
-  res = await app.inject({ method: 'GET', url: '/../package.json' });
-  assert('nothing outside preview/ is reachable', res.statusCode >= 400, String(res.statusCode));
+  assert('as html', /^text\/html/.test(res.headers['content-type']), res.headers['content-type']);
+  eq('and never cached', res.headers['cache-control'], 'no-cache');
+  assert('it is the built index.html', /index-abc123\.js/.test(res.body));
+
+  res = await app.inject({ method: 'GET', url: '/index.html' });
+  eq('index.html by name too', res.statusCode, 200);
+
+  res = await app.inject({ method: 'HEAD', url: '/' });
+  eq('HEAD works', res.statusCode, 200);
+  assert('with a content-length', Number(res.headers['content-length']) > 0, res.headers['content-length']);
+
+  res = await app.inject({ method: 'GET', url: '/assets/index-abc123.js' });
+  eq('a hashed script is served', res.statusCode, 200);
+  eq('as javascript', res.headers['content-type'], 'text/javascript; charset=utf-8');
+  eq('and immutable for a year', res.headers['cache-control'], 'public, max-age=31536000, immutable');
+
+  res = await app.inject({ method: 'GET', url: '/assets/index-abc123.css' });
+  eq('a stylesheet is text/css', res.headers['content-type'], 'text/css; charset=utf-8');
+  res = await app.inject({ method: 'GET', url: '/assets/inter-abc123.woff2' });
+  eq('a font is font/woff2', res.headers['content-type'], 'font/woff2');
+  res = await app.inject({ method: 'GET', url: '/favicon.svg' });
+  eq('the favicon is image/svg+xml', res.headers['content-type'], 'image/svg+xml');
+  eq('and not immutable — it has no hash', res.headers['cache-control'], 'no-cache');
+
+  for (const bad of ['/../package.json', '/assets/../../../package.json',
+                     '/%2e%2e/package.json', '/assets/..%2f..%2f..%2fpackage.json']) {
+    res = await app.inject({ method: 'GET', url: bad });
+    assert(`nothing outside the build dir is reachable: ${bad}`, res.statusCode >= 400, String(res.statusCode));
+  }
+  res = await app.inject({ method: 'GET', url: '/escape.json' });
+  eq('a symlink out of the build dir is 404', res.statusCode, 404);
   res = await app.inject({ method: 'GET', url: '/secrets.env' });
-  eq('an unlisted name is 404', res.statusCode, 404);
+  eq('an unknown file is 404', res.statusCode, 404);
+  res = await app.inject({ method: 'GET', url: '/notes.xyz' });
+  eq('a file with no known content type is 404, not octet-stream', res.statusCode, 404);
+  res = await app.inject({ method: 'GET', url: '/assets/' });
+  eq('a directory is 404', res.statusCode, 404);
+  res = await app.inject({ method: 'GET', url: '/some/deep/route' });
+  eq('hash routing: no history fallback, an unknown route is 404', res.statusCode, 404);
+
+  res = await app.inject({ method: 'GET', url: '/api/no-such-route' });
+  eq('an unknown /api path is 404', res.statusCode, 404);
+  assert('as JSON, never index.html', /application\/json/.test(res.headers['content-type']),
+    res.headers['content-type']);
+  res = await app.inject({ method: 'GET', url: '/api' });
+  eq('and so is /api itself', res.statusCode, 404);
+}
+
+/**
+ * Control: the page and its files load without a token; `/api/*` never does
+ * when CONTROL_TOKEN is set (HANDOFF §5.2, §5.3).
+ */
+async function testControl() {
+  console.log('\n--- control: assets and auth ---');
+  const { build: buildControl } = require('../src/control/index');
+  const quiet = { info() {}, warn() {}, error() {} };
+
+  // No token: loopback-only mode, everything answers.
+  let ctl = buildControl({ root: TREE, log: quiet, token: null });
+  await ctl.ready();
+  try {
+    let res = await ctl.inject({ method: 'GET', url: '/' });
+    eq('no token: the page is served', res.statusCode, 200);
+    res = await ctl.inject({ method: 'GET', url: '/api/run' });
+    eq('no token: /api/run answers', res.statusCode, 200);
+    eq('with the runner snapshot', res.json().running, false);
+    res = await ctl.inject({ method: 'GET', url: '/api/status' });
+    eq('no token: /api/status answers', res.statusCode, 200);
+    eq('and counts rows', res.json().unit, 'rows');
+    await testStatic(ctl, 'control, no token');
+  } finally { await ctl.close(); }
+
+  // A token: the static paths stay open, every /api path is gated.
+  const TOKEN = 'sekrit-token-for-tests';
+  ctl = buildControl({ root: TREE, log: quiet, token: TOKEN });
+  await ctl.ready();
+  try {
+    let res = await ctl.inject({ method: 'GET', url: '/' });
+    eq('token set: the page loads without one', res.statusCode, 200);
+    res = await ctl.inject({ method: 'GET', url: '/?token=whatever' });
+    eq('token set: and with a query string', res.statusCode, 200);
+    res = await ctl.inject({ method: 'GET', url: '/assets/index-abc123.js' });
+    eq('token set: a hashed asset loads without one', res.statusCode, 200);
+    eq('and is immutable', res.headers['cache-control'], 'public, max-age=31536000, immutable');
+    res = await ctl.inject({ method: 'GET', url: '/assets/inter-abc123.woff2' });
+    eq('token set: a font loads without one', res.statusCode, 200);
+    res = await ctl.inject({ method: 'GET', url: '/favicon.svg' });
+    eq('token set: the favicon loads without one', res.statusCode, 200);
+
+    res = await ctl.inject({ method: 'GET', url: '/api/run' });
+    eq('token set: /api/run without a token is 401', res.statusCode, 401);
+    res = await ctl.inject({ method: 'GET', url: '/api/status' });
+    eq('token set: /api/status without a token is 401', res.statusCode, 401);
+    res = await ctl.inject({ method: 'GET', url: '/api/verticals' });
+    eq('token set: /api/verticals without a token is 401', res.statusCode, 401);
+    res = await ctl.inject({ method: 'POST', url: '/api/run/stop' });
+    eq('token set: POST /api/run/stop without a token is 401', res.statusCode, 401);
+    res = await ctl.inject({ method: 'GET', url: '/api/run', headers: { 'x-control-token': 'wrong' } });
+    eq('token set: a wrong token is 401', res.statusCode, 401);
+    res = await ctl.inject({ method: 'GET', url: '/api/run', headers: { 'x-control-token': TOKEN } });
+    eq('token set: X-Control-Token opens /api/run', res.statusCode, 200);
+    res = await ctl.inject({ method: 'GET', url: `/api/run?token=${TOKEN}` });
+    eq('token set: ?token= opens it too (the EventSource path)', res.statusCode, 200);
+    res = await ctl.inject({ method: 'GET', url: '/api/run', headers: { authorization: `Bearer ${TOKEN}` } });
+    eq('token set: and so does a Bearer header', res.statusCode, 200);
+    res = await ctl.inject({ method: 'POST', url: '/api/run/stop', headers: { 'x-control-token': TOKEN } });
+    eq('token set: stop with a token answers', res.statusCode, 200);
+    eq('and nothing was running', res.json().ok, false);
+
+    res = await ctl.inject({ method: 'GET', url: '/nope.html' });
+    eq('token set: an unknown file is still gated (401), not probed', res.statusCode, 401);
+    res = await ctl.inject({ method: 'GET', url: '/../package.json' });
+    assert('token set: nothing outside the build dir is reachable', res.statusCode >= 400, String(res.statusCode));
+    res = await ctl.inject({ method: 'GET', url: '/escape.json' });
+    assert('token set: the symlink escape is refused', res.statusCode >= 400, String(res.statusCode));
+    res = await ctl.inject({ method: 'GET', url: '/api/index.html' });
+    eq('token set: /api/index.html is not a static path', res.statusCode, 401);
+    res = await ctl.inject({ method: 'GET', url: '/api/../assets/index-abc123.js' });
+    eq('token set: a normalised asset path still serves the asset', res.statusCode, 200);
+  } finally { await ctl.close(); }
 }
 
 // ---------------------------------------------------------------------------
@@ -329,7 +455,8 @@ async function main() {
     await testDecision(app, alphaId);
     await testCsv(app);
     await testShots(app);
-    await testStatic(app);
+    await testStatic(app, 'deck');
+    await testControl();
   } finally {
     await app.close();
     await truncate().catch(() => {});

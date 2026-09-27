@@ -33,16 +33,17 @@ const path = require('path');
 
 const { companyDir, readCity, DOMAIN_RE } = require('../../lib-keys');
 const { db, close } = require('../db/mysql');
+const { mount: mountStatic } = require('./static');
 
 const ROOT = path.join(__dirname, '..', '..');
 
-/** `preview/` is a fixed set of files, so it is an allow-list, not a directory walk. */
-const STATIC = {
-  '':           { file: 'index.html', type: 'text/html; charset=utf-8' },
-  'index.html': { file: 'index.html', type: 'text/html; charset=utf-8' },
-  'app.css':    { file: 'app.css',    type: 'text/css; charset=utf-8' },
-  'app.js':     { file: 'app.js',     type: 'application/javascript; charset=utf-8' },
-};
+/**
+ * The front end is the Vite build in `web/dist/lead/` (`npm run build:web`),
+ * served by `./static.js`: hashed assets immutable, `index.html` no-cache,
+ * nothing outside the directory reachable. `/api/*` and `/shots/*` are routed
+ * first and never fall through to a file.
+ */
+const WEB_DIR = ['web', 'dist', 'lead'];
 
 /** The only two files a screenshot URL may name. */
 const SHOTS = new Set(['desktop.webp', 'mobile.webp']);
@@ -145,21 +146,6 @@ function build(ctx = {}) {
     if (code >= 500) log.error(`${where}: ${err.stack || err.message}`);
     return reply.code(code).send({ error: code >= 500 ? 'server error' : err.message });
   }
-
-  // ---- static ------------------------------------------------------------
-  function sendStatic(reply, name) {
-    const entry = STATIC[name];
-    if (!entry) return reply.code(404).send({ error: 'Not found' });
-    const buf = fs.readFileSync(path.join(root, 'preview', entry.file));
-    reply.header('Content-Type', entry.type);
-    return reply.send(buf);
-  }
-
-  app.get('/', async (req, reply) => sendStatic(reply, ''));
-  app.get('/:file', async (req, reply) => {
-    if (req.params.file.startsWith('api')) return reply.code(404).send({ error: 'Not found' });
-    return sendStatic(reply, req.params.file);
-  });
 
   // ---- verticals ---------------------------------------------------------
   app.get('/api/verticals', async (req, reply) => {
@@ -343,6 +329,12 @@ function build(ctx = {}) {
     reply.header('Cache-Control', 'private, max-age=604800');
     return reply.send(buf);
   });
+
+  // ---- the built front end -----------------------------------------------
+  // Registered last, but the router picks `/api/*` and `/shots/*` over the
+  // wildcard whatever the order; `reserved` makes an unknown `/api/…` a JSON 404
+  // rather than a file lookup.
+  mountStatic(app, path.join(root, ...WEB_DIR), { reserved: ['/api/', '/shots/'] });
 
   return app;
 }

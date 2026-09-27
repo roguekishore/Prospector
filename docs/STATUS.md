@@ -20,8 +20,17 @@ pipeline, both API contracts and the auth model are unchanged.
       commercial F37 Analog). Every dependency pinned exactly; nothing added to
       the root `dependencies`. `npm run build:web` builds both into
       `web/dist/<app>/`. — `web/package.json`, `web/vite.config.ts`
-- [ ] **Serving and deploy** — `src/server/static.js`, both servers, the
-      test-deck assertions, the ship path (§5 of the handoff).
+- [x] **Serving and deploy.** `src/server/static.js` serves a build directory
+      for both servers: `assets/*` immutable for a year, `index.html`
+      `no-cache`, known content types only, `..` and symlink escapes refused,
+      `/api/*` (and the deck's `/shots/*`) never shadowed. Control's
+      `onRequest` hook exempts exactly `/` and the files the resolver finds,
+      so a token-gated panel still loads its hashed JS, CSS and fonts;
+      `/api/*` stays 401 without the token. Control gained a `build()` like the
+      deck's so `scripts/test-deck.js` drives both with `inject()`. `./p ship`
+      builds `web/` locally and appends `web/dist/` to the release tarball
+      (§5.5 option a); `langfuse/` is `export-ignore`. `Caddyfile.prospect`
+      now compresses. — `src/server/static.js`, `src/control/index.js`, `p`
 - [ ] **lead** rebuilt to parity (§3.1) plus the keyboard set (§3.2).
 - [ ] **prospect** rebuilt to parity (§3.3).
 - [ ] **`preview/` and `src/control/ui.html` retired**, docs updated.
