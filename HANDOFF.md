@@ -406,14 +406,130 @@ contract as the reference for later changes.
 
 ---
 
-## 9. Hand-back (fill this in at the end)
+## 9. Hand-back (filled in 2026-09-27)
 
-- What was built, and the stack chosen and why:
-- Ship path chosen (§5.5) and how to deploy:
-- What was verified, and how:
-- What was not verified:
-- Deviations from this handoff:
+- **What was built, and the stack chosen and why:** both UIs rebuilt from
+  scratch under `web/` — `web/lead/` (the review deck), `web/prospect/` (the
+  control panel) and a shared `web/ui/` component library — with **Vite 8 +
+  React 19 + TypeScript (strict) + Tailwind CSS v4**, nothing else: no Radix,
+  no router, no state library. React + Tailwind is the shortest port from the
+  Langfuse source (`langfuse/components/ui/` is shadcn-style React), TypeScript
+  catches the API shape drift this rewrite is most exposed to, and native
+  `<select>`, `<textarea>` and `<dialog>` keep the phone's own controls and
+  leave nothing to pin but React. Every dependency is pinned exactly in
+  `web/package.json`; the root `dependencies` are untouched, so the box's and
+  the Lambda's `npm ci --omit=dev` install exactly what they did before. The
+  tokens are lifted verbatim from `langfuse/style.css` (`web/ui/tokens.css`,
+  documented in `web/DESIGN.md`), the fonts are Inter and Geist Mono
+  self-hosted from npm plus IBM Plex Serif standing in for the commercial F37
+  Analog, and the box idiom (8×8 corner brackets, diagonal hover stripes, 2 px
+  radii, keycap chips) is ported with the MIT notice in `web/THIRD_PARTY.md`.
+  Dark mode follows the OS. Both apps use hash routes; the deck keeps the old
+  deck's route shapes so bookmarks survive. Serving moved to a shared directory
+  handler (`src/server/static.js`), control gained a `build()` so it is
+  testable, and `npm run test:deck` grew from 77 to 150 assertions.
+- **Ship path chosen (§5.5) and how to deploy:** **option (a)**. `./p ship`
+  now runs `npm run web:ci` and `npm run build:web` on the laptop, dies if
+  either fails, and appends `web/dist/lead` and `web/dist/prospect` to the
+  `git archive HEAD` tarball; `langfuse/` is `export-ignore`, so the release is
+  ~1.1 MB and carries no design reference and no `node_modules`. `web/dist/` is
+  gitignored, so the tree stays clean for ship's dirty-tree check. Nothing
+  changes on the box: `install.sh` unpacks, `npm ci --omit=dev` at the root,
+  and the two services serve `web/dist/<app>/` from the release directory.
+  `./p doctor` now also checks for `npm` and `tar`. To deploy: `./p ship`.
+  `docs/COMMANDS.md` documents it.
+- **What was verified, and how:**
+  - `npm run test:deck` — 150 assertions green at every commit: the deck's API
+    as before, plus for both servers: `/`, `index.html`, HEAD, hashed
+    `assets/*` immutable, content types (js, css, woff2, svg), `index.html`
+    `no-cache`, `..` in four spellings, a symlink planted inside the build dir,
+    unknown file, unknown type, a directory, an unknown route, `/api/…` misses
+    as JSON 404; and control with `CONTROL_TOKEN` set: `/`, assets, favicon
+    without a token, every `/api/*` 401 without one, accepted via
+    `X-Control-Token`, `?token=` and `Bearer`.
+  - `npm run build:web` (type-check + both builds) green at every commit.
+  - Both servers started from `npm run serve` / `npm run control` against the
+    **built** apps with no dev server, control both with and without
+    `CONTROL_TOKEN`, and probed with curl (status codes, content types, cache
+    headers).
+  - **The deck**, driven in headless Chromium (Playwright) against the built
+    app at 1440 × 900 and 390 × 844, light and dark: every item in §3.1 and
+    every key in §3.2 — → J ← K, A B C X and 1–4 (second press clears), P, N
+    then Esc blurs and the note saves on blur, D M, U lands on an unreviewed
+    lead, O opens a new tab, Esc lead → grid → overview, ? overlay; J from row
+    60 fetches offset 60 and lands on 61 / 141; the full three-field PUT body;
+    a failed PUT (aborted at the network layer, delayed so the optimistic flip
+    is observable) flips first, reverts, and toasts "Not saved — …"; two chips
+    AND in the URL and the count; the tab keeps filters in the hash; Load more
+    on click and on scroll; the pitch CSV downloads; `localStorage` holds only
+    `deck.vertical`; zero third-party requests; zero page errors. 37 checks.
+  - **The panel**, same method, at 390 × 844 and 1440 × 900, on an open server
+    and on one with `CONTROL_TOKEN`: the SSE dot goes live, totals render with
+    the rows-not-websites sentence, tabs live in the hash, the live estimate
+    (3 keywords → 75–225), both pipeline buttons confirm with the estimate and
+    Esc cancels, a real local capture of a vertical with nothing pending runs
+    and its lines stream into the log, a duplicate vertical shows the server's
+    error in the banner, a real capture run of 31 pending fake domains starts,
+    disables Start, and stops through the confirm with the resume wording; the
+    401 state shows the token form (not a blank), a wrong token stays on it,
+    the right one connects and is kept as `pc.token`, a reload reuses it, and
+    `?token=` in the URL works. 18 checks plus the start → stop flow.
+  - Screenshots of every view at both widths, light and dark, were reviewed by
+    eye (not committed: they contain no real leads, but §1.3 says none).
+  - The ship tarball simulated exactly as `./p ship` builds it: 0 `langfuse/`
+    files, 0 `preview/`, 24 `web/dist/` files, 0 `web/node_modules/`.
+  - `git log origin/main -1` is `73a46e2`, the same as before work started.
+  - Accessibility basics: every control is a real `<button>`, `<a>`, `<select>`
+    or `<textarea>` with a label; tier is `role=radiogroup` / `role=radio` with
+    `aria-checked` and roving tabindex; chips, pitch and tabs carry
+    `aria-pressed` / `aria-selected`; every screenshot has an `alt` naming the
+    business; `:focus-visible` is a 2 px `line-cta` outline, never removed;
+    `prefers-reduced-motion` disables every transition; the token palette gives
+    ≥ 4.5:1 for body text in both modes. **Full WCAG conformance needs manual
+    testing with assistive technology; none was done.**
+- **What was not verified:**
+  - **Nothing was pushed.** Every `git push origin langfuse` returned
+    `403 Permission to roguekishore/Prospector.git denied to aswinlegarcon`:
+    the only GitHub identity on this machine has no write access to the repo.
+    All 16 commits are on the local `langfuse` branch, ahead of
+    `origin/langfuse`, ready to push once the operator grants access or pushes
+    from a machine that has it (`git push origin langfuse`, no force needed).
+  - `./p ship` itself was not run (no AWS credentials here); the tarball step
+    was simulated with the same commands and the shell script passes `bash -n`.
+    The first real ship should be watched.
+  - No human used the deck on real leads; the data was the 5 real captures from
+    `npm run test:run` plus `scripts/seed-demo.js`. The browser checks were
+    headless Chromium, not a hand on a desktop browser or a phone.
+  - Caddy's `encode zstd gzip` on the prospect site was added but not exercised
+    (no Caddy here).
+  - Lambda dispatch and the pipeline's discover step were not started (they
+    spend money); their forms, confirms and request bodies were checked up to
+    the confirm.
+- **Deviations from this handoff:**
+  - The Playwright interaction scripts that verified §3 live in the session's
+    scratch directory, not the repo: adding Playwright-driven browser tests to
+    the repo would mean a new dev toolchain and a running MySQL + server in
+    CI, which §2 did not ask for. `npm run test:deck` covers the server side of
+    every serving and auth rule.
+  - A dev-only `scripts/seed-demo.js` was added (allowed by §7.1).
+  - The `reviewed_at` timezone item in `docs/STATUS.md` was fixed as part of
+    the rewrite (parse as UTC, format in the browser's zone), since the new
+    deck had to render that date anyway.
+  - Dark mode has no toggle; it follows `prefers-color-scheme`, so nothing but
+    the permitted `deck.vertical` and `pc.token` touch `localStorage`.
 
 ## Open requests (backend changes the design wanted, not implemented)
 
-- *(none yet)*
+Neither was needed for parity; both would make the deck nicer and both are
+locked API changes, so they are listed rather than made.
+
+- **Per-chip match counts.** The filter bar would like to show how many rows
+  each chip would leave (`HTTP only · 23`). That needs one aggregate per
+  vertical (`GET /api/verticals/:slug/filters` → `{ http: 23, expired: 4, … }`)
+  or extra fields on `/api/verticals`; today the UI only knows the count of
+  the combination it has fetched.
+- **Server-side "next unreviewed".** `U` pages forward through the list until
+  it finds a row with `reviewed_at IS NULL`, which in a mostly-reviewed vertical
+  can mean several `offset` fetches before the step lands. An endpoint
+  returning the offset (or id) of the first unreviewed row after a given
+  position in the current order would make it one round trip.
