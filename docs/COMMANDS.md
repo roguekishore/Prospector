@@ -50,6 +50,24 @@ DATABASE_URL=mysql://root:pw@127.0.0.1:3306/prospector_test npm run test:db
 | `npm run test:run` | five real captures | Seeds `companies` from `scripts/smoke-companies.json` and captures them. No Places key |
 | `npm run test:clean` | no | Deletes the folders `test:run` wrote and empties the test tables |
 
+## The web UIs: `web/`
+
+The two browser UIs — **lead** (the review deck) and **prospect** (the control
+panel) — are Vite + React apps under `web/`, with their own `package.json` so
+nothing front-end lands in the root `dependencies` (the box and the Lambda run
+`npm ci --omit=dev` from the root). `web/DESIGN.md` is the design contract.
+
+| Command | What it does |
+|---|---|
+| `npm run web:ci` | `npm ci` inside `web/` — once per clone, and after `web/package-lock.json` changes |
+| `npm run build:web` | Type-check, then build both apps into `web/dist/lead/` and `web/dist/prospect/` |
+| `npm run dev:lead` | Vite dev server for the deck on `127.0.0.1:5177`, proxying `/api` and `/shots` to `:7777` — run `npm run serve` alongside |
+| `npm run dev:prospect` | Vite dev server for the control panel on `127.0.0.1:5178`, proxying `/api` to `:7778` — run `npm run control` alongside |
+
+`npm run serve` and `npm run control` serve `web/dist/<app>/` as built, so a
+change to the UI needs `npm run build:web` before it shows there. `web/dist/`
+is not committed; see **`./p ship`** below for how it reaches the box.
+
 ---
 
 ## Arguments
