@@ -49,6 +49,7 @@ DATABASE_URL=mysql://root:pw@127.0.0.1:3306/prospector_test npm run test:db
 | `npm run test:w1` | real DNS + HTTP | Discover + qualify acceptance tests. Discover runs `--source fixture`; qualify really probes |
 | `npm run test:run` | five real captures | Seeds `companies` from `scripts/smoke-companies.json` and captures them. No Places key |
 | `npm run test:clean` | no | Deletes the folders `test:run` wrote and empties the test tables |
+| `node scripts/seed-demo.js` | no | Dev only: fills the `_test` database with ~400 varied rows across five verticals for working on the web UIs. Reuses whatever screenshots `test:run` left. `test:deck` truncates the tables, so run it again afterwards |
 
 ## The web UIs: `web/`
 
