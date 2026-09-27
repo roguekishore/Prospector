@@ -1,6 +1,7 @@
 # The control panel: progress, and the buttons that start a run. Its password is
 # separate from the deck's because this one can spend Places quota.
 prospect.themaverick.tech {
+    encode zstd gzip
     basic_auth {
         operator {$CONTROL_AUTH_HASH}
     }
