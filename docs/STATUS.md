@@ -31,7 +31,24 @@ pipeline, both API contracts and the auth model are unchanged.
       builds `web/` locally and appends `web/dist/` to the release tarball
       (§5.5 option a); `langfuse/` is `export-ignore`. `Caddyfile.prospect`
       now compresses. — `src/server/static.js`, `src/control/index.js`, `p`
-- [ ] **lead** rebuilt to parity (§3.1) plus the keyboard set (§3.2).
+- [x] **lead rebuilt to parity, plus the keyboard set.** `web/lead/`: overview
+      with totals and per-vertical progress; vertical view with Leads /
+      No-website tabs, AND-combined filter chips, a 60-a-page card grid that
+      loads more on a click or on scroll, and a no-website table (stacked
+      cards on a phone) with tier and pitch per row; lead detail with mobile /
+      desktop shots (fit or actual size), Places and qualify facts, outside
+      links grouped social / other (`noopener noreferrer`), tier radio group,
+      pitch toggle and a note saved on blur; pitch CSV. Decisions are
+      optimistic and revert with a "Not saved — …" toast; nothing but the
+      last-opened vertical touches localStorage. Hash routes keep the old
+      deck's shapes so bookmarks survive. Keys: → J ← K, A B C X and 1–4, P,
+      N, D M, U, O, Esc, ?; stepping follows the list order, crosses page
+      boundaries by fetching the next `offset`, and prefetches the neighbours'
+      detail and shots. Verified with a Playwright script against the built
+      app at 1440 and 390 px (37 checks: every key, the page-boundary step, a
+      failed PUT reverting, filters in the URL, storage) — the script lives
+      outside the repo; `npm run test:deck` covers the server side. —
+      `web/lead/src/`
 - [ ] **prospect** rebuilt to parity (§3.3).
 - [ ] **`preview/` and `src/control/ui.html` retired**, docs updated.
 
@@ -343,7 +360,11 @@ contract and only `app.js` needed rewriting. Verified by `npm run test:deck`
       kept in localStorage. A decision made on one device appears on another
       after a refresh, and survives `./p ship` — **still to confirm by hand with
       the operator once the deck is public** (spec B done-when 8).
-- [ ] **The one date the deck shows is the UTC date, not the operator's.**
+- [x] **The one date the deck shows is the UTC date, not the operator's.**
+      Fixed in the rebuilt deck: `web/ui/format.ts` parses a bare `DATETIME`
+      as UTC (`s.replace(' ', 'T') + 'Z'`) and formats it in the browser's own
+      zone with `toLocaleString`, so a 00:00–05:30 IST decision shows the
+      right day. The old note, kept for the record:
       Storage is UTC everywhere on purpose — that is what makes the laptop, the
       box and Lambda agree (see the clock item under *Open — robustness before
       the next run*) — but `reviewed_at` is rendered by truncating the stored
