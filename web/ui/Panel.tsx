@@ -5,7 +5,7 @@ import { cn } from './cn';
  * A langfuse box: 1 px border on `surface-bg` with the four 8×8 corner
  * brackets. `title` renders a 15 px serif heading row with optional actions.
  */
-export function Panel({ title, actions, pad = true, className, children, as: Tag = 'section', ...rest }: HTMLAttributes<HTMLElement> & {
+export function Panel({ title, actions, pad = true, className, children, as: Tag = 'section', ...rest }: Omit<HTMLAttributes<HTMLElement>, 'title'> & {
   title?: ReactNode; actions?: ReactNode; pad?: boolean; children?: ReactNode; as?: 'section' | 'div' | 'article' | 'aside';
 }) {
   return (
