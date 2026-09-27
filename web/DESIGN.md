@@ -128,7 +128,8 @@ Both apps use **hash routes**, so the servers need no history fallback and every
 existing bookmark keeps working.
 
 lead: `#/` overview · `#/v/<slug>[/no-website][?filter=a,b]` vertical ·
-`#/lead/<id>[?filter=…&from=<slug>]` detail.
+`#/lead/<id>[?v=<slug>&tab=no-website&filter=a,b]` detail, where the query is
+the list the lead was opened from, so → / ← step through exactly that list.
 
 prospect: `#progress` · `#run` · `#new` · `#log`.
 
